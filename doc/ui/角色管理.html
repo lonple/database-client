@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DBC · 角色管理</title>
+  <link rel="stylesheet" href="common.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="logo">DBC</div>
+      <a class="nav-l1" href="用户管理.html">用户中心</a>
+      <div class="header-right">
+        <span>admin · 超级管理员</span>
+        <a class="btn" href="登录.html">退出</a>
+      </div>
+    </header>
+
+    <div class="body">
+      <aside class="sidebar">
+        <div class="side-label">二级菜单</div>
+        <a class="side-item" href="用户管理.html">用户管理</a>
+        <a class="side-item active" href="角色管理.html">角色管理</a>
+      </aside>
+
+      <main class="main">
+        <div class="breadcrumb">用户中心 / 角色管理</div>
+        <div class="page-title">
+          <h2>角色管理</h2>
+        </div>
+
+        <div class="panel">
+          <table class="data">
+            <thead>
+              <tr>
+                <th>角色名称</th>
+                <th>角色编码</th>
+                <th>说明</th>
+                <th>内置</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>超级管理员</td>
+                <td>SUPER_ADMIN</td>
+                <td>全部权限；默认账号 admin 归属此角色</td>
+                <td>是</td>
+                <td class="ops"><button class="btn-link" type="button" onclick="openModal('viewModal')">查看</button></td>
+              </tr>
+              <tr>
+                <td>系统管理员</td>
+                <td>SYS_ADMIN</td>
+                <td>用户与系统配置</td>
+                <td>是</td>
+                <td class="ops"><button class="btn-link" type="button" onclick="openModal('viewModal')">查看</button></td>
+              </tr>
+              <tr>
+                <td>数据库管理员</td>
+                <td>DB_ADMIN</td>
+                <td>创建工作空间、变更所有者；数据侧运维与配置</td>
+                <td>是</td>
+                <td class="ops"><button class="btn-link" type="button" onclick="openModal('viewModal')">查看</button></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="pager">
+            <span>共 3 条</span>
+            <span>内置角色不可增删改</span>
+          </div>
+        </div>
+        <p class="note">三个内置角色；平台已无「数据操作人员」（该身份仅存在于工作空间角色）。</p>
+      </main>
+    </div>
+  </div>
+
+  <div class="modal-mask" id="viewModal">
+    <div class="modal">
+      <div class="modal-header">角色详情 <button class="modal-close" type="button" onclick="closeModal('viewModal')">×</button></div>
+      <div class="modal-body">
+        <div class="form-row"><label>角色名称</label><div class="readonly">超级管理员</div></div>
+        <div class="form-row"><label>角色编码</label><div class="readonly">SUPER_ADMIN</div></div>
+        <div class="form-row"><label>说明</label><div class="readonly">全部权限；默认账号 admin 归属此角色</div></div>
+        <div class="form-row"><label>内置</label><div class="readonly">是</div></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" type="button" onclick="closeModal('viewModal')">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function openModal(id) { document.getElementById(id).classList.add("show"); }
+    function closeModal(id) { document.getElementById(id).classList.remove("show"); }
+    document.querySelectorAll(".modal-mask").forEach(function (mask) {
+      mask.addEventListener("click", function (e) {
+        if (e.target === mask) mask.classList.remove("show");
+      });
+    });
+  </script>
+</body>
+</html>

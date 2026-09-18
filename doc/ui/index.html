@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DBC UI 原型索引</title>
+  <link rel="stylesheet" href="common.css" />
+  <style>
+    .index { max-width: 800px; margin: 48px auto; padding: 0 24px 48px; }
+    .index h1 { font-size: 24px; margin: 0 0 8px; }
+    .index .desc { color: var(--text-secondary); margin-bottom: 8px; }
+    .index .desc a { font-weight: 500; }
+    .section { margin: 28px 0 12px; font-size: 13px; color: var(--text-secondary); font-weight: 600; }
+    .cards { display: grid; gap: 12px; }
+    .card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+    .card strong { display: block; margin-bottom: 4px; }
+    .card span { color: var(--text-secondary); font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="index">
+    <h1>DBC UI 原型</h1>
+    <p class="desc">浏览器直接打开。主设计见 <a href="../设计/需求/01-需求设计.md">需求设计</a>；UI 见 <a href="../设计/详细设计/06-前端与界面设计.md">前端与界面设计</a>。顶栏顺序：首页 → SQL 工作台 → 资产管理 → 用户中心 → 系统管理。</p>
+
+    <div class="section">用户中心</div>
+    <div class="cards">
+      <div class="card">
+        <div><strong>登录</strong><span>账号 / 密码</span></div>
+        <a class="btn btn-primary" href="登录.html">打开</a>
+      </div>
+      <div class="card">
+        <div><strong>用户管理</strong><span>列表、增删改、重置密码</span></div>
+        <a class="btn btn-primary" href="用户管理.html">打开</a>
+      </div>
+      <div class="card">
+        <div><strong>角色管理</strong><span>三角色：超管 / 系统管理员 / 数据库管理员</span></div>
+        <a class="btn btn-primary" href="角色管理.html">打开</a>
+      </div>
+    </div>
+
+    <div class="section">资产管理 · 工作空间</div>
+    <div class="cards">
+      <div class="card">
+        <div><strong>工作空间</strong><span>列表、新建、变更所有者（DB_ADMIN）</span></div>
+        <a class="btn btn-primary" href="工作空间.html">打开</a>
+      </div>
+      <div class="card">
+        <div><strong>工作空间详情</strong><span>成员 / 资产授权 / 成员授权（DDL·DML）</span></div>
+        <a class="btn btn-primary" href="工作空间详情.html">打开</a>
+      </div>
+    </div>
+
+    <div class="section">SQL 工作台</div>
+    <div class="cards">
+      <div class="card">
+        <div><strong>选择工作空间</strong><span>进入前必须选空间</span></div>
+        <a class="btn btn-primary" href="SQL工作台.html">打开</a>
+      </div>
+      <div class="card">
+        <div><strong>编辑台（选空间后）</strong><span>对象树 + SQL 编辑 + 结果表</span></div>
+        <a class="btn btn-primary" href="SQL工作台-编辑.html">打开</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

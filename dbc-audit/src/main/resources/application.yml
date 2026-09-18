@@ -1,0 +1,44 @@
+server:
+  port: 8008
+
+spring:
+  application:
+    name: dbc-audit
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${DBC_NACOS_ADDR:127.0.0.1:8000}
+        metadata:
+          mtls-port: ${DBC_AUDIT_MTLS_PORT:8048}
+  elasticsearch:
+    uris: ${DBC_ES_URIS:http://127.0.0.1:9200}
+    connection-timeout: 5s
+    socket-timeout: 30s
+
+dbc:
+  jwt:
+    expire-hours: 8
+  secrets:
+    dir: ${DBC_SECRETS_DIR:secrets}
+  mtls:
+    enabled: true
+    port: ${DBC_AUDIT_MTLS_PORT:8048}
+  audit:
+    index-env: ${DBC_AUDIT_INDEX_ENV:dev}
+    usercenter-base-url: ${DBC_USERCENTER_BASE_URL:http://dbc-usercenter}
+    usercenter-mtls-base-url: ${DBC_USERCENTER_MTLS_BASE_URL:discovery://dbc-usercenter}
+    client-id: dbc-audit
+    permission-register-initial-delay-ms: 2000
+    permission-register-max-delay-ms: 60000
+    client:
+      enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  level:
+    com.lyj.dbc.audit: INFO

@@ -1,0 +1,137 @@
+# =============================================================================
+# DBC 中间件 Compose（本地 Docker Desktop / 学习联调）
+# =============================================================================
+# 已知不足 / 非生产：明文口令、ES/Nacos 关安全、单机无 HA。
+#
+# 宿主机数据根：E:\app\docker\workspace\dbc
+# 用法（仓库根）：
+#   powershell -File scripts\init-docker-workspace.ps1
+#   docker compose -f deploy/middleware/docker-compose.yml up -d
+#
+# 属性注释约定：同一键（如 image / ports / volumes）仅在首次出现处说明，后文不重复。
+# =============================================================================
+
+# name：Compose 项目名，用于隔离容器/网络命名空间（docker compose ls 可见）
+name: dbc-middleware
+
+# networks：自定义网络，供本文件内服务互通；应用 Compose 将以 external 方式接入同名网络
+networks:
+  dbc-net:
+    # name：固定网络名，便于另一个 compose 用 external: true 引用
+    name: dbc-net
+    # driver：bridge=单宿主机网桥（默认）；跨多机需 overlay 等，本学习环境用 bridge
+    driver: bridge
+
+services:
+  # ---------- PostgreSQL：平台库（各业务 schema 由 Flyway 创建）----------
+  postgres:
+    # image：使用的镜像名:标签（本地已拉取则不再下载）
+    image: postgres:18
+    # container_name：固定容器名，便于 docker exec / 日志查看（多副本时不要写死）
+    container_name: dbc-postgres
+    # restart：容器退出后的策略；unless-stopped=除非手动 stop，否则自动拉起
+    restart: unless-stopped
+    # environment：注入容器进程环境变量（覆盖镜像默认配置）
+    environment:
+      # 首次初始化时创建的数据库名
+      POSTGRES_DB: postgres
+      # 超级用户名（与业务 DBC_DB_USER 对齐，仅本地）
+      POSTGRES_USER: postgres
+      # 超级用户密码（明文仅本地；生产须 Secret）
+      POSTGRES_PASSWORD: root
+      # 容器时区
+      TZ: Asia/Shanghai
+    # ports：宿主机端口:容器端口，供本机工具或未入网进程访问
+    ports:
+      - "5432:5432"
+    # volumes：宿主机路径:容器路径，持久化数据，避免删容器丢库
+    volumes:
+      # Postgres 18+ 须挂载到 /var/lib/postgresql（不要挂 .../data）
+      - E:/app/docker/workspace/dbc/postgres/data:/var/lib/postgresql
+    # networks：加入哪些 Compose 网络（同网可用服务名 postgres 互访）
+    networks:
+      - dbc-net
+    # healthcheck：健康检查，供 depends_on condition 或运维判断就绪
+    healthcheck:
+      # test：检查命令；CMD-SHELL 走 shell
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      # interval：检查间隔
+      interval: 5s
+      # timeout：单次检查超时
+      timeout: 5s
+      # retries：连续失败多少次视为 unhealthy
+      retries: 10
+
+  # ---------- Redis：签名 nonce 等 ----------
+  redis:
+    image: redis:8.8.2
+    container_name: dbc-redis
+    restart: unless-stopped
+    # command：覆盖镜像默认启动命令；此处开启 AOF 持久化
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - E:/app/docker/workspace/dbc/redis/data:/data
+    networks:
+      - dbc-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ---------- Nacos 3.x：服务发现（控制台与 API 分端口）----------
+  nacos:
+    image: nacos/nacos-server:v3.2.4-slim
+    container_name: dbc-nacos
+    restart: unless-stopped
+    environment:
+      # 单机模式（非 cluster）
+      MODE: standalone
+      # 寻址偏好 hostname（多网卡场景）
+      PREFER_HOST_MODE: hostname
+      # 关闭控制台/API 鉴权（仅本地；生产必须 true 并换 Token）
+      NACOS_AUTH_ENABLE: "false"
+      # 鉴权相关占位（部分镜像启动仍读取）
+      NACOS_AUTH_TOKEN: VGhpc0lzTXlDdXN0b21TZWNyZXRLZXkwMTIzNDU2Nzg=
+      NACOS_AUTH_IDENTITY_KEY: serverIdentity
+      NACOS_AUTH_IDENTITY_VALUE: security
+      # Nacos JVM 堆
+      JVM_XMS: 256m
+      JVM_XMX: 512m
+      TZ: Asia/Shanghai
+    ports:
+      # 宿主机 8000 → 容器 API 8848（与历史本地约定对齐；容器互访仍用 nacos:8848）
+      - "8000:8848"
+      # 宿主机 8001 → 控制台 8080（Nacos 3）
+      - "8001:8080"
+      # 宿主机 9000 → gRPC 9848（本机客户端连 8000 时会访问 8000+1000）
+      - "9000:9848"
+    volumes:
+      - E:/app/docker/workspace/dbc/nacos/logs:/home/nacos/logs
+    networks:
+      - dbc-net
+
+  # ---------- Elasticsearch：仅 audit 写入（本地关安全）----------
+  elasticsearch:
+    image: elasticsearch:9.2.3
+    container_name: dbc-elasticsearch
+    restart: unless-stopped
+    environment:
+      # 单节点，不组集群
+      discovery.type: single-node
+      # 关闭 X-Pack 安全（仅本地）
+      xpack.security.enabled: "false"
+      xpack.security.http.ssl.enabled: "false"
+      # ES 进程 JVM
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+      # 集群显示名
+      cluster.name: dbc-audit
+      TZ: Asia/Shanghai
+    ports:
+      - "9200:9200"
+    volumes:
+      - E:/app/docker/workspace/dbc/elasticsearch/data:/usr/share/elasticsearch/data
+    networks:
+      - dbc-net

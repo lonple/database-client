@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DBC · 用户管理</title>
+  <link rel="stylesheet" href="common.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="logo">DBC</div>
+      <a class="nav-l1" href="用户管理.html">用户中心</a>
+      <div class="header-right">
+        <span>admin · 超级管理员</span>
+        <a class="btn" href="登录.html">退出</a>
+      </div>
+    </header>
+
+    <div class="body">
+      <aside class="sidebar">
+        <div class="side-label">二级菜单</div>
+        <a class="side-item active" href="用户管理.html">用户管理</a>
+        <a class="side-item" href="角色管理.html">角色管理</a>
+      </aside>
+
+      <main class="main">
+        <div class="breadcrumb">用户中心 / 用户管理</div>
+        <div class="page-title">
+          <h2>用户管理</h2>
+          <button class="btn btn-primary" type="button" onclick="openModal('createModal')">新增用户</button>
+        </div>
+
+        <div class="toolbar">
+          <input class="input" type="search" placeholder="账号" id="searchUser" />
+          <button class="btn" type="button">查询</button>
+          <button class="btn" type="button" onclick="document.getElementById('searchUser').value=''">重置</button>
+        </div>
+
+        <div class="panel">
+          <table class="data">
+            <thead>
+              <tr>
+                <th>账号</th>
+                <th>角色</th>
+                <th>手机号</th>
+                <th>描述</th>
+                <th>状态</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>admin</td>
+                <td>超级管理员</td>
+                <td>13800000000</td>
+                <td>内置账号</td>
+                <td><span class="tag tag-success">启用</span></td>
+                <td class="ops">
+                  <button class="btn-link" type="button" onclick="openModal('editModal')">编辑</button>
+                  <button class="btn-link" type="button" disabled>禁用</button>
+                  <button class="btn-link" type="button" onclick="openModal('resetModal')">重置密码</button>
+                  <button class="btn-link danger" type="button" disabled>删除</button>
+                </td>
+              </tr>
+              <tr>
+                <td>operator</td>
+                <td>系统管理员</td>
+                <td>13900000000</td>
+                <td>运维</td>
+                <td><span class="tag tag-success">启用</span></td>
+                <td class="ops">
+                  <button class="btn-link" type="button" onclick="openModal('editModal')">编辑</button>
+                  <button class="btn-link" type="button">禁用</button>
+                  <button class="btn-link" type="button" onclick="openModal('resetModal')">重置密码</button>
+                  <button class="btn-link danger" type="button" onclick="confirmDelete('operator')">删除</button>
+                </td>
+              </tr>
+              <tr>
+                <td>analyst</td>
+                <td>数据库管理员</td>
+                <td>13700000000</td>
+                <td>库管</td>
+                <td><span class="tag tag-default">禁用</span></td>
+                <td class="ops">
+                  <button class="btn-link" type="button" onclick="openModal('editModal')">编辑</button>
+                  <button class="btn-link" type="button">启用</button>
+                  <button class="btn-link" type="button" onclick="openModal('resetModal')">重置密码</button>
+                  <button class="btn-link danger" type="button" onclick="confirmDelete('analyst')">删除</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="pager">
+            <span>共 3 条</span>
+            <span>10 条 / 页</span>
+          </div>
+        </div>
+        <p class="note">原型说明：内置 admin 不可删除、不可禁用；密码仅新增或重置时填写。</p>
+      </main>
+    </div>
+  </div>
+
+  <!-- 新增 -->
+  <div class="modal-mask" id="createModal">
+    <div class="modal">
+      <div class="modal-header">新增用户 <button class="modal-close" type="button" onclick="closeModal('createModal')">×</button></div>
+      <div class="modal-body">
+        <div class="form-row"><label><span class="req">*</span>账号</label><input class="input" placeholder="登录账号" /></div>
+        <div class="form-row"><label><span class="req">*</span>密码</label><input class="input" type="password" placeholder="初始密码" /></div>
+        <div class="form-row">
+          <label><span class="req">*</span>角色</label>
+          <select class="select">
+            <option>超级管理员</option>
+            <option selected>系统管理员</option>
+            <option>数据库管理员</option>
+          </select>
+        </div>
+        <div class="form-row"><label>手机号</label><input class="input" placeholder="可选" /></div>
+        <div class="form-row"><label>描述</label><textarea class="textarea" placeholder="可选"></textarea></div>
+        <div class="form-row">
+          <label>状态</label>
+          <select class="select"><option selected>启用</option><option>禁用</option></select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" type="button" onclick="closeModal('createModal')">取消</button>
+        <button class="btn btn-primary" type="button" onclick="closeModal('createModal')">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 编辑 -->
+  <div class="modal-mask" id="editModal">
+    <div class="modal">
+      <div class="modal-header">编辑用户 <button class="modal-close" type="button" onclick="closeModal('editModal')">×</button></div>
+      <div class="modal-body">
+        <div class="form-row"><label>账号</label><div class="readonly">operator</div></div>
+        <div class="form-row">
+          <label><span class="req">*</span>角色</label>
+          <select class="select">
+            <option>超级管理员</option>
+            <option selected>系统管理员</option>
+            <option>数据库管理员</option>
+          </select>
+        </div>
+        <div class="form-row"><label>手机号</label><input class="input" value="13900000000" /></div>
+        <div class="form-row"><label>描述</label><textarea class="textarea">运维</textarea></div>
+        <div class="form-row">
+          <label>状态</label>
+          <select class="select"><option selected>启用</option><option>禁用</option></select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" type="button" onclick="closeModal('editModal')">取消</button>
+        <button class="btn btn-primary" type="button" onclick="closeModal('editModal')">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 重置密码 -->
+  <div class="modal-mask" id="resetModal">
+    <div class="modal">
+      <div class="modal-header">重置密码 <button class="modal-close" type="button" onclick="closeModal('resetModal')">×</button></div>
+      <div class="modal-body">
+        <div class="form-row"><label><span class="req">*</span>新密码</label><input class="input" type="password" /></div>
+        <div class="form-row"><label><span class="req">*</span>确认密码</label><input class="input" type="password" /></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" type="button" onclick="closeModal('resetModal')">取消</button>
+        <button class="btn btn-primary" type="button" onclick="closeModal('resetModal')">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function openModal(id) { document.getElementById(id).classList.add("show"); }
+    function closeModal(id) { document.getElementById(id).classList.remove("show"); }
+    function confirmDelete(name) {
+      if (window.confirm("确认删除用户「" + name + "」？此操作不可恢复。")) {
+        /* 原型仅示意 */
+      }
+    }
+    document.querySelectorAll(".modal-mask").forEach(function (mask) {
+      mask.addEventListener("click", function (e) {
+        if (e.target === mask) mask.classList.remove("show");
+      });
+    });
+  </script>
+</body>
+</html>

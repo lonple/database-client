@@ -1,0 +1,9 @@
+# 忽略构建缓存，但必须保留 bootJar 产物供 COPY
+.gradle/
+bin/
+out/
+*.iml
+.idea/
+build/**
+!build/libs/
+!build/libs/app.jar

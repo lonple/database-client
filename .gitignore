@@ -1,0 +1,15 @@
+**/node_modules/
+**/dist/
+**/.gradle/
+**/build/
+**/.idea/
+**/.cursor/
+**/*.iml
+**/.vscode/
+**/target/
+.DS_Store
+*.log
+
+# 本地密钥与应用口令（勿提交）
+/secrets/*
+!/secrets/README.md

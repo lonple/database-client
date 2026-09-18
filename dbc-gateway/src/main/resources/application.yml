@@ -1,0 +1,59 @@
+server:
+  port: 8003
+
+spring:
+  application:
+    name: dbc-gateway
+  # 与 manage 驱动上传 64MB 对齐，避免网关缓冲截断大 body
+  codec:
+    max-in-memory-size: 64MB
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${DBC_NACOS_ADDR:127.0.0.1:8000}
+    gateway:
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns: "*"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+            allowCredentials: true
+      discovery:
+        locator:
+          enabled: false
+      routes:
+        - id: dbc-usercenter
+          uri: lb://dbc-usercenter
+          predicates:
+            - Path=/dbc-usercenter/**
+          filters:
+            - StripPrefix=1
+        - id: dbc-manage
+          uri: lb://dbc-manage
+          predicates:
+            - Path=/dbc-manage/**
+          filters:
+            - StripPrefix=1
+        - id: dbc-sqlwork
+          uri: lb://dbc-sqlwork
+          predicates:
+            - Path=/dbc-sqlwork/**
+          filters:
+            - StripPrefix=1
+        - id: dbc-audit
+          uri: lb://dbc-audit
+          predicates:
+            - Path=/dbc-audit/**
+          filters:
+            - StripPrefix=1
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  level:
+    org.springframework.cloud.gateway: INFO

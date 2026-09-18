@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DBC · SQL 工作台 · 订单项目-研发</title>
+  <link rel="stylesheet" href="common.css" />
+  <style>
+    .sw-body { flex: 1; display: flex; min-height: 0; }
+    .sw-side {
+      width: 280px;
+      background: #fafafa;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+    .sw-side-hd {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 500;
+      background: #fff;
+    }
+    .sw-side-hd .sub { font-size: 12px; color: var(--text-secondary); font-weight: 400; margin-top: 4px; line-height: 1.5; }
+    .sw-tree { flex: 1; overflow: auto; padding: 8px 0; font-size: 13px; }
+    .sw-tree details { margin: 0; }
+    .sw-tree summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 5px 10px;
+      border-radius: 4px;
+      margin: 1px 6px;
+      user-select: none;
+    }
+    .sw-tree summary::-webkit-details-marker { display: none; }
+    .sw-tree summary::before {
+      content: "▸";
+      display: inline-block;
+      width: 14px;
+      color: var(--text-secondary);
+      font-size: 11px;
+    }
+    .sw-tree details[open] > summary::before { content: "▾"; }
+    .sw-tree summary:hover, .sw-tree .leaf:hover { background: #00000008; }
+    .sw-tree .nest { padding-left: 14px; }
+    .sw-tree .leaf {
+      display: block;
+      padding: 4px 10px 4px 28px;
+      margin: 1px 6px;
+      border-radius: 4px;
+      color: var(--text);
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .sw-tree .leaf.active { background: #e6f4ff; color: var(--primary); }
+    .sw-tree .kind { color: var(--text-secondary); font-size: 12px; margin-right: 4px; }
+    .sw-main { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg); }
+    .sw-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      padding: 10px 16px;
+      background: #fff;
+      border-bottom: 1px solid var(--border);
+    }
+    .sw-bar .sep { width: 1px; height: 20px; background: var(--border-strong); margin: 0 4px; }
+    .sw-editor-wrap {
+      flex: 1;
+      display: grid;
+      grid-template-rows: auto 1fr minmax(160px, 36%);
+      min-height: 0;
+    }
+    .sw-tabs {
+      display: flex;
+      gap: 0;
+      background: #fff;
+      border-bottom: 1px solid var(--border);
+      padding: 0 8px;
+      align-items: flex-end;
+    }
+    .sw-tab {
+      padding: 8px 14px;
+      border: 1px solid transparent;
+      border-bottom: none;
+      background: transparent;
+      cursor: pointer;
+      font: inherit;
+      color: var(--text-secondary);
+      border-radius: 6px 6px 0 0;
+    }
+    .sw-tab.active {
+      background: #fff;
+      color: var(--text);
+      border-color: var(--border);
+      position: relative;
+      bottom: -1px;
+      font-weight: 500;
+    }
+    .sw-editor-pane {
+      background: #fff;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .sw-editor-pane .sql-editor {
+      flex: 1;
+      border: none;
+      border-radius: 0;
+      min-height: 160px;
+      outline: none;
+    }
+    .sw-result-pane {
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .sw-result-hd {
+      display: flex;
+      gap: 16px;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--text-secondary);
+      background: #fafafa;
+    }
+    .sw-result-hd .ok { color: var(--success); }
+    .sw-result-body { flex: 1; overflow: auto; }
+    .sw-result-body table.data th { position: sticky; top: 0; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="logo">DBC</div>
+      <nav class="nav-l1-group" aria-label="一级菜单">
+        <a class="nav-l1-item" href="用户管理.html">用户中心</a>
+        <a class="nav-l1-item" href="#">系统管理</a>
+        <a class="nav-l1-item" href="工作空间.html">数据管控</a>
+        <a class="nav-l1-item active" href="SQL工作台.html">SQL 工作台</a>
+      </nav>
+      <div class="header-right">
+        <span>alice · 空间：订单项目-研发</span>
+        <a class="btn" href="登录.html">退出</a>
+      </div>
+    </header>
+
+    <div class="sw-bar">
+      <label>工作空间</label>
+      <select class="select" style="width:180px" onchange="if(this.value==='') location.href='SQL工作台.html'">
+        <option selected>订单项目-研发</option>
+        <option>报表只读空间</option>
+        <option value="">切换 / 重选…</option>
+      </select>
+      <label>连接</label>
+      <select class="select" id="connSelect" style="width:180px" onchange="onConnChange()">
+        <option value="pg" selected>pg-order-ro</option>
+        <option value="mysql">mysql-bi</option>
+      </select>
+      <span class="tag tag-default" id="dialectTag">POSTGRESQL</span>
+      <div class="sep"></div>
+      <button class="btn btn-primary" type="button">执行</button>
+      <button class="btn" type="button">停止</button>
+      <button class="btn" type="button">格式化</button>
+      <span class="note" style="margin:0 0 0 auto">对象树随库类型切换：PG=库→模式→表/视图；MySQL=库→表/视图</span>
+    </div>
+
+    <div class="sw-body">
+      <aside class="sw-side">
+        <div class="sw-side-hd">
+          对象浏览
+          <div class="sub" id="treeSub">连接：pg-order-ro · POSTGRESQL<br />层次：库 → 模式 → 表 / 视图</div>
+        </div>
+        <div class="sw-tree" id="objTree"></div>
+      </aside>
+
+      <div class="sw-main">
+        <div class="sw-editor-wrap">
+          <div class="sw-tabs">
+            <button class="sw-tab active" type="button">查询 1</button>
+            <button class="sw-tab" type="button">查询 2</button>
+            <button class="sw-tab" type="button" title="新建">+</button>
+          </div>
+          <div class="sw-editor-pane">
+            <textarea class="sql-editor" id="sqlEditor" spellcheck="false"></textarea>
+          </div>
+          <div class="sw-result-pane">
+            <div class="sw-result-hd">
+              <span class="ok">执行成功</span>
+              <span>耗时 42 ms</span>
+              <span>返回 3 行</span>
+              <span id="resultConn">连接 pg-order-ro</span>
+            </div>
+            <div class="sw-result-body">
+              <table class="data">
+                <thead>
+                  <tr><th>id</th><th>order_no</th><th>status</th><th>amount</th><th>customer</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>10021</td><td>ORD-20260907-001</td><td>PAID</td><td>128.00</td><td>张三</td></tr>
+                  <tr><td>10020</td><td>ORD-20260906-088</td><td>SHIPPED</td><td>56.50</td><td>李四</td></tr>
+                  <tr><td>10019</td><td>ORD-20260906-012</td><td>CANCELLED</td><td>0.00</td><td>王五</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const TREE_PG = `
+<details open>
+  <summary>🗄 库 order <span class="kind">(database)</span></summary>
+  <div class="nest">
+    <details open>
+      <summary>📂 模式 public</summary>
+      <div class="nest">
+        <details open>
+          <summary>表</summary>
+          <div class="nest">
+            <span class="leaf active" data-ref="public.t_order">📄 t_order</span>
+            <span class="leaf" data-ref="public.t_order_item">📄 t_order_item</span>
+            <span class="leaf" data-ref="public.t_customer">📄 t_customer</span>
+          </div>
+        </details>
+        <details>
+          <summary>视图</summary>
+          <div class="nest">
+            <span class="leaf" data-ref="public.v_order_daily">👁 v_order_daily</span>
+          </div>
+        </details>
+      </div>
+    </details>
+    <details>
+      <summary>📂 模式 audit</summary>
+      <div class="nest">
+        <details open>
+          <summary>表</summary>
+          <div class="nest">
+            <span class="leaf" data-ref="audit.t_sql_log">📄 t_sql_log</span>
+          </div>
+        </details>
+        <details>
+          <summary>视图</summary>
+          <div class="nest">
+            <span class="leaf" data-ref="audit.v_recent">👁 v_recent</span>
+          </div>
+        </details>
+      </div>
+    </details>
+  </div>
+</details>
+<details>
+  <summary>🗄 库 postgres <span class="kind">(database)</span></summary>
+  <div class="nest">
+    <details>
+      <summary>📂 模式 public</summary>
+      <div class="nest">
+        <details>
+          <summary>表</summary>
+          <div class="nest"><span class="leaf">📄 …</span></div>
+        </details>
+        <details>
+          <summary>视图</summary>
+          <div class="nest"><span class="leaf">👁 …</span></div>
+        </details>
+      </div>
+    </details>
+  </div>
+</details>`
+
+    const TREE_MYSQL = `
+<details open>
+  <summary>🗄 库 bi <span class="kind">(database)</span></summary>
+  <div class="nest">
+    <details open>
+      <summary>表</summary>
+      <div class="nest">
+        <span class="leaf active" data-ref="bi.dim_date">📄 dim_date</span>
+        <span class="leaf" data-ref="bi.fact_order">📄 fact_order</span>
+        <span class="leaf" data-ref="bi.dim_user">📄 dim_user</span>
+      </div>
+    </details>
+    <details>
+      <summary>视图</summary>
+      <div class="nest">
+        <span class="leaf" data-ref="bi.v_gmv_daily">👁 v_gmv_daily</span>
+      </div>
+    </details>
+  </div>
+</details>
+<details>
+  <summary>🗄 库 information_schema <span class="kind">(database)</span></summary>
+  <div class="nest">
+    <details>
+      <summary>表</summary>
+      <div class="nest">
+        <span class="leaf" data-ref="information_schema.tables">📄 TABLES</span>
+        <span class="leaf" data-ref="information_schema.columns">📄 COLUMNS</span>
+      </div>
+    </details>
+    <details>
+      <summary>视图</summary>
+      <div class="nest"><span class="leaf">👁 …</span></div>
+    </details>
+  </div>
+</details>
+<details>
+  <summary>🗄 库 mysql <span class="kind">(system)</span></summary>
+  <div class="nest">
+    <details>
+      <summary>表</summary>
+      <div class="nest"><span class="leaf">📄 user</span></div>
+    </details>
+  </div>
+</details>`
+
+    const SQL_PG = `SELECT o.id, o.order_no, o.status, o.amount, c.name AS customer
+FROM public.t_order o
+LEFT JOIN public.t_customer c ON c.id = o.customer_id
+WHERE o.created_at >= CURRENT_DATE - INTERVAL '7 day'
+ORDER BY o.created_at DESC
+LIMIT 100;`
+
+    const SQL_MYSQL = `SELECT f.order_id, f.gmv, d.dt, u.user_name
+FROM bi.fact_order f
+JOIN bi.dim_date d ON d.date_id = f.date_id
+JOIN bi.dim_user u ON u.user_id = f.user_id
+WHERE d.dt >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+LIMIT 100;`
+
+    function bindLeafClicks() {
+      document.querySelectorAll('#objTree .leaf').forEach((el) => {
+        el.addEventListener('click', () => {
+          document.querySelectorAll('#objTree .leaf').forEach((x) => x.classList.remove('active'))
+          el.classList.add('active')
+        })
+      })
+    }
+
+    function onConnChange() {
+      const v = document.getElementById('connSelect').value
+      const isPg = v === 'pg'
+      document.getElementById('dialectTag').textContent = isPg ? 'POSTGRESQL' : 'MYSQL'
+      document.getElementById('treeSub').innerHTML = isPg
+        ? '连接：pg-order-ro · POSTGRESQL<br />层次：<b>库 → 模式 → 表 / 视图</b>'
+        : '连接：mysql-bi · MYSQL<br />层次：<b>库 → 表 / 视图</b>（无独立模式层）'
+      document.getElementById('objTree').innerHTML = isPg ? TREE_PG : TREE_MYSQL
+      document.getElementById('sqlEditor').value = isPg ? SQL_PG : SQL_MYSQL
+      document.getElementById('resultConn').textContent = isPg ? '连接 pg-order-ro' : '连接 mysql-bi'
+      bindLeafClicks()
+    }
+
+    onConnChange()
+  </script>
+</body>
+</html>

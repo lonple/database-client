@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DBC · 工作空间</title>
+  <link rel="stylesheet" href="common.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="logo">DBC</div>
+      <nav class="nav-l1-group" aria-label="一级菜单">
+        <a class="nav-l1-item" href="用户管理.html">用户中心</a>
+        <a class="nav-l1-item" href="#">系统管理</a>
+        <a class="nav-l1-item active" href="工作空间.html">数据管控</a>
+        <a class="nav-l1-item" href="SQL工作台.html">SQL 工作台</a>
+      </nav>
+      <div class="header-right">
+        <span>dba · 数据库管理员</span>
+        <a class="btn" href="登录.html">退出</a>
+      </div>
+    </header>
+    <div class="body">
+      <aside class="sidebar">
+        <div class="side-label">数据管控</div>
+        <a class="side-item" href="#">实例管理</a>
+        <a class="side-item" href="#">连接管理</a>
+        <a class="side-item active" href="工作空间.html">工作空间</a>
+      </aside>
+      <main class="main">
+        <div class="breadcrumb">数据管控 / 工作空间</div>
+        <div class="page-title">
+          <h2>工作空间</h2>
+          <button class="btn btn-primary" type="button" onclick="openModal('createModal')">新建工作空间</button>
+        </div>
+        <div class="alert-bar info">仅数据库管理员可创建空间并变更所有者。创建后本人为空间所有者；日常运营由空间管理员在详情内完成。</div>
+        <div class="toolbar">
+          <input class="input" type="search" placeholder="空间名称" />
+          <button class="btn" type="button">查询</button>
+          <button class="btn" type="button">重置</button>
+        </div>
+        <div class="panel">
+          <table class="data">
+            <thead>
+              <tr>
+                <th>名称</th>
+                <th>所有者</th>
+                <th>我的角色</th>
+                <th>成员</th>
+                <th>挂载连接</th>
+                <th>更新时间</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>订单项目-研发</td>
+                <td>dba</td>
+                <td><span class="tag tag-owner">所有者</span></td>
+                <td>5</td>
+                <td>3</td>
+                <td>2026-09-07 18:20</td>
+                <td class="ops">
+                  <a class="btn-link" href="工作空间详情.html">进入</a>
+                  <button class="btn-link" type="button" onclick="openModal('ownerModal')">变更所有者</button>
+                </td>
+              </tr>
+              <tr>
+                <td>报表只读空间</td>
+                <td>alice</td>
+                <td><span class="tag tag-default">数据操作人员</span></td>
+                <td>12</td>
+                <td>2</td>
+                <td>2026-09-06 10:01</td>
+                <td class="ops">
+                  <a class="btn-link" href="工作空间详情.html">进入</a>
+                  <button class="btn-link" type="button" onclick="openModal('ownerModal')">变更所有者</button>
+                </td>
+              </tr>
+              <tr>
+                <td>跨部门联调</td>
+                <td>bob</td>
+                <td><span class="tag tag-success">空间管理员</span></td>
+                <td>8</td>
+                <td>5</td>
+                <td>2026-09-05 14:33</td>
+                <td class="ops">
+                  <a class="btn-link" href="工作空间详情.html">进入</a>
+                  <button class="btn-link" type="button" onclick="openModal('ownerModal')">变更所有者</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="pager"><span>共 3 条</span><span>示意：DB_ADMIN 可见变更所有者</span></div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div class="modal-mask" id="createModal">
+    <div class="modal">
+      <div class="modal-header">新建工作空间 <button class="modal-close" type="button" onclick="closeModal('createModal')">×</button></div>
+      <div class="modal-body">
+        <div class="form-row"><label><span class="req">*</span>名称</label><input class="input" placeholder="如：订单项目-研发" /></div>
+        <div class="form-row"><label>描述</label><textarea class="textarea" placeholder="可选"></textarea></div>
+        <p class="note" style="margin:0">创建后你将成为空间所有者；可再指定空间管理员做日常管理。</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" type="button" onclick="closeModal('createModal')">取消</button>
+        <a class="btn btn-primary" href="工作空间详情.html">创建并进入</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-mask" id="ownerModal">
+    <div class="modal">
+      <div class="modal-header">变更所有者 <button class="modal-close" type="button" onclick="closeModal('ownerModal')">×</button></div>
+      <div class="modal-body">
+        <div class="form-row"><label>当前所有者</label><div class="readonly">dba</div></div>
+        <div class="form-row">
+          <label><span class="req">*</span>新所有者</label>
+          <select class="select"><option>alice</option><option>bob</option><option>carol</option></select>
+        </div>
+        <div class="alert-bar warn">原所有者将降为空间管理员，且仍保留在空间中；所有者不可被移出空间。</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" type="button" onclick="closeModal('ownerModal')">取消</button>
+        <button class="btn btn-primary" type="button" onclick="closeModal('ownerModal')">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function openModal(id) { document.getElementById(id).classList.add('show') }
+    function closeModal(id) { document.getElementById(id).classList.remove('show') }
+  </script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DBC · SQL 工作台</title>
+  <link rel="stylesheet" href="common.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="logo">DBC</div>
+      <nav class="nav-l1-group" aria-label="一级菜单">
+        <a class="nav-l1-item" href="用户管理.html">用户中心</a>
+        <a class="nav-l1-item" href="#">系统管理</a>
+        <a class="nav-l1-item" href="工作空间.html">数据管控</a>
+        <a class="nav-l1-item active" href="SQL工作台.html">SQL 工作台</a>
+      </nav>
+      <div class="header-right">
+        <span>alice</span>
+        <a class="btn" href="登录.html">退出</a>
+      </div>
+    </header>
+    <div class="body">
+      <main class="main" style="width:100%">
+        <div class="breadcrumb">SQL 工作台</div>
+        <div class="page-title"><h2>SQL 工作台</h2></div>
+        <div class="empty-state">
+          <strong>请先选择工作空间</strong>
+          <p style="margin:0 0 16px">进入后按当前空间计算连接授权；切换空间需回到本页或工具栏重选。</p>
+          <div style="display:inline-flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:center">
+            <select class="select" id="wsSelect" style="width:260px">
+              <option value="">选择工作空间</option>
+              <option value="1">订单项目-研发</option>
+              <option value="2">报表只读空间</option>
+            </select>
+            <a class="btn btn-primary" id="enterBtn" href="SQL工作台-编辑.html" onclick="return mustPick()">进入</a>
+          </div>
+        </div>
+        <p class="note">无可用空间时：联系数据库管理员创建空间，并由空间管理员添加成员与授权。</p>
+      </main>
+    </div>
+  </div>
+  <script>
+    function mustPick() {
+      if (!document.getElementById('wsSelect').value) {
+        alert('请选择工作空间')
+        return false
+      }
+      return true
+    }
+  </script>
+</body>
+</html>

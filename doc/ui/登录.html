@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DBC · 登录</title>
+  <link rel="stylesheet" href="common.css" />
+</head>
+<body>
+  <div class="login-page">
+    <aside class="login-brand">
+      <h1>DBC 数据库客户端</h1>
+      <p>统一连接、执行与审计</p>
+      <p>本期开放账号登录与用户中心</p>
+    </aside>
+    <main class="login-form-wrap">
+      <form class="login-card" id="loginForm" action="用户管理.html">
+        <h2>登录账号</h2>
+        <div class="field">
+          <label for="username">账号</label>
+          <input class="input" id="username" name="username" value="admin" autocomplete="username" />
+        </div>
+        <div class="field">
+          <label for="password">密码</label>
+          <input class="input" id="password" name="password" type="password" value="admin" autocomplete="current-password" />
+        </div>
+        <button class="btn btn-primary" type="submit">登 录</button>
+        <p class="login-hint">默认账号 admin / admin · 角色：超级管理员</p>
+      </form>
+    </main>
+  </div>
+  <script>
+    document.getElementById("loginForm").addEventListener("submit", function (e) {
+      e.preventDefault();
+      window.location.href = "用户管理.html";
+    });
+  </script>
+</body>
+</html>

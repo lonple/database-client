@@ -1,0 +1,8 @@
+.gradle/
+bin/
+out/
+*.iml
+.idea/
+build/**
+!build/libs/
+!build/libs/app.jar

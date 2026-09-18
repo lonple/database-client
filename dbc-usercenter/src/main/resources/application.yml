@@ -1,0 +1,91 @@
+server:
+  port: 8004
+
+spring:
+  application:
+    name: dbc-usercenter
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${DBC_NACOS_ADDR:127.0.0.1:8000}
+        metadata:
+          mtls-port: ${DBC_MTLS_PORT:8044}
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource
+    url: ${DBC_DB_URL:jdbc:postgresql://127.0.0.1:5432/postgres?currentSchema=usercenter}
+    username: ${DBC_DB_USER:postgres}
+    password: ${DBC_DB_PASSWORD:root}
+    driver-class-name: org.postgresql.Driver
+    druid:
+      initial-size: 2
+      min-idle: 2
+      max-active: 20
+      max-wait: 10000
+      time-between-eviction-runs-millis: 60000
+      min-evictable-idle-time-millis: 300000
+      validation-query: SELECT 1
+      test-while-idle: true
+      test-on-borrow: false
+      test-on-return: false
+      # 生产默认关闭监控页，避免未鉴权暴露
+      stat-view-servlet:
+        enabled: false
+      web-stat-filter:
+        enabled: false
+  flyway:
+    enabled: true
+    schemas: usercenter
+    default-schema: usercenter
+    locations: classpath:db/migration
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+  data:
+    redis:
+      host: ${DBC_REDIS_HOST:127.0.0.1}
+      port: ${DBC_REDIS_PORT:6379}
+      password: ${DBC_REDIS_PASSWORD:}
+
+dbc:
+  jwt:
+    expire-hours: 8
+  secrets:
+    # 相对进程工作目录；IDE / bootRun 均应以仓库根为工作目录，对应仓库根下 secrets/
+    dir: ${DBC_SECRETS_DIR:secrets}
+  mtls:
+    enabled: true
+    port: ${DBC_MTLS_PORT:8044}
+    # p12 默认口令文件缺失时使用；正式环境以 .pass 文件为准
+  svc-sign:
+    client-id: dbc-usercenter
+    # 自身代签：空=本机回环 https://127.0.0.1:{dbc.mtls.port}；勿配 discovery://（启动自注册竞态）
+    mtls-base-url: ${DBC_MTLS_BASE_URL:}
+    timestamp-skew-seconds: 300
+    nonce-ttl-seconds: 300
+    heartbeat-interval-ms: 30000
+    heartbeat-stale-seconds: 90
+    public-key-refresh-ms: 30000
+    max-active-kids-per-app: 32
+  audit:
+    client:
+      enabled: true
+      mtls-base-url: ${DBC_AUDIT_MTLS_BASE_URL:discovery://dbc-audit}
+      client-id: dbc-usercenter
+      secrets-dir: ${DBC_SECRETS_DIR:secrets}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  level:
+    com.lyj.dbc.usercenter: INFO

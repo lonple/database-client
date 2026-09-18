@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DBC · 工作空间详情</title>
+  <link rel="stylesheet" href="common.css" />
+  <style>
+    .section-title { font-size: 13px; font-weight: 600; margin: 16px 0 8px; color: var(--text); }
+    .picker-layout { display: flex; gap: 12px; min-height: 240px; }
+    .picker-col { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; background: #fff; }
+    .picker-col-left { width: 160px; flex-shrink: 0; }
+    .picker-col-center { flex: 1; min-width: 0; }
+    .picker-col-right { width: 200px; flex-shrink: 0; }
+    .picker-col-title { font-size: 12px; font-weight: 600; margin-bottom: 8px; color: var(--text-secondary); }
+    .scope-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; margin-bottom: 8px; background: #fafafa; }
+    .scope-card-title { font-weight: 600; font-size: 13px; margin-bottom: 6px; }
+    .steps { display: flex; gap: 8px; margin-bottom: 16px; }
+    .step { flex: 1; text-align: center; padding: 8px; border-bottom: 2px solid var(--border); font-size: 12px; color: var(--text-secondary); }
+    .step.active { border-color: var(--primary); color: var(--primary); font-weight: 600; }
+    .summary-list { margin: 0; padding-left: 16px; font-size: 12px; color: var(--text-secondary); }
+    .summary-list li { margin-bottom: 4px; }
+    .wizard-footer { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); text-align: right; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="logo">DBC</div>
+      <nav class="nav-l1-group" aria-label="一级菜单">
+        <a class="nav-l1-item" href="index.html">首页</a>
+        <a class="nav-l1-item" href="SQL工作台.html">SQL 工作台</a>
+        <a class="nav-l1-item active" href="工作空间.html">资产管理</a>
+        <a class="nav-l1-item" href="用户管理.html">用户中心</a>
+        <a class="nav-l1-item" href="#">系统管理</a>
+      </nav>
+      <div class="header-right">
+        <span>dba · 数据库管理员</span>
+        <a class="btn" href="登录.html">退出</a>
+      </div>
+    </header>
+    <div class="body">
+      <aside class="sidebar">
+        <div class="side-label">资产管理</div>
+        <a class="side-item" href="#">实例管理</a>
+        <a class="side-item" href="#">连接管理</a>
+        <a class="side-item active" href="工作空间.html">工作空间</a>
+      </aside>
+      <main class="main">
+        <div class="breadcrumb"><a href="工作空间.html">资产管理 / 工作空间</a> / 订单项目-研发</div>
+        <div class="page-title">
+          <h2>订单项目-研发</h2>
+          <a class="btn" href="工作空间.html">返回列表</a>
+        </div>
+        <div class="meta-row">
+          <span>所有者：<b>dba</b></span>
+          <span>我的角色：<b>所有者</b></span>
+          <span>描述：<b>跨部门研发联调</b></span>
+        </div>
+
+        <div class="tabs" role="tablist">
+          <button class="tab active" type="button" data-tab="assets">资产授权</button>
+          <button class="tab" type="button" data-tab="memberGrants">成员授权</button>
+        </div>
+
+        <!-- 资产授权 -->
+        <div class="tab-panel active" id="panel-assets">
+          <div class="alert-bar info">定义本空间可用的<strong>资产对象</strong>与<strong>SQL 操作权限</strong>（DDL / DML）。成员授权只能在此范围内再分配。挑选连接受部门 data-scope 限制。</div>
+          <div class="toolbar">
+            <button class="btn btn-primary" type="button" onclick="openModal('assetGrantModal')">新增资产授权</button>
+          </div>
+          <div class="panel">
+            <table class="data">
+              <thead>
+                <tr>
+                  <th>连接</th>
+                  <th>对象范围</th>
+                  <th>权限（SQL 操作）</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>pg-order-ro</td>
+                  <td>整个连接</td>
+                  <td><span class="tag tag-default">SELECT</span></td>
+                  <td class="ops"><button class="btn-link danger" type="button">删除</button></td>
+                </tr>
+                <tr>
+                  <td>pg-order-rw</td>
+                  <td>指定表<br /><span class="note" style="margin:0">public.t_order, public.t_order_item</span></td>
+                  <td>
+                    <span class="tag tag-default">SELECT</span>
+                    <span class="tag tag-default">INSERT</span>
+                    <span class="tag tag-warning">CREATE</span>
+                  </td>
+                  <td class="ops"><button class="btn-link danger" type="button">删除</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 成员授权：三步向导 + 空间成员 + 授权列表 -->
+        <div class="tab-panel" id="panel-memberGrants">
+          <div class="alert-bar info">
+            <strong>成员授权三步向导</strong>：
+            ① 选择用户（可含尚未加入空间的账号）→
+            ② 选择授权对象（仅限空间已资产授权的连接）→
+            ③ 选择 DML/DDL 权限。
+          </div>
+          <div class="toolbar">
+            <button class="btn btn-primary" type="button" onclick="openModal('memberGrantWizard')">新增成员授权</button>
+          </div>
+
+          <div class="section-title">空间成员</div>
+          <div class="panel" style="margin-bottom:16px">
+            <table class="data">
+              <thead>
+                <tr><th>用户</th><th>空间角色</th><th>操作</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>dba</td>
+                  <td><span class="tag tag-owner">所有者</span></td>
+                  <td class="ops"><span class="note" style="margin:0">不可移除 / 不可改管理员</span></td>
+                </tr>
+                <tr>
+                  <td>bob</td>
+                  <td><span class="tag tag-success">空间管理员</span></td>
+                  <td class="ops">
+                    <button class="btn-link" type="button">取消管理员</button>
+                    <button class="btn-link danger" type="button">移除</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td>alice</td>
+                  <td><span class="tag tag-default">数据操作人员</span></td>
+                  <td class="ops">
+                    <button class="btn-link" type="button">设为管理员</button>
+                    <button class="btn-link danger" type="button">移除</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="section-title">授权列表</div>
+          <div class="panel">
+            <table class="data">
+              <thead>
+                <tr>
+                  <th>成员</th>
+                  <th>连接</th>
+                  <th>对象范围</th>
+                  <th>权限（SQL 操作）</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>alice</td>
+                  <td>pg-order-ro</td>
+                  <td>整个连接</td>
+                  <td><span class="tag tag-default">SELECT</span></td>
+                  <td class="ops"><button class="btn-link danger" type="button">删除</button></td>
+                </tr>
+                <tr>
+                  <td>alice</td>
+                  <td>pg-order-rw</td>
+                  <td>指定表 · t_order</td>
+                  <td><span class="tag tag-default">SELECT</span></td>
+                  <td class="ops"><button class="btn-link danger" type="button">删除</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- 资产授权弹窗 -->
+  <div class="modal-mask" id="assetGrantModal">
+    <div class="modal modal-xl">
+      <div class="modal-header">新增资产授权 <button class="modal-close" type="button" onclick="closeModal('assetGrantModal')">×</button></div>
+      <div class="modal-body">
+        <div class="alert-bar info">候选连接受部门 data-scope 限制；可多选连接，分别指定对象范围与权限。</div>
+        <div class="form-row">
+          <label><span class="req">*</span>选择连接</label>
+          <label><input type="checkbox" /> pg-order-rw（postgresql）</label><br />
+          <label><input type="checkbox" /> mysql-bi（mysql）</label>
+        </div>
+        <div class="scope-card">
+          <div class="scope-card-title">pg-order-rw</div>
+          <label><input type="radio" name="assetScope" checked /> 整个连接</label><br />
+          <label><input type="radio" name="assetScope" /> 自定义范围</label>
+        </div>
+        <div class="form-row">
+          <label><span class="req">*</span>权限（SQL 操作）</label>
+          <div style="margin-bottom:10px">
+            <b style="font-size:13px">DML</b>
+            <div class="checkbox-grid" style="margin-top:8px">
+              <label><input type="checkbox" checked /> SELECT</label>
+              <label><input type="checkbox" /> INSERT</label>
+            </div>
+          </div>
+          <div>
+            <b style="font-size:13px">DDL</b>
+            <div class="checkbox-grid" style="margin-top:8px">
+              <label><input type="checkbox" /> CREATE</label>
+              <label><input type="checkbox" /> ALTER</label>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" type="button" onclick="closeModal('assetGrantModal')">取消</button>
+        <button class="btn btn-primary" type="button" onclick="closeModal('assetGrantModal')">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 成员授权三步向导 -->
+  <div class="modal-mask" id="memberGrantWizard">
+    <div class="modal modal-xl">
+      <div class="modal-header">新增成员授权 <button class="modal-close" type="button" onclick="closeModal('memberGrantWizard')">×</button></div>
+      <div class="modal-body">
+        <div class="steps">
+          <div class="step active">① 选择用户</div>
+          <div class="step">② 选择授权对象</div>
+          <div class="step">③ 选择权限</div>
+        </div>
+
+        <div class="alert-bar info">多选用户；已在空间的账号可继续追加授权；未加入的账号提交时自动加入空间。</div>
+        <div class="toolbar" style="margin-bottom:12px">
+          <input class="input" type="search" placeholder="账号" style="width:200px" />
+          <button class="btn" type="button">查询</button>
+          <span class="note" style="margin:0 0 0 auto">已选 <b>2</b> 人</span>
+        </div>
+        <div class="panel">
+          <table class="data">
+            <thead>
+              <tr>
+                <th style="width:48px"><input type="checkbox" /></th>
+                <th>账号</th><th>部门</th><th>状态</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><input type="checkbox" checked /></td>
+                <td>alice</td><td>研发一部</td><td><span class="tag tag-processing">已在空间</span></td>
+              </tr>
+              <tr>
+                <td><input type="checkbox" checked /></td>
+                <td>dave</td><td>研发二部</td><td><span class="tag tag-success">启用</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p class="note" style="margin-top:16px">步骤 ② 示意：左侧勾选连接，中间配置「整个连接 / 自定义范围」，右侧显示已选摘要。</p>
+        <div class="picker-layout">
+          <div class="picker-col picker-col-left">
+            <div class="picker-col-title">连接</div>
+            <label><input type="checkbox" checked /> pg-order-ro</label><br />
+            <label><input type="checkbox" /> pg-order-rw</label>
+          </div>
+          <div class="picker-col picker-col-center">
+            <div class="picker-col-title">对象范围</div>
+            <div class="scope-card">
+              <div class="scope-card-title">pg-order-ro</div>
+              <label><input type="radio" name="memberScope" checked /> 整个连接</label>
+            </div>
+          </div>
+          <div class="picker-col picker-col-right">
+            <div class="picker-col-title">已选摘要</div>
+            <ul class="summary-list">
+              <li>pg-order-ro · 整个连接</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="wizard-footer">
+        <button class="btn" type="button">上一步</button>
+        <button class="btn btn-primary" type="button">下一步</button>
+        <button class="btn" type="button" onclick="closeModal('memberGrantWizard')">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function openModal(id) { document.getElementById(id).classList.add('show') }
+    function closeModal(id) { document.getElementById(id).classList.remove('show') }
+    document.querySelectorAll('.tab').forEach((tab) => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'))
+        document.querySelectorAll('.tab-panel').forEach((p) => p.classList.remove('active'))
+        tab.classList.add('active')
+        document.getElementById('panel-' + tab.dataset.tab).classList.add('active')
+      })
+    })
+  </script>
+</body>
+</html>
