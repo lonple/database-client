@@ -4,15 +4,21 @@
 # Usage:
 #   .\scripts\docker-stop.cmd
 #   .\scripts\docker-stop.cmd -WipeData
+#   .\scripts\docker-stop.cmd -WorkspaceRoot D:\data\dbc
 # =============================================================================
 
 param(
+    [string]$WorkspaceRoot = "",
     [switch]$WipeData
 )
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
-$WorkspaceRoot = "E:\app\docker\workspace\dbc"
+. "$PSScriptRoot\Resolve-DbcDockerWorkspace.ps1"
+# Stop should not prompt; use persisted path / env / -WorkspaceRoot
+$ws = Resolve-DbcDockerWorkspace -RepoRoot $RepoRoot -WorkspaceRoot $WorkspaceRoot
+$WorkspaceRoot = $ws.HostPath
+$ComposeEnvFile = $ws.EnvFile
 $MiddlewareCompose = Join-Path $RepoRoot "deploy\middleware\docker-compose.yml"
 $AppsCompose = Join-Path $RepoRoot "deploy\apps\docker-compose.yml"
 
@@ -36,6 +42,16 @@ function Invoke-Docker {
     return $code
 }
 
+function Invoke-Compose {
+    param(
+        [Parameter(Mandatory = $true)][string]$ComposeFile,
+        [Parameter(Mandatory = $true)][string[]]$ComposeArgs,
+        [switch]$IgnoreExitCode
+    )
+    $args = @("compose", "--env-file", $ComposeEnvFile, "-f", $ComposeFile) + $ComposeArgs
+    return Invoke-Docker -DockerArgs $args -IgnoreExitCode:$IgnoreExitCode
+}
+
 Set-Location $RepoRoot
 
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
@@ -55,10 +71,11 @@ if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     throw "docker not found. Start Docker Desktop, then reopen Cursor terminal."
 }
 
+Write-Host "Workspace: $WorkspaceRoot"
 Write-Host "==== Stop apps ====" -ForegroundColor Cyan
-Invoke-Docker -DockerArgs @("compose", "-f", $AppsCompose, "down") -IgnoreExitCode | Out-Null
+Invoke-Compose -ComposeFile $AppsCompose -ComposeArgs @("down") -IgnoreExitCode | Out-Null
 Write-Host "==== Stop middleware ====" -ForegroundColor Cyan
-Invoke-Docker -DockerArgs @("compose", "-f", $MiddlewareCompose, "down") -IgnoreExitCode | Out-Null
+Invoke-Compose -ComposeFile $MiddlewareCompose -ComposeArgs @("down") -IgnoreExitCode | Out-Null
 
 if ($WipeData) {
     Write-Host "==== Wipe workspace data (-WipeData) ====" -ForegroundColor Yellow

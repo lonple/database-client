@@ -3,10 +3,11 @@
 # =============================================================================
 # 已知不足 / 非生产：明文口令、ES/Nacos 关安全、单机无 HA。
 #
-# 宿主机数据根：E:\app\docker\workspace\dbc
+# 宿主机数据根：由 DBC_DOCKER_WORKSPACE 指定（deploy/dbc-docker.env）
 # 用法（仓库根）：
-#   powershell -File scripts\init-docker-workspace.ps1
-#   docker compose -f deploy/middleware/docker-compose.yml up -d
+#   .\scripts\docker-deploy.cmd -WorkspaceRoot D:\data\dbc
+#   或复制 deploy/dbc-docker.env.example → deploy/dbc-docker.env 后：
+#   docker compose --env-file deploy/dbc-docker.env -f deploy/middleware/docker-compose.yml up -d
 #
 # 属性注释约定：同一键（如 image / ports / volumes）仅在首次出现处说明，后文不重复。
 # =============================================================================
@@ -47,7 +48,7 @@ services:
     # volumes：宿主机路径:容器路径，持久化数据，避免删容器丢库
     volumes:
       # Postgres 18+ 须挂载到 /var/lib/postgresql（不要挂 .../data）
-      - E:/app/docker/workspace/dbc/postgres/data:/var/lib/postgresql
+      - ${DBC_DOCKER_WORKSPACE}/postgres/data:/var/lib/postgresql
     # networks：加入哪些 Compose 网络（同网可用服务名 postgres 互访）
     networks:
       - dbc-net
@@ -72,7 +73,7 @@ services:
     ports:
       - "6379:6379"
     volumes:
-      - E:/app/docker/workspace/dbc/redis/data:/data
+      - ${DBC_DOCKER_WORKSPACE}/redis/data:/data
     networks:
       - dbc-net
     healthcheck:
@@ -109,7 +110,7 @@ services:
       # 宿主机 9000 → gRPC 9848（本机客户端连 8000 时会访问 8000+1000）
       - "9000:9848"
     volumes:
-      - E:/app/docker/workspace/dbc/nacos/logs:/home/nacos/logs
+      - ${DBC_DOCKER_WORKSPACE}/nacos/logs:/home/nacos/logs
     networks:
       - dbc-net
 
@@ -132,6 +133,6 @@ services:
     ports:
       - "9200:9200"
     volumes:
-      - E:/app/docker/workspace/dbc/elasticsearch/data:/usr/share/elasticsearch/data
+      - ${DBC_DOCKER_WORKSPACE}/elasticsearch/data:/usr/share/elasticsearch/data
     networks:
       - dbc-net

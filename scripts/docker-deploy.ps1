@@ -14,6 +14,8 @@
 #   - docker compose up -d; --build only if app image missing
 #
 # Options:
+#   -WorkspaceRoot   host data root (Postgres/Redis/ES/secrets/…). Persisted to
+#                    deploy/dbc-docker.env. First run prompts if omitted.
 #   -Full            first-time / heavy refresh: down stacks, free ports, package,
 #                    rebuild images, renew mTLS if first-time marker missing
 #   -Build           force bootJar + npm package
@@ -24,6 +26,7 @@
 # =============================================================================
 
 param(
+    [string]$WorkspaceRoot = "",
     [switch]$Full,
     [switch]$Build,
     [switch]$RebuildImages,
@@ -34,7 +37,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
-$WorkspaceRoot = "E:\app\docker\workspace\dbc"
+. "$PSScriptRoot\Resolve-DbcDockerWorkspace.ps1"
+$ws = Resolve-DbcDockerWorkspace -RepoRoot $RepoRoot -WorkspaceRoot $WorkspaceRoot -AllowPrompt
+$WorkspaceRoot = $ws.HostPath
+$ComposeEnvFile = $ws.EnvFile
 $MarkerFile = Join-Path $WorkspaceRoot ".mtls-docker-ready"
 $MiddlewareCompose = Join-Path $RepoRoot "deploy\middleware\docker-compose.yml"
 $AppsCompose = Join-Path $RepoRoot "deploy\apps\docker-compose.yml"
@@ -186,10 +192,20 @@ function Sync-SecretsToRepo {
     }
 }
 
+function Invoke-Compose {
+    param(
+        [Parameter(Mandatory = $true)][string]$ComposeFile,
+        [Parameter(Mandatory = $true)][string[]]$ComposeArgs,
+        [switch]$IgnoreExitCode
+    )
+    $args = @("compose", "--env-file", $ComposeEnvFile, "-f", $ComposeFile) + $ComposeArgs
+    return Invoke-Docker -DockerArgs $args -IgnoreExitCode:$IgnoreExitCode
+}
+
 function Start-Middleware {
     Write-Step "Start middleware (compose up -d)"
     Set-Location $RepoRoot
-    Invoke-Docker -DockerArgs @("compose", "-f", $MiddlewareCompose, "up", "-d") | Out-Null
+    Invoke-Compose -ComposeFile $MiddlewareCompose -ComposeArgs @("up", "-d") | Out-Null
 
     Start-Sleep -Seconds 5
     $pgStatus = Get-DockerOutput @("inspect", "-f", "{{.State.Status}}", "dbc-postgres")
@@ -200,12 +216,12 @@ function Start-Middleware {
             throw "postgres unhealthy. Fix mount/data, or re-run with -ResetPostgres / -Full (will wipe local PG data)."
         }
         Write-Host "postgres unhealthy -> wipe local data (-ResetPostgres/-Full) and retry"
-        Invoke-Docker -DockerArgs @("compose", "-f", $MiddlewareCompose, "stop", "postgres") -IgnoreExitCode | Out-Null
+        Invoke-Compose -ComposeFile $MiddlewareCompose -ComposeArgs @("stop", "postgres") -IgnoreExitCode | Out-Null
         $pgData = Join-Path $WorkspaceRoot "postgres\data"
         if (Test-Path $pgData) {
             Get-ChildItem -Path $pgData -Force | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
         }
-        Invoke-Docker -DockerArgs @("compose", "-f", $MiddlewareCompose, "up", "-d", "postgres") | Out-Null
+        Invoke-Compose -ComposeFile $MiddlewareCompose -ComposeArgs @("up", "-d", "postgres") | Out-Null
         Start-Sleep -Seconds 8
     }
 
@@ -244,8 +260,8 @@ function Start-Apps([bool]$doBuild, [bool]$waitCert) {
 
     if ($waitCert -or $doBuild -or -not (Test-ImageExists "dbc-usercenter:0.1.0")) {
         Write-Step ("Start usercenter first " + ($(if ($doBuild) { "(with --build)" } else { "" })))
-        $ucArgs = @("compose", "-f", $AppsCompose, "up", "-d") + $buildArgs + @("dbc-usercenter")
-        Invoke-Docker -DockerArgs $ucArgs | Out-Null
+        $ucArgs = @("up", "-d") + $buildArgs + @("dbc-usercenter")
+        Invoke-Compose -ComposeFile $AppsCompose -ComposeArgs $ucArgs | Out-Null
         Wait-ContainerRunning "dbc-usercenter" 180
 
         $serverP12 = Join-Path $WorkspaceRoot "secrets\mtls\server.p12"
@@ -262,8 +278,8 @@ function Start-Apps([bool]$doBuild, [bool]$waitCert) {
     }
 
     Write-Step ("Start all apps " + ($(if ($doBuild) { "(with --build)" } else { "(reuse images)" })))
-    $allArgs = @("compose", "-f", $AppsCompose, "up", "-d") + $buildArgs
-    Invoke-Docker -DockerArgs $allArgs | Out-Null
+    $allArgs = @("up", "-d") + $buildArgs
+    Invoke-Compose -ComposeFile $AppsCompose -ComposeArgs $allArgs | Out-Null
 
     Write-Step "Sync secrets workspace -> repo (IDEA compatible)"
     Sync-SecretsToRepo
@@ -284,8 +300,8 @@ Write-Host "Flags:     Build=$Build RebuildImages=$RebuildImages RenewMtls=$Rene
 if ($Full) {
     Write-Step "Full mode: stop existing compose stacks"
     # warning "No resource found to remove" is normal when nothing is running
-    Invoke-Docker -DockerArgs @("compose", "-f", $AppsCompose, "down") -IgnoreExitCode | Out-Null
-    Invoke-Docker -DockerArgs @("compose", "-f", $MiddlewareCompose, "down") -IgnoreExitCode | Out-Null
+    Invoke-Compose -ComposeFile $AppsCompose -ComposeArgs @("down") -IgnoreExitCode | Out-Null
+    Invoke-Compose -ComposeFile $MiddlewareCompose -ComposeArgs @("down") -IgnoreExitCode | Out-Null
 }
 
 if ($FreePorts) {
@@ -293,12 +309,12 @@ if ($FreePorts) {
 }
 
 Write-Step "Init workspace (idempotent)"
-& "$PSScriptRoot\init-docker-workspace.ps1"
+& "$PSScriptRoot\init-docker-workspace.ps1" -WorkspaceRoot $WorkspaceRoot
 
 $needPackage = $Build -or -not (Test-AllAppJars)
 if ($needPackage) {
     Write-Step "Package jars / front"
-    & "$PSScriptRoot\build-docker-apps.ps1"
+    & "$PSScriptRoot\build-docker-apps.ps1" -WorkspaceRoot $WorkspaceRoot
 } else {
     Write-Step "Reuse existing app.jar (pass -Build or -Full to repackage)"
 }
@@ -312,14 +328,16 @@ $renewed = Ensure-MtlsFiles
 Start-Apps -doBuild:$needImageBuild -waitCert:($renewed -or $RenewMtls -or -not (Test-Path $MarkerFile))
 
 Write-Step "DONE"
-Invoke-Docker -DockerArgs @("compose", "-f", $MiddlewareCompose, "ps") | Out-Null
-Invoke-Docker -DockerArgs @("compose", "-f", $AppsCompose, "ps") | Out-Null
+Invoke-Compose -ComposeFile $MiddlewareCompose -ComposeArgs @("ps") | Out-Null
+Invoke-Compose -ComposeFile $AppsCompose -ComposeArgs @("ps") | Out-Null
 Write-Host ""
 Write-Host "Open:  http://127.0.0.1:8080"
 Write-Host "Login: admin / admin"
 Write-Host "Nacos: http://127.0.0.1:8001/nacos"
+Write-Host "Data:  $WorkspaceRoot"
 Write-Host ""
 Write-Host "Daily start again:  .\scripts\docker-deploy.cmd"
+Write-Host "Change data dir:    .\scripts\docker-deploy.cmd -WorkspaceRoot <path>"
 Write-Host "Code changed:       .\scripts\docker-deploy.cmd -Build"
 Write-Host "Heavy refresh:      .\scripts\docker-deploy.cmd -Full"
 Write-Host "Stop:               .\scripts\docker-stop.cmd"

@@ -6,10 +6,11 @@
 # 已知不足 / 非生产：密钥目录明文挂载、口令写在 Compose、无资源限额与多副本策略。
 #
 # 前置：
-#   1) scripts\init-docker-workspace.ps1
-#   2) docker compose -f deploy/middleware/docker-compose.yml up -d
-#   3) scripts\build-docker-apps.ps1          # 后端 bootJar（前端在 Dockerfile 内 npm build）
-#   4) docker compose -f deploy/apps/docker-compose.yml up -d --build
+#   1) 配置 DBC_DOCKER_WORKSPACE（脚本 -WorkspaceRoot / deploy/dbc-docker.env）
+#   2) scripts\init-docker-workspace.ps1
+#   3) docker compose --env-file deploy/dbc-docker.env -f deploy/middleware/docker-compose.yml up -d
+#   4) scripts\build-docker-apps.ps1
+#   5) docker compose --env-file deploy/dbc-docker.env -f deploy/apps/docker-compose.yml up -d --build
 #
 # 浏览器：http://127.0.0.1:8080
 #
@@ -82,8 +83,8 @@ services:
       # 自身代签：本机回环（设计约定，不经 Nacos）
       DBC_MTLS_BASE_URL: https://127.0.0.1:8044
     volumes:
-      - E:/app/docker/workspace/dbc/secrets:/app/secrets
-      - E:/app/docker/workspace/dbc/usercenter/logs:/app/logs
+      - ${DBC_DOCKER_WORKSPACE}/secrets:/app/secrets
+      - ${DBC_DOCKER_WORKSPACE}/usercenter/logs:/app/logs
 
   dbc-manage:
     <<: *app-common
@@ -103,9 +104,9 @@ services:
       DBC_DB_USER: postgres
       DBC_DB_PASSWORD: root
     volumes:
-      - E:/app/docker/workspace/dbc/secrets:/app/secrets
-      - E:/app/docker/workspace/dbc/manage/logs:/app/logs
-      - E:/app/docker/workspace/dbc/manage/drivers:/app/secrets/manage/drivers
+      - ${DBC_DOCKER_WORKSPACE}/secrets:/app/secrets
+      - ${DBC_DOCKER_WORKSPACE}/manage/logs:/app/logs
+      - ${DBC_DOCKER_WORKSPACE}/manage/drivers:/app/secrets/manage/drivers
 
   dbc-sqlwork:
     <<: *app-common
@@ -122,8 +123,8 @@ services:
     environment:
       <<: *app-env
     volumes:
-      - E:/app/docker/workspace/dbc/secrets:/app/secrets
-      - E:/app/docker/workspace/dbc/sqlwork/logs:/app/logs
+      - ${DBC_DOCKER_WORKSPACE}/secrets:/app/secrets
+      - ${DBC_DOCKER_WORKSPACE}/sqlwork/logs:/app/logs
     # 进程内会话/连接池：学习环境固定单实例，勿随意提高 replicas
 
   dbc-audit:
@@ -142,8 +143,8 @@ services:
       <<: *app-env
       DBC_AUDIT_MTLS_PORT: "8048"
     volumes:
-      - E:/app/docker/workspace/dbc/secrets:/app/secrets
-      - E:/app/docker/workspace/dbc/audit/logs:/app/logs
+      - ${DBC_DOCKER_WORKSPACE}/secrets:/app/secrets
+      - ${DBC_DOCKER_WORKSPACE}/audit/logs:/app/logs
 
   dbc-gateway:
     <<: *app-common
@@ -162,7 +163,7 @@ services:
     environment:
       <<: *app-env
     volumes:
-      - E:/app/docker/workspace/dbc/gateway/logs:/app/logs
+      - ${DBC_DOCKER_WORKSPACE}/gateway/logs:/app/logs
 
   # ---------- 前端：Dockerfile 内 npm build，产物打进 nginx 镜像 ----------
   dbc-front:
@@ -179,7 +180,7 @@ services:
       - "8080:80"
     volumes:
       # 仅挂配置便于改反代；静态资源在镜像内（不挂 html，避免空目录覆盖镜像）
-      - E:/app/docker/workspace/dbc/front/conf/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${DBC_DOCKER_WORKSPACE}/front/conf/default.conf:/etc/nginx/conf.d/default.conf:ro
     networks:
       - dbc-net
 
@@ -191,7 +192,7 @@ services:
 #      → scripts/publish-dbc-client.ps1   # dbc-client 发布到 mavenLocal
 #      → 各 dbc-*/gradlew bootJar        # 产出 dbc-*/build/libs/app.jar
 # 2) 制作镜像并运行
-#    docker compose -f deploy/apps/docker-compose.yml up -d --build
+#    docker compose --env-file deploy/dbc-docker.env -f deploy/apps/docker-compose.yml up -d --build
 #      → 读各服务 Dockerfile
 #           后端：COPY build/libs/app.jar → eclipse-temurin:21.0.12_8-jre 运行
 #           前端：dbc-front/Dockerfile 多阶段 npm run build → nginx:stable-alpine

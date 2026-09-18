@@ -1,14 +1,21 @@
 # =============================================================================
-# Init Docker host workspace: E:\app\docker\workspace\dbc
+# Init Docker host workspace (data / logs / secrets mount root)
 # =============================================================================
 # Usage (repo root):
 #   powershell -ExecutionPolicy Bypass -File .\scripts\init-docker-workspace.ps1
+#   powershell -ExecutionPolicy Bypass -File .\scripts\init-docker-workspace.ps1 -WorkspaceRoot D:\data\dbc
 # =============================================================================
+
+param(
+    [string]$WorkspaceRoot = ""
+)
 
 $ErrorActionPreference = "Stop"
 
-$WorkspaceRoot = "E:\app\docker\workspace\dbc"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
+. "$PSScriptRoot\Resolve-DbcDockerWorkspace.ps1"
+$ws = Resolve-DbcDockerWorkspace -RepoRoot $RepoRoot -WorkspaceRoot $WorkspaceRoot -AllowPrompt
+$WorkspaceRoot = $ws.HostPath
 
 $dirs = @(
     "postgres\data",

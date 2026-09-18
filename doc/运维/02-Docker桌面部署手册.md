@@ -2,7 +2,7 @@
 
 > **定位**：Windows + Docker Desktop，中间件与前后端 **分两个 Compose** 部署。  
 > **环境级别**：本地学习 / 联调。**不是生产规范。**  
-> 宿主机数据根目录统一为：`E:\app\docker\workspace\dbc`（按应用分子目录）。
+> **宿主机数据根目录**：由用户指定，写入 `deploy/dbc-docker.env` 的 `DBC_DOCKER_WORKSPACE`（勿提交 Git）。
 
 ---
 
@@ -20,9 +20,12 @@
 在仓库根目录打开终端（PowerShell 或 CMD 均可），复制整行执行：
 
 ```powershell
-cd E:\workspace\database-client
+cd <repo-root>
 
-# 日常启动
+# 首次：指定数据目录（任选本机路径，例如 D:\data\dbc）
+.\scripts\docker-deploy.cmd -WorkspaceRoot D:\data\dbc
+
+# 日常启动（复用 deploy\dbc-docker.env）
 .\scripts\docker-deploy.cmd
 
 # 改过代码
@@ -41,6 +44,32 @@ cd E:\workspace\database-client
 浏览器：`http://127.0.0.1:8080`（`admin` / `admin`）。细则见 **§10**。
 
 **已知不足 / 非生产**（上线前必须改）：Compose 内明文口令、Nacos/ES 关鉴权、密钥目录明文挂载、单实例、无资源限额与备份策略。
+
+---
+
+## 0.1 数据目录怎么指定
+
+优先级（高 → 低）：
+
+1. 参数 `-WorkspaceRoot <路径>`
+2. 环境变量 `DBC_DOCKER_WORKSPACE`
+3. 已存在的 `deploy/dbc-docker.env`
+4. 交互提示（仅 `docker-deploy` / `init-docker-workspace` / `build-docker-apps`；回车默认 `%USERPROFILE%\dbc-docker-data`）
+
+手工编辑示例：复制 `deploy/dbc-docker.env.example` → `deploy/dbc-docker.env`：
+
+```env
+DBC_DOCKER_WORKSPACE=D:/data/dbc
+```
+
+手跑 Compose 时务必带上 env 文件：
+
+```powershell
+docker compose --env-file deploy/dbc-docker.env -f deploy/middleware/docker-compose.yml up -d
+docker compose --env-file deploy/dbc-docker.env -f deploy/apps/docker-compose.yml up -d --build
+```
+
+更换数据目录后，旧目录数据不会自动迁移；需自行拷贝或重新初始化。
 
 ---
 

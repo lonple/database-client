@@ -3,6 +3,7 @@
 # =============================================================================
 # Usage (repo root):
 #   powershell -ExecutionPolicy Bypass -File .\scripts\build-docker-apps.ps1
+#   powershell -ExecutionPolicy Bypass -File .\scripts\build-docker-apps.ps1 -WorkspaceRoot D:\data\dbc
 #
 # Flow:
 #   1) init-docker-workspace.ps1
@@ -10,19 +11,25 @@
 #   3) gradlew bootJar for each Java service -> build/libs/app.jar
 #   4) optional: npm run build, copy dist to workspace front/html
 # Then:
-#   docker compose -f deploy/middleware/docker-compose.yml up -d
-#   docker compose -f deploy/apps/docker-compose.yml up -d --build
+#   docker compose --env-file deploy/dbc-docker.env -f deploy/middleware/docker-compose.yml up -d
+#   docker compose --env-file deploy/dbc-docker.env -f deploy/apps/docker-compose.yml up -d --build
 # =============================================================================
+
+param(
+    [string]$WorkspaceRoot = ""
+)
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
-$WorkspaceRoot = "E:\app\docker\workspace\dbc"
+. "$PSScriptRoot\Resolve-DbcDockerWorkspace.ps1"
+$ws = Resolve-DbcDockerWorkspace -RepoRoot $RepoRoot -WorkspaceRoot $WorkspaceRoot -AllowPrompt
+$WorkspaceRoot = $ws.HostPath
 $FrontHtml = Join-Path $WorkspaceRoot "front\html"
 
 Set-Location $RepoRoot
 
 Write-Host "==> [0/4] init workspace"
-& "$PSScriptRoot\init-docker-workspace.ps1"
+& "$PSScriptRoot\init-docker-workspace.ps1" -WorkspaceRoot $WorkspaceRoot
 if ($LASTEXITCODE -ne 0 -and $null -ne $LASTEXITCODE) {
     # child script may not set LASTEXITCODE; ignore when null
 }
@@ -73,10 +80,11 @@ Copy-Item -Path "dist\*" -Destination $FrontHtml -Recurse -Force
 
 Set-Location $RepoRoot
 Write-Host "==> [4/4] package done. Next: build images and run"
-Write-Host "  docker compose -f deploy/middleware/docker-compose.yml up -d"
-Write-Host "  docker compose -f deploy/apps/docker-compose.yml up -d --build"
+Write-Host "  docker compose --env-file deploy/dbc-docker.env -f deploy/middleware/docker-compose.yml up -d"
+Write-Host "  docker compose --env-file deploy/dbc-docker.env -f deploy/apps/docker-compose.yml up -d --build"
 Write-Host ""
 Write-Host "Summary:"
+Write-Host "  workspace     = $WorkspaceRoot"
 Write-Host "  package jars  = this script"
 Write-Host "  build images  = Dockerfiles + compose --build"
 Write-Host "  run containers = compose up"

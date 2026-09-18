@@ -23,6 +23,48 @@
 
 ---
 
+## 界面预览
+
+### SQL 工作台
+
+选择工作空间、查看可访问资产后进入编辑器；支持元数据树、多会话、批执行与事务控制。
+
+![SQL 工作台 · 选空间](docs/images/sqlwork-pick.png)
+
+![SQL 工作台 · 编辑器](docs/images/sqlwork-editor.png)
+
+### 权限管控
+
+工作空间资产授权：挂载连接与对象范围，并限定 SQL 操作权限；成员授权在此范围内再分配。
+
+![权限管控 · 工作空间授权](docs/images/auth-workspace.png)
+
+### 资产管理
+
+登记数据库实例与连接（管控面，不直连目标库执行 SQL）。
+
+![资产管理 · 实例管理](docs/images/manage-instance.png)
+
+### 用户中心
+
+用户 / 部门 / 角色 / 功能权限统一管理。
+
+![用户中心 · 用户管理](docs/images/usercenter-users.png)
+
+### 审计日志
+
+业务操作与 SQL 执行审计查询（Elasticsearch）。
+
+![审计日志 · 业务日志](docs/images/audit-biz.png)
+
+### 系统管理
+
+应用登记、证书与签名密钥运维。
+
+![系统管理 · 应用管理](docs/images/system-apps.png)
+
+---
+
 ## 架构一览
 
 ```text
@@ -69,10 +111,17 @@
 
 **前置**：Docker Desktop、JDK 21（构建镜像时）、仓库根可写。
 
+首次需指定**宿主机数据目录**（Postgres / Redis / ES / secrets 等），之后会写入 `deploy/dbc-docker.env`，日常启动可省略：
+
 ```powershell
 cd <repo-root>
 
-# 日常启动
+# 首次：指定数据目录（任选本机路径）
+.\scripts\docker-deploy.cmd -WorkspaceRoot D:\data\dbc
+
+# 或首次不传参，按提示输入；回车则默认 %USERPROFILE%\dbc-docker-data
+
+# 日常启动（复用已保存路径）
 .\scripts\docker-deploy.cmd
 
 # 改过代码后重建
@@ -84,6 +133,8 @@ cd <repo-root>
 # 停止
 .\scripts\docker-stop.cmd
 ```
+
+也可手动复制 `deploy/dbc-docker.env.example` → `deploy/dbc-docker.env`，填写 `DBC_DOCKER_WORKSPACE=`。
 
 浏览器打开：<http://127.0.0.1:8080>  
 账号：`admin` / `admin`
@@ -164,6 +215,7 @@ database-client/
 ├── scripts/            # 部署与发布脚本
 ├── drivers/            # JDBC 驱动（按需）
 ├── secrets/            # 本地密钥（不入库）
+├── docs/images/        # README 界面截图
 └── doc/                # 设计 / 规范 / 运维文档
 ```
 
