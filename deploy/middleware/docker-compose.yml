@@ -27,7 +27,7 @@ services:
   # ---------- PostgreSQL：平台库（各业务 schema 由 Flyway 创建）----------
   postgres:
     # image：使用的镜像名:标签（本地已拉取则不再下载）
-    image: postgres:18
+    image: pgvector/pgvector:pg18-trixie
     # container_name：固定容器名，便于 docker exec / 日志查看（多副本时不要写死）
     container_name: dbc-postgres
     # restart：容器退出后的策略；unless-stopped=除非手动 stop，否则自动拉起
