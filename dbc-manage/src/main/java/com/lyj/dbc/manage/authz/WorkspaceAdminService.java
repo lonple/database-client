@@ -619,7 +619,6 @@ public class WorkspaceAdminService {
         grant.setOpsJson(toJson(ops));
         workspaceMemberGrantMapper.updateById(grant);
         touchWorkspace(workspaceId);
-        authzCache.invalidateUser(workspaceId, grant.getUserId());
     }
 
     @AuditLog(module = "manage", action = AuditAction.DELETE, resourceType = "workspace_grant", resourceId = "#grantId")
