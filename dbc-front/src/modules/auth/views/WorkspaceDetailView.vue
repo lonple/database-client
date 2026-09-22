@@ -45,13 +45,12 @@
                 <a-tag v-for="op in formatSqlOps(record.ops)" :key="op" style="margin-bottom: 4px">{{ op }}</a-tag>
               </template>
               <template v-else-if="column.key === 'action'">
-                <a-popconfirm
-                  v-if="canMutate"
-                  title="确认删除该资产授权？"
-                  @confirm="onRemoveAsset(record.id)"
-                >
-                  <a class="danger">删除</a>
-                </a-popconfirm>
+                <a-space v-if="canMutate" size="small">
+                  <a @click="openEditAsset(record)">编辑</a>
+                  <a-popconfirm title="确认删除该资产授权？" @confirm="onRemoveAsset(record.id)">
+                    <a class="danger">删除</a>
+                  </a-popconfirm>
+                </a-space>
               </template>
             </template>
           </a-table>
@@ -61,7 +60,7 @@
           <a-alert type="info" show-icon style="margin-bottom: 12px">
             <template #message>成员授权三步向导</template>
             <template #description>
-              ① 选择用户 → ② 选择授权对象（元数据勾选，含包含合并）→ ③ 选择 SQL 权限（DML/DDL 可多选，可勾选所有权限）。
+              ① 选择用户 → ② 选择授权对象（元数据勾选，含包含合并）→ ③ 选择 SQL 权限（候选 ⊆ 所选对象对应的空间资产权限；空间未授全部权限时不可勾选「所有权限」）。
             </template>
           </a-alert>
           <div class="toolbar">
@@ -131,13 +130,18 @@
                 </template>
               </template>
               <template v-else-if="column.key === 'action'">
-                <a-popconfirm
-                  v-if="canMutate"
-                  title="确认删除该成员授权？"
-                  @confirm="onRemoveGrant(record.id)"
-                >
-                  <a class="danger">删除</a>
-                </a-popconfirm>
+                <a-space v-if="canMutate" size="small">
+                  <a
+                    v-if="record.grantMode !== 'ALL'"
+                    @click="openEditMemberGrant(record)"
+                  >
+                    编辑
+                  </a>
+                  <span v-else class="hint">跟随空间</span>
+                  <a-popconfirm title="确认删除该成员授权？" @confirm="onRemoveGrant(record.id)">
+                    <a class="danger">删除</a>
+                  </a-popconfirm>
+                </a-space>
               </template>
             </template>
           </a-table>
@@ -148,7 +152,7 @@
     <!-- 资产授权 -->
     <a-modal
       v-model:open="assetModalOpen"
-      title="新增资产授权"
+      :title="editingAssetId ? '编辑资产授权' : '新增资产授权'"
       width="1120px"
       :confirm-loading="saving"
       ok-text="保存"
@@ -159,7 +163,11 @@
         type="info"
         show-icon
         style="margin-bottom: 12px"
-        message="左侧按连接/库/模式/表从元数据勾选并添加；右侧列表展示已选对象（含包含合并）。候选连接受 data-scope 限制。"
+        :message="
+          editingAssetId
+            ? '编辑单条资产：请保持同一连接与同一对象层级；可调整对象列表与 SQL 权限。'
+            : '左侧按连接/库/模式/表从元数据勾选并添加；右侧列表展示已选对象（含包含合并）。候选连接受 data-scope 限制。'
+        "
       />
       <ObjectGrantPicker
         v-model="assetSelectedObjects"
@@ -173,21 +181,21 @@
       </a-form>
     </a-modal>
 
-    <!-- 成员授权三步向导 -->
+    <!-- 成员授权三步向导 / 编辑 -->
     <a-modal
       v-model:open="memberWizardOpen"
-      title="新增成员授权"
+      :title="editingGrantId ? '编辑成员授权' : '新增成员授权'"
       width="1120px"
       :footer="null"
       destroy-on-close
     >
-      <a-steps :current="wizardStep" size="small" style="margin-bottom: 20px">
-        <a-step title="选择用户" />
+      <a-steps :current="memberStepIndex" size="small" style="margin-bottom: 20px">
+        <a-step v-if="!editingGrantId" title="选择用户" />
         <a-step title="选择授权对象" />
         <a-step title="选择权限" />
       </a-steps>
 
-      <div v-show="wizardStep === 0">
+      <div v-show="!editingGrantId && wizardStep === 0">
         <a-alert
           type="info"
           show-icon
@@ -228,6 +236,14 @@
 
       <div v-show="wizardStep === 1">
         <a-alert
+          v-if="editingGrantId"
+          type="info"
+          show-icon
+          style="margin-bottom: 12px"
+          :message="`编辑成员：${userLabel(wizardUserIds[0])}；可选对象不得超过空间已授范围。`"
+        />
+        <a-alert
+          v-else
           type="info"
           show-icon
           style="margin-bottom: 12px"
@@ -245,13 +261,13 @@
       <div v-show="wizardStep === 2">
         <a-form layout="vertical">
           <a-form-item label="权限（SQL 操作）" required>
-            <SqlOpsPicker v-model="memberOps" />
+            <SqlOpsPicker v-model="memberOps" :allowed-ops="memberAllowedOps" />
           </a-form-item>
         </a-form>
       </div>
 
       <div class="wizard-footer">
-        <a-button v-if="wizardStep > 0" @click="wizardStep -= 1">上一步</a-button>
+        <a-button v-if="wizardStep > memberFirstStep" @click="wizardStep -= 1">上一步</a-button>
         <a-button v-if="wizardStep < 2" type="primary" @click="wizardNext">下一步</a-button>
         <a-button
           v-if="wizardStep === 2"
@@ -259,7 +275,7 @@
           :loading="saving"
           @click="submitMemberGrantWizard"
         >
-          完成
+          {{ editingGrantId ? '保存' : '完成' }}
         </a-button>
         <a-button style="margin-left: 8px" @click="memberWizardOpen = false">取消</a-button>
       </div>
@@ -272,7 +288,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import * as workspaceApi from '@/modules/auth/api/workspace'
-import type { ObjectRef, WorkspaceDetail } from '@/modules/auth/api/workspace'
+import type { ObjectRef, WorkspaceAsset, WorkspaceDetail, WorkspaceMemberGrant } from '@/modules/auth/api/workspace'
 import * as assetApi from '@/modules/manage/api/asset'
 import type { ConnectionView } from '@/modules/manage/api/asset'
 import * as manageUserApi from '@/modules/auth/api/users'
@@ -280,11 +296,13 @@ import type { ManageUserSummary } from '@/modules/auth/api/users'
 import ObjectGrantPicker from '@/modules/auth/components/ObjectGrantPicker.vue'
 import SqlOpsPicker from '@/modules/auth/components/SqlOpsPicker.vue'
 import {
+  allowedOpsForSelection,
+  grantRecordToSelectedObjects,
   selectedObjectsToTargets,
   type ConnectionCandidate,
   type SelectedGrantObject,
 } from '@/modules/auth/utils/objectGrant'
-import { formatSqlOps } from '@/modules/auth/utils/sqlOps'
+import { ALL_SQL_OPS, formatSqlOps } from '@/modules/auth/utils/sqlOps'
 import { ROLE_LABELS } from '@/modules/sqlwork/constants'
 import { usePermission } from '@/common/permission/usePermission'
 import { useAuthStore } from '@/modules/user-center/stores/auth'
@@ -315,14 +333,14 @@ const assetColumns = [
   { title: '连接', dataIndex: 'connectionName', key: 'connectionName' },
   { title: '对象范围', key: 'scope' },
   { title: '权限', key: 'ops' },
-  { title: '操作', key: 'action', width: 80 },
+  { title: '操作', key: 'action', width: 120 },
 ]
 const grantColumns = [
   { title: '成员', key: 'user', width: 140 },
   { title: '连接', key: 'conn' },
   { title: '对象范围', key: 'scope' },
   { title: '权限', key: 'ops' },
-  { title: '操作', key: 'action', width: 80 },
+  { title: '操作', key: 'action', width: 140 },
 ]
 const userPickColumns = [
   { title: '账号', dataIndex: 'username', key: 'username' },
@@ -334,14 +352,22 @@ const memberUserIds = computed(() => new Set((detail.value?.members || []).map((
 
 const allConnections = ref<ConnectionView[]>([])
 const assetModalOpen = ref(false)
+const editingAssetId = ref<number | null>(null)
 const assetSelectedObjects = ref<SelectedGrantObject[]>([])
 const assetOps = ref<string[]>(['SELECT'])
 
 const memberWizardOpen = ref(false)
+const editingGrantId = ref<number | null>(null)
 const wizardStep = ref(0)
 const wizardUserIds = ref<number[]>([])
 const memberSelectedObjects = ref<SelectedGrantObject[]>([])
 const memberOps = ref<string[]>(['SELECT'])
+
+const memberFirstStep = computed(() => (editingGrantId.value ? 1 : 0))
+/** Steps 组件展示用下标（编辑时跳过「选择用户」） */
+const memberStepIndex = computed(() =>
+  editingGrantId.value ? Math.max(0, wizardStep.value - 1) : wizardStep.value,
+)
 
 const userQuery = ref('')
 const userLoading = ref(false)
@@ -385,6 +411,14 @@ const wizardUserSelection = computed(() => ({
     wizardUserIds.value = keys.map(Number)
   },
 }))
+
+/** 成员可选 SQL 权限：按已选对象取覆盖空间资产 ops 的交集，并与产品全量对齐排序 */
+const memberAllowedOps = computed(() => {
+  const assets = detail.value?.assets || []
+  const allowed = allowedOpsForSelection(assets, memberSelectedObjects.value)
+  const set = new Set(allowed.map((o) => o.toUpperCase()))
+  return ALL_SQL_OPS.filter((op) => set.has(op))
+})
 
 function roleLabel(code?: string | null) {
   if (!code) return '-'
@@ -492,8 +526,24 @@ function onUserTableChange(p: { current?: number; pageSize?: number }) {
 }
 
 function openAssetModal() {
+  editingAssetId.value = null
   assetSelectedObjects.value = []
   assetOps.value = ['SELECT']
+  assetModalOpen.value = true
+  void loadConnections()
+}
+
+function openEditAsset(record: WorkspaceAsset) {
+  editingAssetId.value = record.id
+  assetSelectedObjects.value = grantRecordToSelectedObjects({
+    connectionId: record.connectionId,
+    connectionName: record.connectionName,
+    objectScope: record.objectScope,
+    objects: record.objects,
+    tables: record.tables,
+    dbType: connectionDbTypeMap.value[record.connectionId] || 'postgresql',
+  })
+  assetOps.value = [...(record.ops || [])]
   assetModalOpen.value = true
   void loadConnections()
 }
@@ -501,25 +551,45 @@ function openAssetModal() {
 async function submitAssetGrant() {
   if (!assetSelectedObjects.value.length) {
     message.warning('请至少添加一个授权对象')
-    return
+    return Promise.reject()
   }
   if (!assetOps.value.length) {
     message.warning('请勾选权限')
-    return
+    return Promise.reject()
   }
   const targets = selectedObjectsToTargets(assetSelectedObjects.value)
+  if (!targets.length) {
+    message.warning('请配置授权对象')
+    return Promise.reject()
+  }
+  if (editingAssetId.value && targets.length !== 1) {
+    message.warning('编辑单条资产时请只保留一组对象（同一连接、同一层级）')
+    return Promise.reject()
+  }
   saving.value = true
   try {
-    for (const t of targets) {
-      await workspaceApi.addAsset(workspaceId.value, {
+    if (editingAssetId.value) {
+      const t = targets[0]
+      await workspaceApi.updateAsset(workspaceId.value, editingAssetId.value, {
         connectionId: t.connectionId,
         objectScope: t.objectScope,
         objects: t.objects,
         ops: assetOps.value,
       })
+      message.success('资产授权已更新')
+    } else {
+      for (const t of targets) {
+        await workspaceApi.addAsset(workspaceId.value, {
+          connectionId: t.connectionId,
+          objectScope: t.objectScope,
+          objects: t.objects,
+          ops: assetOps.value,
+        })
+      }
+      message.success('已保存')
     }
-    message.success('已保存')
     assetModalOpen.value = false
+    editingAssetId.value = null
     await loadDetail()
   } finally {
     saving.value = false
@@ -527,6 +597,7 @@ async function submitAssetGrant() {
 }
 
 function openMemberGrantWizard() {
+  editingGrantId.value = null
   wizardStep.value = 0
   wizardUserIds.value = []
   memberSelectedObjects.value = []
@@ -535,6 +606,31 @@ function openMemberGrantWizard() {
   userPager.current = 1
   memberWizardOpen.value = true
   loadUsers()
+  loadConnections()
+}
+
+function openEditMemberGrant(record: WorkspaceMemberGrant) {
+  if (record.grantMode === 'ALL') {
+    message.info('跟随全部空间资产的授权无需编辑对象与权限')
+    return
+  }
+  if (!record.connectionId) {
+    message.warning('该授权缺少连接信息，无法编辑')
+    return
+  }
+  editingGrantId.value = record.id
+  wizardUserIds.value = [record.userId]
+  memberSelectedObjects.value = grantRecordToSelectedObjects({
+    connectionId: record.connectionId,
+    connectionName: record.connectionName,
+    objectScope: record.objectScope,
+    objects: record.objects,
+    tables: record.tables,
+    dbType: connectionDbTypeMap.value[record.connectionId] || 'postgresql',
+  })
+  memberOps.value = [...(record.ops || [])]
+  wizardStep.value = 1
+  memberWizardOpen.value = true
   loadConnections()
 }
 
@@ -550,6 +646,25 @@ function wizardNext() {
       message.warning('请至少添加一个授权对象')
       return
     }
+    if (editingGrantId.value) {
+      const targets = selectedObjectsToTargets(memberSelectedObjects.value)
+      if (targets.length !== 1) {
+        message.warning('编辑单条成员授权时请只保留一组对象（同一连接、同一层级）')
+        return
+      }
+    }
+    const allowed = memberAllowedOps.value
+    if (!allowed.length) {
+      message.warning('所选对象在空间资产中无可分配的 SQL 权限，请调整授权对象或先完善资产授权')
+      return
+    }
+    const set = new Set(allowed)
+    memberOps.value = memberOps.value.filter((op) => set.has(String(op).toUpperCase()))
+    if (!memberOps.value.length && set.has('SELECT')) {
+      memberOps.value = ['SELECT']
+    } else if (!memberOps.value.length) {
+      memberOps.value = [allowed[0]]
+    }
   }
   wizardStep.value += 1
 }
@@ -559,20 +674,41 @@ async function submitMemberGrantWizard() {
     message.warning('请勾选权限')
     return
   }
+  const allowed = new Set(memberAllowedOps.value)
+  if (allowed.size && memberOps.value.some((op) => !allowed.has(String(op).toUpperCase()))) {
+    message.warning('所选权限超出空间资产授权范围')
+    return
+  }
   const targets = selectedObjectsToTargets(memberSelectedObjects.value)
   if (!targets.length) {
     message.warning('请配置授权对象')
     return
   }
+  if (editingGrantId.value && targets.length !== 1) {
+    message.warning('编辑单条成员授权时请只保留一组对象（同一连接、同一层级）')
+    return
+  }
   saving.value = true
   try {
-    await workspaceApi.batchMemberGrants(workspaceId.value, {
-      userIds: wizardUserIds.value,
-      targets,
-      ops: memberOps.value,
-    })
-    message.success('成员授权已保存')
+    if (editingGrantId.value) {
+      const t = targets[0]
+      await workspaceApi.updateMemberGrant(workspaceId.value, editingGrantId.value, {
+        connectionId: t.connectionId,
+        objectScope: t.objectScope,
+        objects: t.objects,
+        ops: memberOps.value,
+      })
+      message.success('成员授权已更新')
+    } else {
+      await workspaceApi.batchMemberGrants(workspaceId.value, {
+        userIds: wizardUserIds.value,
+        targets,
+        ops: memberOps.value,
+      })
+      message.success('成员授权已保存')
+    }
     memberWizardOpen.value = false
+    editingGrantId.value = null
     await loadDetail()
   } finally {
     saving.value = false

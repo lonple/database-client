@@ -237,9 +237,9 @@ dbc-manage/
 完整业务规格见 [需求设计](../需求/01-需求设计.md)。实现要点：
 
 - 详情 Tab：**资产授权** | **成员授权**（成员角色管理收纳在成员授权页）。
-- **资产授权**：多连接 + 层级对象 + SQL 操作；连接须在操作者 data-scope 内。
-- **成员授权三步**：选用户 → 选对象（**候选 ⊆ 空间资产授权**；宽范围资产内可再选子集）→ 选权限；`POST .../member-grants/batch` 自动加人并写多条 SPECIFIC 授权。
-- 后端校验成员 SPECIFIC 授权不得超出空间资产；`grant_mode=ALL` 完全跟随空间资产增减（快捷模式仍保留）。
+- **资产授权**：多连接 + 层级对象 + SQL 操作；连接须在操作者 data-scope 内；支持 **PUT 编辑**单条。
+- **成员授权三步**：选用户 → 选对象（**候选 ⊆ 空间资产授权**；宽范围资产内可再选子集）→ 选权限（**候选 ops ⊆ 覆盖资产 ops 交集**；空间非全部权限时不可勾选「所有权限」）；`POST .../member-grants/batch` 自动加人并写多条 SPECIFIC 授权；支持 **PUT 编辑**单条 SPECIFIC。
+- 后端校验成员 SPECIFIC 授权不得超出空间资产（**对象范围 + SQL 操作**）；`grant_mode=ALL` 完全跟随空间资产增减（快捷模式仍保留）。
 - 未成员授权：可进空间（若已是成员），工作台不能选任何连接（所有者/空间管理员隐式拥有空间资产除外，见鉴权实现）。
 - 运行时禁止多空间权限并集。
 
@@ -269,9 +269,11 @@ dbc-manage/
 | PUT | `/workspaces/{id}/members/{userId}/role` | 设 `ADMIN` / `OPERATOR`（所有者除外） |
 | DELETE | `/workspaces/{id}/members/{userId}` | 移除（所有者不可移除） |
 | POST | `/workspaces/{id}/assets` | 资产授权：`connectionId, objectScope, tables?, ops[]` |
+| PUT | `/workspaces/{id}/assets/{assetId}` | 更新单条资产授权（对象范围 + ops） |
 | DELETE | `/workspaces/{id}/assets/{assetId}` | 移除空间资产 |
 | POST | `/workspaces/{id}/member-grants` | 单条成员授权（兼容） |
 | POST | `/workspaces/{id}/member-grants/batch` | 三步向导批量：`userIds` + `targets[]` + `ops`（自动加人） |
+| PUT | `/workspaces/{id}/member-grants/{grantId}` | 更新单条 SPECIFIC 成员授权（对象 + ops；ALL 不可编辑） |
 | DELETE | `/workspaces/{id}/member-grants/{grantId}` | 移除成员授权 |
 
 ### 6.6 全局管控（P0）

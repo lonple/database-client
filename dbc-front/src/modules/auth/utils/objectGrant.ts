@@ -87,6 +87,36 @@ export function assetObjectRefs(asset: Pick<WorkspaceAsset, 'objects' | 'tables'
   return asset.tables || []
 }
 
+/** 单条空间资产是否覆盖草稿对象。 */
+function assetCoversDraftOne(
+  asset: WorkspaceAsset,
+  draft: Omit<SelectedGrantObject, 'key' | 'path'>,
+): boolean {
+  if (asset.connectionId !== draft.connectionId) return false
+  const scope = normalizeAssetScope(asset.objectScope)
+  const refs = assetObjectRefs(asset)
+  if (scope === 'CONNECTION') {
+    return true
+  }
+  if (scope === 'DATABASE') {
+    if (draft.level === 'CONNECTION') return false
+    return refs.some((r) => eqIgnore(r.database, draft.database))
+  }
+  if (scope === 'SCHEMA') {
+    if (draft.level === 'CONNECTION' || draft.level === 'DATABASE') return false
+    return refs.some(
+      (r) => eqIgnore(r.database, draft.database) && eqIgnore(r.schema, draft.schema),
+    )
+  }
+  if (draft.level !== 'TABLE') return false
+  return refs.some(
+    (r) =>
+      eqIgnore(r.database, draft.database) &&
+      eqIgnore(r.schema, draft.schema) &&
+      eqIgnore(r.name, draft.table),
+  )
+}
+
 /**
  * 成员授权对象是否落在空间资产范围内（≤ 空间资产）。
  */
@@ -94,42 +124,52 @@ export function assetCoversDraft(
   assets: WorkspaceAsset[],
   draft: Omit<SelectedGrantObject, 'key' | 'path'>,
 ): boolean {
+  return assets.some((asset) => assetCoversDraftOne(asset, draft))
+}
+
+function normalizeOpsList(ops?: string[] | null): string[] {
+  if (!ops?.length) return []
+  const set = new Set(ops.map((o) => String(o).toUpperCase()))
+  return [...set]
+}
+
+/**
+ * 单个草稿对象在空间资产下可授予的 SQL 权限（覆盖资产 ops 并集）。
+ */
+export function allowedOpsForDraft(
+  assets: WorkspaceAsset[],
+  draft: Omit<SelectedGrantObject, 'key' | 'path'>,
+): string[] {
+  const set = new Set<string>()
   for (const asset of assets) {
-    if (asset.connectionId !== draft.connectionId) continue
-    const scope = normalizeAssetScope(asset.objectScope)
-    const refs = assetObjectRefs(asset)
-    if (scope === 'CONNECTION') {
-      return true
-    }
-    if (scope === 'DATABASE') {
-      if (draft.level === 'CONNECTION') continue
-      if (refs.some((r) => eqIgnore(r.database, draft.database))) return true
-      continue
-    }
-    if (scope === 'SCHEMA') {
-      if (draft.level === 'CONNECTION' || draft.level === 'DATABASE') continue
-      if (
-        refs.some(
-          (r) => eqIgnore(r.database, draft.database) && eqIgnore(r.schema, draft.schema),
-        )
-      ) {
-        return true
-      }
-      continue
-    }
-    if (draft.level !== 'TABLE') continue
-    if (
-      refs.some(
-        (r) =>
-          eqIgnore(r.database, draft.database) &&
-          eqIgnore(r.schema, draft.schema) &&
-          eqIgnore(r.name, draft.table),
-      )
-    ) {
-      return true
+    if (!assetCoversDraftOne(asset, draft)) continue
+    for (const op of normalizeOpsList(asset.ops)) {
+      set.add(op)
     }
   }
-  return false
+  return [...set]
+}
+
+/**
+ * 多选对象时，向导共用一份 ops：取各对象允许权限的交集（再与产品全量对齐由调用方处理）。
+ */
+export function allowedOpsForSelection(
+  assets: WorkspaceAsset[],
+  selected: Array<Omit<SelectedGrantObject, 'key' | 'path'> | SelectedGrantObject>,
+): string[] {
+  if (!selected.length) return []
+  let intersection: Set<string> | null = null
+  for (const draft of selected) {
+    const allowed = new Set(allowedOpsForDraft(assets, draft))
+    if (intersection == null) {
+      intersection = allowed
+      continue
+    }
+    for (const op of [...intersection]) {
+      if (!allowed.has(op)) intersection.delete(op)
+    }
+  }
+  return intersection ? [...intersection] : []
 }
 
 export function hasConnectionWideAsset(assets: WorkspaceAsset[], connectionId: number) {
@@ -285,6 +325,45 @@ export function selectedObjectsToTargets(items: SelectedGrantObject[]): GrantTar
     targets.push({ connectionId: first.connectionId, objectScope: scope, objects })
   }
   return targets
+}
+
+/**
+ * 将已有资产/成员授权记录还原为选中对象列表（编辑回填）。
+ */
+export function grantRecordToSelectedObjects(input: {
+  connectionId: number
+  connectionName?: string | null
+  objectScope?: string | null
+  objects?: ObjectRef[]
+  tables?: ObjectRef[]
+  dbType?: string
+}): SelectedGrantObject[] {
+  const level = normalizeAssetScope(input.objectScope)
+  const connectionName = input.connectionName || `连接#${input.connectionId}`
+  const dbType = input.dbType || 'postgresql'
+  if (level === 'CONNECTION') {
+    return [
+      toSelectedObject({
+        connectionId: input.connectionId,
+        connectionName,
+        dbType,
+        level: 'CONNECTION',
+      }),
+    ]
+  }
+  const refs = assetObjectRefs({ objects: input.objects, tables: input.tables })
+  if (!refs.length) return []
+  return refs.map((r) =>
+    toSelectedObject({
+      connectionId: input.connectionId,
+      connectionName,
+      dbType,
+      level,
+      database: r.database,
+      schema: r.schema,
+      table: r.name,
+    }),
+  )
 }
 
 export const LEVEL_LABEL: Record<GrantObjectLevel, string> = {

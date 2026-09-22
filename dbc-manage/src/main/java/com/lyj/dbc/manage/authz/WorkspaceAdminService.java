@@ -39,6 +39,7 @@ import org.springframework.util.StringUtils;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -444,6 +445,35 @@ public class WorkspaceAdminService {
         authzCache.invalidateAssets(workspaceId);
     }
 
+    @AuditLog(module = "manage", action = AuditAction.UPDATE, resourceType = "workspace_asset", resourceId = "#assetId")
+    @Transactional
+    public void updateAsset(Long workspaceId, Long assetId, WorkspaceAdminRequests.UpdateAssetRequest request) {
+        assertCanMutateWorkspace(workspaceId);
+        WorkspaceAssetEntity asset = workspaceAssetMapper.selectById(assetId);
+        if (asset == null || !Objects.equals(asset.getWorkspaceId(), workspaceId)) {
+            throw BizException.notFound("资产授权不存在");
+        }
+        WorkspaceEntity ws = workspaceMapper.selectById(workspaceId);
+        ConnectionEntity connection = connectionMapper.selectById(request.getConnectionId());
+        if (connection == null) {
+            throw BizException.notFound("连接不存在");
+        }
+        assertMountAllowed(ws, connection);
+        String scope = ObjectScopeCodes.normalize(request.getObjectScope());
+        if (!ObjectScopeCodes.isValid(scope)) {
+            throw BizException.badRequest("objectScope 无效");
+        }
+        List<WorkspaceAdminRequests.ObjectRef> refs = resolveObjectRefs(request.getObjects(), request.getTables());
+        validateObjectRefs(scope, refs);
+        asset.setConnectionId(request.getConnectionId());
+        asset.setObjectScope(scope);
+        asset.setTablesJson(ObjectScopeCodes.isWholeConnection(scope) ? "[]" : toJson(refs));
+        asset.setOpsJson(toJson(normalizeOps(request.getOps())));
+        workspaceAssetMapper.updateById(asset);
+        touchWorkspace(workspaceId);
+        authzCache.invalidateAssets(workspaceId);
+    }
+
     /**
      * 个人连接只能挂本人 PERSONAL 空间；公司连接只能挂 COMPANY 空间且需 data-scope。
      */
@@ -512,11 +542,12 @@ public class WorkspaceAdminService {
             }
             List<WorkspaceAdminRequests.ObjectRef> refs = resolveObjectRefs(request.getObjects(), request.getTables());
             validateObjectRefs(scope, refs);
-            assertWithinWorkspaceAssets(workspaceId, request.getConnectionId(), scope, refs);
+            List<String> ops = normalizeOps(request.getOps());
+            assertWithinWorkspaceAssets(workspaceId, request.getConnectionId(), scope, refs, ops);
             grant.setConnectionId(request.getConnectionId());
             grant.setObjectScope(scope);
             grant.setTablesJson(ObjectScopeCodes.isWholeConnection(scope) ? "[]" : toJson(refs));
-            grant.setOpsJson(toJson(normalizeOps(request.getOps())));
+            grant.setOpsJson(toJson(ops));
         } else {
             grant.setConnectionId(null);
             grant.setObjectScope(null);
@@ -559,6 +590,36 @@ public class WorkspaceAdminService {
                 addMemberGrant(workspaceId, one);
             }
         }
+    }
+
+    @AuditLog(module = "manage", action = AuditAction.UPDATE, resourceType = "workspace_grant", resourceId = "#grantId")
+    @Transactional
+    public void updateMemberGrant(Long workspaceId, Long grantId,
+                                  WorkspaceAdminRequests.UpdateMemberGrantRequest request) {
+        assertCanMutateWorkspace(workspaceId);
+        WorkspaceMemberGrantEntity grant = workspaceMemberGrantMapper.selectById(grantId);
+        if (grant == null || !Objects.equals(grant.getWorkspaceId(), workspaceId)) {
+            throw BizException.notFound("成员授权不存在");
+        }
+        if (!"SPECIFIC".equalsIgnoreCase(grant.getGrantMode())) {
+            throw BizException.badRequest("「跟随全部空间资产」授权无需编辑对象与权限，请删除后改用指定授权");
+        }
+        String scope = ObjectScopeCodes.normalize(
+                StringUtils.hasText(request.getObjectScope()) ? request.getObjectScope() : ObjectScopeCodes.CONNECTION);
+        if (!ObjectScopeCodes.isValid(scope)) {
+            throw BizException.badRequest("objectScope 无效");
+        }
+        List<WorkspaceAdminRequests.ObjectRef> refs = resolveObjectRefs(request.getObjects(), request.getTables());
+        validateObjectRefs(scope, refs);
+        List<String> ops = normalizeOps(request.getOps());
+        assertWithinWorkspaceAssets(workspaceId, request.getConnectionId(), scope, refs, ops);
+        grant.setConnectionId(request.getConnectionId());
+        grant.setObjectScope(scope);
+        grant.setTablesJson(ObjectScopeCodes.isWholeConnection(scope) ? "[]" : toJson(refs));
+        grant.setOpsJson(toJson(ops));
+        workspaceMemberGrantMapper.updateById(grant);
+        touchWorkspace(workspaceId);
+        authzCache.invalidateUser(workspaceId, grant.getUserId());
     }
 
     @AuditLog(module = "manage", action = AuditAction.DELETE, resourceType = "workspace_grant", resourceId = "#grantId")
@@ -605,10 +666,11 @@ public class WorkspaceAdminService {
     }
 
     /**
-     * 成员 SPECIFIC 授权必须 ⊆ 空间资产授权。
+     * 成员 SPECIFIC 授权必须 ⊆ 空间资产授权（对象范围 + SQL 操作）。
      */
     private void assertWithinWorkspaceAssets(Long workspaceId, Long connectionId, String scope,
-                                             List<WorkspaceAdminRequests.ObjectRef> refs) {
+                                             List<WorkspaceAdminRequests.ObjectRef> refs,
+                                             List<String> grantOps) {
         List<WorkspaceAssetEntity> assets = workspaceAssetMapper.selectList(
                 new LambdaQueryWrapper<WorkspaceAssetEntity>()
                         .eq(WorkspaceAssetEntity::getWorkspaceId, workspaceId)
@@ -622,6 +684,8 @@ public class WorkspaceAdminService {
             if (!ok) {
                 throw BizException.badRequest("空间资产未授权「整个连接」，成员不能授予连接级权限");
             }
+            Set<String> allowedOps = collectCoveringAssetOps(assets, grantScope, null);
+            assertOpsWithin(allowedOps, grantOps, "整个连接");
             return;
         }
         List<WorkspaceAdminRequests.ObjectRef> grantRefs = refs == null ? List.of() : refs;
@@ -629,47 +693,87 @@ public class WorkspaceAdminService {
             if (!assetCoversRef(assets, grantScope, ref)) {
                 throw BizException.badRequest("成员授权对象超出空间资产范围: " + formatRef(grantScope, ref));
             }
+            Set<String> allowedOps = collectCoveringAssetOps(assets, grantScope, ref);
+            assertOpsWithin(allowedOps, grantOps, formatRef(grantScope, ref));
+        }
+    }
+
+    /**
+     * 覆盖某授权对象的空间资产 ops 并集。
+     */
+    private Set<String> collectCoveringAssetOps(List<WorkspaceAssetEntity> assets, String grantScope,
+                                                WorkspaceAdminRequests.ObjectRef ref) {
+        Set<String> ops = new HashSet<>();
+        for (WorkspaceAssetEntity asset : assets) {
+            if (!singleAssetCovers(asset, grantScope, ref)) {
+                continue;
+            }
+            ops.addAll(parseOps(asset.getOpsJson()));
+        }
+        return ops;
+    }
+
+    private boolean singleAssetCovers(WorkspaceAssetEntity asset, String grantScope,
+                                      WorkspaceAdminRequests.ObjectRef ref) {
+        String assetScope = ObjectScopeCodes.normalize(asset.getObjectScope());
+        if (ObjectScopeCodes.isWholeConnection(grantScope)) {
+            return ObjectScopeCodes.isWholeConnection(assetScope);
+        }
+        if (ObjectScopeCodes.isWholeConnection(assetScope)) {
+            return true;
+        }
+        List<WorkspaceAdminRequests.ObjectRef> assetRefs = parseRequestRefs(asset.getTablesJson());
+        if (ObjectScopeCodes.isDatabase(assetScope)) {
+            if (ObjectScopeCodes.isWholeConnection(grantScope)) {
+                return false;
+            }
+            return assetRefs.stream().anyMatch(a -> eqIgnore(a.getDatabase(), ref.getDatabase()));
+        }
+        if (ObjectScopeCodes.isSchema(assetScope)) {
+            if (ObjectScopeCodes.isWholeConnection(grantScope) || ObjectScopeCodes.isDatabase(grantScope)) {
+                return false;
+            }
+            return assetRefs.stream().anyMatch(a ->
+                    eqIgnore(a.getDatabase(), ref.getDatabase())
+                            && eqIgnore(a.getSchema(), ref.getSchema()));
+        }
+        if (ObjectScopeCodes.isTableLevel(assetScope)) {
+            if (!ObjectScopeCodes.isTableLevel(grantScope)) {
+                return false;
+            }
+            return assetRefs.stream().anyMatch(a ->
+                    eqIgnore(a.getDatabase(), ref.getDatabase())
+                            && eqIgnore(a.getSchema(), ref.getSchema())
+                            && eqIgnore(a.getName(), ref.getName()));
+        }
+        return false;
+    }
+
+    private static void assertOpsWithin(Set<String> allowedOps, List<String> grantOps, String objectHint) {
+        if (grantOps == null || grantOps.isEmpty()) {
+            throw BizException.badRequest("ops 不能为空");
+        }
+        if (allowedOps == null || allowedOps.isEmpty()) {
+            throw BizException.badRequest("空间资产未授予可用 SQL 权限: " + objectHint);
+        }
+        Set<String> allowedUpper = allowedOps.stream()
+                .filter(StringUtils::hasText)
+                .map(s -> s.trim().toUpperCase(Locale.ROOT))
+                .collect(Collectors.toSet());
+        List<String> exceeded = grantOps.stream()
+                .filter(op -> !allowedUpper.contains(op))
+                .toList();
+        if (!exceeded.isEmpty()) {
+            throw BizException.badRequest(
+                    "成员授权 SQL 权限超出空间资产范围(" + objectHint + "): " + String.join(",", exceeded));
         }
     }
 
     private boolean assetCoversRef(List<WorkspaceAssetEntity> assets, String grantScope,
                                    WorkspaceAdminRequests.ObjectRef ref) {
         for (WorkspaceAssetEntity asset : assets) {
-            String assetScope = ObjectScopeCodes.normalize(asset.getObjectScope());
-            if (ObjectScopeCodes.isWholeConnection(assetScope)) {
+            if (singleAssetCovers(asset, grantScope, ref)) {
                 return true;
-            }
-            List<WorkspaceAdminRequests.ObjectRef> assetRefs = parseRequestRefs(asset.getTablesJson());
-            if (ObjectScopeCodes.isDatabase(assetScope)) {
-                if (ObjectScopeCodes.isWholeConnection(grantScope)) {
-                    continue;
-                }
-                if (assetRefs.stream().anyMatch(a -> eqIgnore(a.getDatabase(), ref.getDatabase()))) {
-                    return true;
-                }
-                continue;
-            }
-            if (ObjectScopeCodes.isSchema(assetScope)) {
-                if (ObjectScopeCodes.isWholeConnection(grantScope) || ObjectScopeCodes.isDatabase(grantScope)) {
-                    continue;
-                }
-                if (assetRefs.stream().anyMatch(a ->
-                        eqIgnore(a.getDatabase(), ref.getDatabase())
-                                && eqIgnore(a.getSchema(), ref.getSchema()))) {
-                    return true;
-                }
-                continue;
-            }
-            if (ObjectScopeCodes.isTableLevel(assetScope)) {
-                if (!ObjectScopeCodes.isTableLevel(grantScope)) {
-                    continue;
-                }
-                if (assetRefs.stream().anyMatch(a ->
-                        eqIgnore(a.getDatabase(), ref.getDatabase())
-                                && eqIgnore(a.getSchema(), ref.getSchema())
-                                && eqIgnore(a.getName(), ref.getName()))) {
-                    return true;
-                }
             }
         }
         return false;

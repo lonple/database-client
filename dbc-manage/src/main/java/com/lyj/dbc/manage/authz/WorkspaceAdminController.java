@@ -92,6 +92,14 @@ public class WorkspaceAdminController {
         return ApiResponse.ok(null);
     }
 
+    @PutMapping("/{id}/assets/{assetId}")
+    public ApiResponse<Void> updateAsset(@PathVariable @Min(1) Long id,
+                                         @PathVariable @Min(1) Long assetId,
+                                         @Valid @RequestBody WorkspaceAdminRequests.UpdateAssetRequest request) {
+        workspaceAdminService.updateAsset(id, assetId, request);
+        return ApiResponse.ok(null);
+    }
+
     @DeleteMapping("/{id}/assets/{assetId}")
     public ApiResponse<Void> removeAsset(@PathVariable @Min(1) Long id,
                                          @PathVariable @Min(1) Long assetId) {
@@ -110,6 +118,14 @@ public class WorkspaceAdminController {
     public ApiResponse<Void> batchMemberGrants(@PathVariable @Min(1) Long id,
                                                @Valid @RequestBody WorkspaceAdminRequests.BatchMemberGrantRequest request) {
         workspaceAdminService.batchMemberGrants(id, request);
+        return ApiResponse.ok(null);
+    }
+
+    @PutMapping("/{id}/member-grants/{grantId}")
+    public ApiResponse<Void> updateMemberGrant(@PathVariable @Min(1) Long id,
+                                               @PathVariable @Min(1) Long grantId,
+                                               @Valid @RequestBody WorkspaceAdminRequests.UpdateMemberGrantRequest request) {
+        workspaceAdminService.updateMemberGrant(id, grantId, request);
         return ApiResponse.ok(null);
     }
 

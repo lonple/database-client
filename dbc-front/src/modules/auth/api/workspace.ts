@@ -136,6 +136,22 @@ export function addAsset(
   return http.post(`${MANAGE_BASE}/workspaces/${workspaceId}/assets`, data) as Promise<ApiResponse<null>>
 }
 
+export function updateAsset(
+  workspaceId: number,
+  assetId: number,
+  data: {
+    connectionId: number
+    objectScope: ObjectScopeCode | string
+    objects?: ObjectRef[]
+    tables?: ObjectRef[]
+    ops: string[]
+  },
+) {
+  return http.put(`${MANAGE_BASE}/workspaces/${workspaceId}/assets/${assetId}`, data) as Promise<
+    ApiResponse<null>
+  >
+}
+
 export function removeAsset(workspaceId: number, assetId: number) {
   return http.delete(`${MANAGE_BASE}/workspaces/${workspaceId}/assets/${assetId}`) as Promise<
     ApiResponse<null>
@@ -168,6 +184,22 @@ export function batchMemberGrants(
   },
 ) {
   return http.post(`${MANAGE_BASE}/workspaces/${workspaceId}/member-grants/batch`, data) as Promise<
+    ApiResponse<null>
+  >
+}
+
+export function updateMemberGrant(
+  workspaceId: number,
+  grantId: number,
+  data: {
+    connectionId: number
+    objectScope: ObjectScopeCode | string
+    objects?: ObjectRef[]
+    tables?: ObjectRef[]
+    ops: string[]
+  },
+) {
+  return http.put(`${MANAGE_BASE}/workspaces/${workspaceId}/member-grants/${grantId}`, data) as Promise<
     ApiResponse<null>
   >
 }

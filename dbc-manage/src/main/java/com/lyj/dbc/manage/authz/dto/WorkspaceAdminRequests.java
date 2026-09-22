@@ -46,6 +46,21 @@ public final class WorkspaceAdminRequests {
         private List<String> ops;
     }
 
+    /**
+     * 更新单条资产授权（字段与新增一致）。
+     */
+    @Data
+    public static class UpdateAssetRequest {
+        @NotNull
+        private Long connectionId;
+        @NotBlank
+        private String objectScope;
+        private List<ObjectRef> objects;
+        private List<ObjectRef> tables;
+        @NotEmpty
+        private List<String> ops;
+    }
+
     @Data
     public static class AddMemberGrantRequest {
         @NotNull
@@ -56,6 +71,21 @@ public final class WorkspaceAdminRequests {
         private String objectScope;
         private List<ObjectRef> objects;
         private List<ObjectRef> tables;
+        private List<String> ops;
+    }
+
+    /**
+     * 更新单条 SPECIFIC 成员授权（用户与 grantMode 不可改；ALL 模式不可编辑）。
+     */
+    @Data
+    public static class UpdateMemberGrantRequest {
+        @NotNull
+        private Long connectionId;
+        @NotBlank
+        private String objectScope;
+        private List<ObjectRef> objects;
+        private List<ObjectRef> tables;
+        @NotEmpty
         private List<String> ops;
     }
 
