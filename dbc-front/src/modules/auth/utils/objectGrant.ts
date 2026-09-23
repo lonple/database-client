@@ -135,23 +135,33 @@ function normalizeOpsList(ops?: string[] | null): string[] {
 
 /**
  * 单个草稿对象在空间资产下可授予的 SQL 权限（覆盖资产 ops 并集）。
+ * 任一条覆盖资产含 ANY 时，结果含 ANY（表示可授任意 SQL）。
  */
 export function allowedOpsForDraft(
   assets: WorkspaceAsset[],
   draft: Omit<SelectedGrantObject, 'key' | 'path'>,
 ): string[] {
   const set = new Set<string>()
+  let any = false
   for (const asset of assets) {
     if (!assetCoversDraftOne(asset, draft)) continue
     for (const op of normalizeOpsList(asset.ops)) {
-      set.add(op)
+      if (op === 'ANY') {
+        any = true
+      } else {
+        set.add(op)
+      }
     }
+  }
+  if (any) {
+    return ['ANY', ...set]
   }
   return [...set]
 }
 
 /**
- * 多选对象时，向导共用一份 ops：取各对象允许权限的交集（再与产品全量对齐由调用方处理）。
+ * 多选对象时，向导共用一份 ops：取各对象允许权限的交集。
+ * ANY 仅当每个对象都允许 ANY 时保留。
  */
 export function allowedOpsForSelection(
   assets: WorkspaceAsset[],
@@ -159,17 +169,22 @@ export function allowedOpsForSelection(
 ): string[] {
   if (!selected.length) return []
   let intersection: Set<string> | null = null
+  let allHaveAny = true
   for (const draft of selected) {
-    const allowed = new Set(allowedOpsForDraft(assets, draft))
+    const allowed = allowedOpsForDraft(assets, draft)
+    const hasAny = allowed.includes('ANY')
+    if (!hasAny) allHaveAny = false
+    const named = new Set(allowed.filter((o) => o !== 'ANY'))
     if (intersection == null) {
-      intersection = allowed
+      intersection = named
       continue
     }
     for (const op of [...intersection]) {
-      if (!allowed.has(op)) intersection.delete(op)
+      if (!named.has(op)) intersection.delete(op)
     }
   }
-  return intersection ? [...intersection] : []
+  const named = intersection ? [...intersection] : []
+  return allHaveAny ? ['ANY', ...named] : named
 }
 
 export function hasConnectionWideAsset(assets: WorkspaceAsset[], connectionId: number) {

@@ -1,23 +1,26 @@
 <template>
   <div class="sql-ops-picker">
     <div v-if="showAllToggle" class="ops-all">
-      <a-checkbox :checked="allChecked" @change="onToggleAll">
-        所有权限（可执行任意 SQL）
+      <a-checkbox :checked="anyChecked" @change="onToggleAny">
+        所有权限（任意 SQL）
       </a-checkbox>
-      <span class="ops-hint">勾选后等于授予全部 DML + DDL；取消则清空</span>
+      <span class="ops-hint">
+        含未在下列枚举中的语句（如解析为 OTHER 的指令）；不等于勾选全部 DML/DDL。
+      </span>
     </div>
     <a-alert
       v-else-if="hasAllowedFilter"
       type="info"
       show-icon
       style="margin-bottom: 4px"
-      message="可选项已按空间资产授权过滤；空间未授予全部权限时不可勾选「所有权限」。"
+      message="可选项已按空间资产授权过滤；空间未授予「任意 SQL」时不可勾选「所有权限」。"
     />
     <div v-if="dmlOptions.length" class="ops-block">
       <b>DML</b>
       <a-checkbox-group
         :value="dmlSelected"
         :options="dmlOptions"
+        :disabled="anyChecked"
         @update:value="onDmlChange"
       />
     </div>
@@ -26,10 +29,13 @@
       <a-checkbox-group
         :value="ddlSelected"
         :options="ddlOptions"
+        :disabled="anyChecked"
         @update:value="onDdlChange"
       />
     </div>
-    <div v-if="!availableOps.length" class="ops-empty">当前所选对象在空间资产中无可分配的 SQL 权限</div>
+    <div v-if="!availableNamedOps.length && !showAllToggle" class="ops-empty">
+      当前所选对象在空间资产中无可分配的 SQL 权限
+    </div>
   </div>
 </template>
 
@@ -37,15 +43,23 @@
 import { computed, watch } from 'vue'
 import type { CheckboxChangeEvent } from 'ant-design-vue/es/checkbox/interface'
 import { DDL_OPS, DML_OPS } from '@/modules/sqlwork/constants'
-import { ALL_SQL_OPS } from '@/modules/auth/utils/sqlOps'
+import {
+  ALL_SQL_OPS,
+  SQL_OP_ANY,
+  includesAnyOp,
+  normalizeSqlOps,
+} from '@/modules/auth/utils/sqlOps'
 
-/** DML / DDL 可同时多选；「所有权限」仅在可选全集且全选时为勾选态。 */
 const DML_SET = new Set<string>(DML_OPS)
 const DDL_SET = new Set<string>(DDL_OPS)
 
 const props = defineProps<{
   modelValue: string[]
-  /** 可选权限上限；不传则等同全部 DML+DDL（资产授权场景） */
+  /**
+   * 可选权限上限。
+   * - 不传：资产授权 / 全局管控，可选 ANY + 全部具名 ops
+   * - 传入：成员授权；仅当含 ANY 时可勾选「所有权限」
+   */
   allowedOps?: string[] | null
 }>()
 
@@ -53,24 +67,41 @@ const emit = defineEmits<{
   'update:modelValue': [value: string[]]
 }>()
 
-function normalizeAllowed(input?: string[] | null): string[] {
-  if (input == null) return [...ALL_SQL_OPS]
-  const set = new Set(input.map((s) => String(s).toUpperCase()))
+const hasAllowedFilter = computed(() => props.allowedOps != null)
+const allowedIncludesAny = computed(() =>
+  props.allowedOps == null ? true : includesAnyOp(props.allowedOps),
+)
+const showAllToggle = computed(() => allowedIncludesAny.value)
+
+function namedFromAllowed(): string[] {
+  if (props.allowedOps == null) return [...ALL_SQL_OPS]
+  if (includesAnyOp(props.allowedOps)) return [...ALL_SQL_OPS]
+  const set = new Set(props.allowedOps.map((s) => String(s).toUpperCase()))
   return ALL_SQL_OPS.filter((op) => set.has(op))
 }
 
-const availableOps = computed(() => normalizeAllowed(props.allowedOps))
-const availableSet = computed(() => new Set(availableOps.value))
-const hasAllowedFilter = computed(() => props.allowedOps != null)
-/** 仅当可选集合等于产品全量 SQL 权限时才展示「所有权限」 */
-const showAllToggle = computed(() => availableOps.value.length === ALL_SQL_OPS.length)
+const availableNamedOps = computed(() => namedFromAllowed())
+const availableNamedSet = computed(() => new Set(availableNamedOps.value))
 
 const dmlOptions = computed(() =>
-  DML_OPS.filter((v) => availableSet.value.has(v)).map((v) => ({ label: v, value: v })),
+  DML_OPS.filter((v) => availableNamedSet.value.has(v)).map((v) => ({ label: v, value: v })),
 )
 const ddlOptions = computed(() =>
-  DDL_OPS.filter((v) => availableSet.value.has(v)).map((v) => ({ label: v, value: v })),
+  DDL_OPS.filter((v) => availableNamedSet.value.has(v)).map((v) => ({ label: v, value: v })),
 )
+
+const anyChecked = computed(() => includesAnyOp(props.modelValue))
+
+const namedSelected = computed(() => {
+  if (anyChecked.value) {
+    return availableNamedOps.value
+  }
+  const set = new Set((props.modelValue || []).map((s) => String(s).toUpperCase()))
+  return availableNamedOps.value.filter((op) => set.has(op))
+})
+
+const dmlSelected = computed(() => namedSelected.value.filter((op) => DML_SET.has(op)))
+const ddlSelected = computed(() => namedSelected.value.filter((op) => DDL_SET.has(op)))
 
 function normalizeList(input: unknown, allowed: Set<string>): string[] {
   if (!Array.isArray(input)) return []
@@ -80,52 +111,48 @@ function normalizeList(input: unknown, allowed: Set<string>): string[] {
   return [...allowed].filter((op) => set.has(op))
 }
 
-const normalized = computed(() => {
-  const set = new Set((props.modelValue || []).map((s) => String(s).toUpperCase()))
-  return availableOps.value.filter((op) => set.has(op))
-})
-
-const dmlSelected = computed(() => normalized.value.filter((op) => DML_SET.has(op)))
-const ddlSelected = computed(() => normalized.value.filter((op) => DDL_SET.has(op)))
-
-/** 仅全部可选权限选中才勾选；部分选中保持未勾选（不用 indeterminate） */
-const allChecked = computed(
-  () => availableOps.value.length > 0 && normalized.value.length === availableOps.value.length,
-)
-
 function emitMerged(nextDml: string[], nextDdl: string[]) {
   const set = new Set<string>([...nextDml, ...nextDdl])
   emit(
     'update:modelValue',
-    availableOps.value.filter((op) => set.has(op)),
+    normalizeSqlOps(availableNamedOps.value.filter((op) => set.has(op))),
   )
 }
 
 function onDmlChange(vals: string[]) {
+  if (anyChecked.value) return
   emitMerged(normalizeList(vals, new Set(dmlOptions.value.map((o) => o.value))), ddlSelected.value)
 }
 
 function onDdlChange(vals: string[]) {
+  if (anyChecked.value) return
   emitMerged(dmlSelected.value, normalizeList(vals, new Set(ddlOptions.value.map((o) => o.value))))
 }
 
-function onToggleAll(e: CheckboxChangeEvent) {
-  emit('update:modelValue', e.target.checked ? [...availableOps.value] : [])
+function onToggleAny(e: CheckboxChangeEvent) {
+  emit('update:modelValue', e.target.checked ? [SQL_OP_ANY] : [])
 }
 
-/** 可选上限变化时，裁掉已选但不在范围内的权限 */
+/** 可选上限变化时裁剪 */
 watch(
-  availableOps,
-  (ops) => {
-    const set = new Set(ops)
-    const next = (props.modelValue || [])
-      .map((s) => String(s).toUpperCase())
-      .filter((op) => set.has(op))
+  [availableNamedOps, allowedIncludesAny],
+  () => {
+    const current = props.modelValue || []
+    if (includesAnyOp(current)) {
+      if (!allowedIncludesAny.value) {
+        emit('update:modelValue', [])
+      } else if (normalizeSqlOps(current).length !== 1 || current.length !== 1) {
+        emit('update:modelValue', [SQL_OP_ANY])
+      }
+      return
+    }
+    const set = new Set(availableNamedOps.value)
+    const next = normalizeSqlOps(current.filter((op) => set.has(String(op).toUpperCase())))
     const same =
-      next.length === (props.modelValue || []).length &&
-      next.every((op, i) => String(props.modelValue[i]).toUpperCase() === op)
+      next.length === current.length &&
+      next.every((op, i) => String(current[i]).toUpperCase() === op)
     if (!same) {
-      emit('update:modelValue', ops.filter((op) => next.includes(op)))
+      emit('update:modelValue', next)
     }
   },
   { immediate: true },

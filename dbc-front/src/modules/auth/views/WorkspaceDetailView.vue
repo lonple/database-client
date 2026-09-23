@@ -60,7 +60,7 @@
           <a-alert type="info" show-icon style="margin-bottom: 12px">
             <template #message>成员授权三步向导</template>
             <template #description>
-              ① 选择用户 → ② 选择授权对象（元数据勾选，含包含合并）→ ③ 选择 SQL 权限（候选 ⊆ 所选对象对应的空间资产权限；空间未授全部权限时不可勾选「所有权限」）。
+              ① 选择用户 → ② 选择授权对象（元数据勾选，含包含合并）→ ③ 选择 SQL 权限（候选 ⊆ 空间资产；「所有权限」=任意 SQL，仅当空间资产含任意 SQL 时可勾选）。
             </template>
           </a-alert>
           <div class="toolbar">
@@ -412,12 +412,14 @@ const wizardUserSelection = computed(() => ({
   },
 }))
 
-/** 成员可选 SQL 权限：按已选对象取覆盖空间资产 ops 的交集，并与产品全量对齐排序 */
+/** 成员可选 SQL 权限：覆盖资产 ops 交集；含 ANY 时可授任意 SQL */
 const memberAllowedOps = computed(() => {
   const assets = detail.value?.assets || []
   const allowed = allowedOpsForSelection(assets, memberSelectedObjects.value)
+  const hasAny = allowed.some((o) => String(o).toUpperCase() === 'ANY')
   const set = new Set(allowed.map((o) => o.toUpperCase()))
-  return ALL_SQL_OPS.filter((op) => set.has(op))
+  const named = ALL_SQL_OPS.filter((op) => set.has(op))
+  return hasAny ? ['ANY', ...named] : named
 })
 
 function roleLabel(code?: string | null) {
@@ -674,8 +676,20 @@ async function submitMemberGrantWizard() {
     message.warning('请勾选权限')
     return
   }
-  const allowed = new Set(memberAllowedOps.value)
-  if (allowed.size && memberOps.value.some((op) => !allowed.has(String(op).toUpperCase()))) {
+  const allowed = memberAllowedOps.value
+  if (!allowed.length) {
+    message.warning('所选权限超出空间资产授权范围')
+    return
+  }
+  const allowedSet = new Set(allowed.map((o) => String(o).toUpperCase()))
+  const spaceHasAny = allowedSet.has('ANY')
+  const outOfRange = memberOps.value.some((op) => {
+    const u = String(op).toUpperCase()
+    if (u === 'ANY') return !spaceHasAny
+    // 空间含 ANY 时可授予任意具名 ops
+    return !spaceHasAny && !allowedSet.has(u)
+  })
+  if (outOfRange) {
     message.warning('所选权限超出空间资产授权范围')
     return
   }

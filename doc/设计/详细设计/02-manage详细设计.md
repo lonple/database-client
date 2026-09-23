@@ -238,8 +238,8 @@ dbc-manage/
 
 - 详情 Tab：**资产授权** | **成员授权**（成员角色管理收纳在成员授权页）。
 - **资产授权**：多连接 + 层级对象 + SQL 操作；连接须在操作者 data-scope 内；支持 **PUT 编辑**单条。
-- **成员授权三步**：选用户 → 选对象（**候选 ⊆ 空间资产授权**；宽范围资产内可再选子集）→ 选权限（**候选 ops ⊆ 覆盖资产 ops 交集**；空间非全部权限时不可勾选「所有权限」）；`POST .../member-grants/batch` 自动加人并写多条 SPECIFIC 授权；支持 **PUT 编辑**单条 SPECIFIC。
-- 后端校验成员 SPECIFIC 授权不得超出空间资产（**对象范围 + SQL 操作**）；`grant_mode=ALL` 完全跟随空间资产增减（快捷模式仍保留）。
+- **成员授权三步**：选用户 → 选对象（**候选 ⊆ 空间资产授权**；宽范围资产内可再选子集）→ 选权限（**候选 ops ⊆ 覆盖资产 ops 交集**；「所有权限」=`ANY` 任意 SQL，仅当空间资产含 ANY 时可勾选）；`POST .../member-grants/batch` 自动加人并写多条 SPECIFIC 授权；支持 **PUT 编辑**单条 SPECIFIC。
+- 后端校验成员 SPECIFIC 授权不得超出空间资产（**对象范围 + SQL 操作**；`ANY` 覆盖一切具名与 OTHER）；`grant_mode=ALL` 完全跟随空间资产增减（快捷模式仍保留）。
 - 未成员授权：可进空间（若已是成员），工作台不能选任何连接（所有者/空间管理员隐式拥有空间资产除外，见鉴权实现）。
 - 运行时禁止多空间权限并集。
 
@@ -284,7 +284,7 @@ dbc-manage/
 | --- | --- |
 | id | 主键 |
 | name | 管控名称，唯一 |
-| ops_json | SQL 操作数组；UI 提供「所有权限」快捷勾选（展开存全量 DML+DDL ops，不允许空）；DML 与 DDL **可同时多选**（非互斥） |
+| ops_json | SQL 操作数组；UI「所有权限」存哨兵 **`ANY`（任意 SQL，含 OTHER 等未枚举语句）**，不等于展开全量 DML+DDL；也可只存具名 ops；不允许空；DML 与 DDL **可同时多选**（非互斥） |
 | strategy | `BLOCK` \| `ALERT` \| `REAUTH` |
 | workspace_scope | `ALL` \| `SPECIFIC`；`ALL` 含**之后新建**的空间 |
 | workspace_ids_json | SPECIFIC 时的空间 id 列表 |

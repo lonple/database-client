@@ -755,17 +755,37 @@ public class WorkspaceAdminService {
         if (allowedOps == null || allowedOps.isEmpty()) {
             throw BizException.badRequest("空间资产未授予可用 SQL 权限: " + objectHint);
         }
-        Set<String> allowedUpper = allowedOps.stream()
-                .filter(StringUtils::hasText)
-                .map(s -> s.trim().toUpperCase(Locale.ROOT))
-                .collect(Collectors.toSet());
-        List<String> exceeded = grantOps.stream()
-                .filter(op -> !allowedUpper.contains(op))
-                .toList();
-        if (!exceeded.isEmpty()) {
-            throw BizException.badRequest(
-                    "成员授权 SQL 权限超出空间资产范围(" + objectHint + "): " + String.join(",", exceeded));
+        if (SqlOpCodes.isSubset(grantOps, allowedOps)) {
+            return;
         }
+        if (SqlOpCodes.includesAny(grantOps) && !SqlOpCodes.includesAny(allowedOps)) {
+            throw BizException.badRequest(
+                    "成员授权不能授予「任意 SQL」：空间资产未包含任意 SQL 权限(" + objectHint + ")");
+        }
+        List<String> exceeded = grantOps.stream()
+                .filter(op -> !SqlOpCodes.covers(allowedOps, op))
+                .toList();
+        throw BizException.badRequest(
+                "成员授权 SQL 权限超出空间资产范围(" + objectHint + "): " + String.join(",", exceeded));
+    }
+
+    private List<String> normalizeOps(List<String> ops) {
+        if (ops == null || ops.isEmpty()) {
+            throw BizException.badRequest("ops 不能为空");
+        }
+        for (String raw : ops) {
+            if (!StringUtils.hasText(raw)) {
+                continue;
+            }
+            if (!SqlOpCodes.isAllowedWriteOp(raw)) {
+                throw BizException.badRequest("不支持的 SQL 操作: " + raw);
+            }
+        }
+        List<String> normalized = SqlOpCodes.normalize(ops);
+        if (normalized.isEmpty()) {
+            throw BizException.badRequest("ops 不能为空");
+        }
+        return normalized;
     }
 
     private boolean assetCoversRef(List<WorkspaceAssetEntity> assets, String grantScope,
@@ -1023,17 +1043,6 @@ public class WorkspaceAdminService {
                 || user.getRoleCodes().contains("DB_ADMIN")
                 || user.getRoleCodes().contains("SYS_ADMIN")
                 || user.getRoleCodes().contains("ADMIN");
-    }
-
-    private List<String> normalizeOps(List<String> ops) {
-        if (ops == null || ops.isEmpty()) {
-            throw BizException.badRequest("ops 不能为空");
-        }
-        return ops.stream()
-                .filter(StringUtils::hasText)
-                .map(s -> s.trim().toUpperCase(Locale.ROOT))
-                .distinct()
-                .toList();
     }
 
     private String toJson(Object value) {

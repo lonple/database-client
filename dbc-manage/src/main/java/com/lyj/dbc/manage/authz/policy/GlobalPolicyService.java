@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lyj.dbc.client.audit.AuditAction;
 import com.lyj.dbc.client.audit.AuditLog;
+import com.lyj.dbc.manage.authz.SqlOpCodes;
 import com.lyj.dbc.manage.authz.policy.dto.GlobalPolicyRequests;
 import com.lyj.dbc.manage.authz.policy.entity.GlobalPolicyEntity;
 import com.lyj.dbc.manage.authz.policy.mapper.GlobalPolicyMapper;
@@ -42,10 +43,6 @@ public class GlobalPolicyService {
     public static final String ACTION_NONE = "NONE";
 
     private static final Set<String> ALLOWED_STRATEGIES = Set.of(STRATEGY_BLOCK, STRATEGY_ALERT, STRATEGY_REAUTH);
-    private static final Set<String> ALLOWED_OPS = Set.of(
-            "SELECT", "INSERT", "UPDATE", "DELETE",
-            "CREATE", "ALTER", "DROP", "TRUNCATE", "COMMENT", "INDEX", "OTHER"
-    );
 
     private final GlobalPolicyMapper globalPolicyMapper;
     private final ObjectMapper objectMapper;
@@ -122,14 +119,7 @@ public class GlobalPolicyService {
                 continue;
             }
             List<String> ops = readStringList(row.getOpsJson());
-            boolean match = false;
-            for (String o : ops) {
-                if (op.equalsIgnoreCase(o)) {
-                    match = true;
-                    break;
-                }
-            }
-            if (!match) {
+            if (!SqlOpCodes.covers(ops, op)) {
                 continue;
             }
             hits.add(new Hit(normalizeStrategy(row.getStrategy()), row.getId(), row.getName()));
@@ -177,15 +167,16 @@ public class GlobalPolicyService {
                 continue;
             }
             String op = raw.trim().toUpperCase(Locale.ROOT);
-            if (!ALLOWED_OPS.contains(op)) {
+            if (!SqlOpCodes.isAllowedWriteOp(op)) {
                 throw BizException.badRequest("不支持的 SQL 操作: " + op);
             }
             ops.add(op);
         }
-        if (ops.isEmpty()) {
-            throw BizException.badRequest("管控指令不能为空，请勾选操作或选择「全部」");
+        List<String> normalized = SqlOpCodes.normalize(ops);
+        if (normalized.isEmpty()) {
+            throw BizException.badRequest("管控指令不能为空，请勾选操作或选择「所有权限（任意 SQL）」");
         }
-        request.setOps(List.copyOf(ops));
+        request.setOps(normalized);
         request.setStrategy(strategy);
         request.setWorkspaceScope(scope);
         if (request.getStatus() == null || (request.getStatus() != 0 && request.getStatus() != 1)) {

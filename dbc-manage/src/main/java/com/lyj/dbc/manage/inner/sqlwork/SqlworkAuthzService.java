@@ -3,6 +3,7 @@ package com.lyj.dbc.manage.inner.sqlwork;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.lyj.dbc.manage.authz.SqlOpCodes;
 import com.lyj.dbc.manage.authz.cache.AuthzCacheModels;
 import com.lyj.dbc.manage.authz.cache.WorkspaceAuthzCacheService;
 import com.lyj.dbc.manage.authz.policy.GlobalPolicyService;
@@ -300,6 +301,9 @@ public class SqlworkAuthzService {
     private static String formatOps(List<String> ops) {
         if (ops == null || ops.isEmpty()) {
             return "无";
+        }
+        if (SqlOpCodes.includesAny(ops)) {
+            return "任意 SQL";
         }
         return String.join(", ", ops);
     }
@@ -846,7 +850,7 @@ public class SqlworkAuthzService {
     }
 
     private static boolean containsOp(java.util.Collection<String> ops, String op) {
-        return ops.stream().anyMatch(o -> o.equalsIgnoreCase(op));
+        return SqlOpCodes.covers(ops, op);
     }
 
     private AuthzEvaluateResult applyGlobalPolicy(WorkspaceEntity workspace, String sqlOp,

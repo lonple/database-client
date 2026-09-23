@@ -17,7 +17,7 @@
     <a-table row-key="id" :columns="columns" :data-source="rows" :loading="loading" :pagination="false">
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'ops'">
-          {{ (record.ops || []).join(', ') }}
+          {{ formatSqlOps(record.ops).join(', ') }}
         </template>
         <template v-else-if="column.key === 'strategy'">
           <a-tag :color="strategyColor(record.strategy)">{{ strategyLabel(record.strategy) }}</a-tag>
@@ -53,16 +53,7 @@
           <a-input v-model:value="form.name" maxlength="128" />
         </a-form-item>
         <a-form-item label="管控指令" required>
-          <div class="ops-row">
-            <a-checkbox
-              :checked="allOpsChecked"
-              :indeterminate="opsIndeterminate"
-              @change="onToggleAllOps"
-            >
-              全部
-            </a-checkbox>
-          </div>
-          <a-checkbox-group v-model:value="form.ops" :options="opOptions" />
+          <SqlOpsPicker v-model="form.ops" />
         </a-form-item>
         <a-form-item label="管控策略" required>
           <a-radio-group v-model:value="form.strategy">
@@ -107,14 +98,12 @@ import { message } from 'ant-design-vue'
 import * as api from '@/modules/auth/api/globalPolicy'
 import type { GlobalPolicy } from '@/modules/auth/api/globalPolicy'
 import * as workspaceApi from '@/modules/auth/api/workspace'
-import { DDL_OPS, DML_OPS } from '@/modules/sqlwork/constants'
+import SqlOpsPicker from '@/modules/auth/components/SqlOpsPicker.vue'
+import { formatSqlOps, normalizeSqlOps } from '@/modules/auth/utils/sqlOps'
 import { usePermission } from '@/common/permission/usePermission'
 
 const { hasPermission } = usePermission()
 const canOperate = computed(() => hasPermission('auth.global.policy.operate'))
-
-const ALL_OPS = [...DML_OPS, ...DDL_OPS]
-const opOptions = ALL_OPS.map((o) => ({ label: o, value: o }))
 
 const loading = ref(false)
 const saving = ref(false)
@@ -132,9 +121,6 @@ const form = reactive({
   sortNo: 0,
   status: 1,
 })
-
-const allOpsChecked = computed(() => form.ops.length === ALL_OPS.length)
-const opsIndeterminate = computed(() => form.ops.length > 0 && form.ops.length < ALL_OPS.length)
 
 const columns = [
   { title: '名称', dataIndex: 'name', key: 'name' },
@@ -158,10 +144,6 @@ function strategyColor(s: string) {
   if (s === 'ALERT') return 'warning'
   if (s === 'REAUTH') return 'processing'
   return 'default'
-}
-
-function onToggleAllOps(e: { target: { checked: boolean } }) {
-  form.ops = e.target.checked ? [...ALL_OPS] : []
 }
 
 function resetForm() {
@@ -220,7 +202,7 @@ async function submit() {
     return
   }
   if (!form.ops.length) {
-    message.warning('请勾选管控指令，或选择「全部」')
+    message.warning('请勾选管控指令，或选择「所有权限（任意 SQL）」')
     return
   }
   if (form.workspaceScope === 'SPECIFIC' && !form.workspaceIds.length) {
@@ -231,7 +213,7 @@ async function submit() {
   try {
     const body = {
       name: form.name.trim(),
-      ops: [...form.ops],
+      ops: normalizeSqlOps(form.ops),
       strategy: form.strategy,
       workspaceScope: form.workspaceScope,
       workspaceIds: form.workspaceScope === 'SPECIFIC' ? [...form.workspaceIds] : [],
@@ -273,9 +255,6 @@ onMounted(async () => {
 h2 {
   margin: 0;
   font-size: 20px;
-}
-.ops-row {
-  margin-bottom: 8px;
 }
 .danger {
   color: #ff4d4f;
