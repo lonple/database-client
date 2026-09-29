@@ -50,6 +50,22 @@ public interface DbDialect {
     }
 
     /**
+     * 列出表列结构。
+     *
+     * @param database 库/catalog，可空则用当前库
+     * @param schema   模式；MySQL 可与 database 同义处理
+     * @param table    表名，必填
+     */
+    List<ColumnItem> listColumns(Connection connection, String database, String schema, String table)
+            throws SQLException;
+
+    /**
+     * 列项。
+     */
+    record ColumnItem(String name, String dataType, boolean nullable, String comment, int ordinal) {
+    }
+
+    /**
      * 表分页结果。
      */
     record TablePage(List<TableItem> items, long total) {

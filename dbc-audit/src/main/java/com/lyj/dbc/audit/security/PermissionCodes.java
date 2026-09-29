@@ -9,6 +9,7 @@ public final class PermissionCodes {
 
     public static final String AUDIT_BIZ_VIEW = "audit.biz.view";
     public static final String AUDIT_SQL_VIEW = "audit.sql.view";
+    public static final String AUDIT_ASKDATA_VIEW = "audit.askdata.view";
 
     private PermissionCodes() {
     }

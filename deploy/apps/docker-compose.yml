@@ -146,6 +146,39 @@ services:
       - ${DBC_DOCKER_WORKSPACE}/secrets:/app/secrets
       - ${DBC_DOCKER_WORKSPACE}/audit/logs:/app/logs
 
+  dbc-askdata:
+    restart: unless-stopped
+    working_dir: /app
+    networks:
+      - dbc-net
+    image: dbc-askdata:0.1.0
+    container_name: dbc-askdata
+    build:
+      context: ../../dbc-askdata
+      dockerfile: Dockerfile
+    depends_on:
+      - dbc-sqlwork
+      - dbc-usercenter
+    ports:
+      - "8009:8009"
+    environment:
+      TZ: Asia/Shanghai
+      DBC_NACOS_ADDR: nacos:8848
+      DBC_ASKDATA_NACOS_REGISTER: "true"
+      DBC_ASKDATA_SECRETS_DIR: /app/secrets
+      DBC_ASKDATA_DATABASE_URL: postgresql+asyncpg://postgres:root@postgres:5432/postgres
+      DBC_ASKDATA_SQLWORK_BASE_URL: http://dbc-sqlwork:8007
+      DBC_ASKDATA_LLM_RESIDENCY: ${DBC_ASKDATA_LLM_RESIDENCY:-cloud}
+      # 对齐 ai-dev-assistant ada.llm（DashScope compatible-mode + qwen-max）
+      DBC_ASKDATA_LLM_BASE_URL: ${DBC_ASKDATA_LLM_BASE_URL:-${ADA_LLM_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode}}
+      DBC_ASKDATA_LLM_MODEL: ${DBC_ASKDATA_LLM_MODEL:-${ADA_LLM_CHAT_MODEL:-qwen-max}}
+      DBC_ASKDATA_LLM_API_KEY: ${DBC_ASKDATA_LLM_API_KEY:-${ADA_LLM_API_KEY:-}}
+      DBC_ASKDATA_AUDIT_ENABLED: "true"
+      DBC_ASKDATA_AUDIT_MTLS_BASE_URL: https://dbc-audit:8048
+    volumes:
+      - ${DBC_DOCKER_WORKSPACE}/secrets:/app/secrets
+      - ${DBC_DOCKER_WORKSPACE}/askdata/logs:/app/logs
+
   dbc-gateway:
     <<: *app-common
     image: dbc-gateway:0.1.0
@@ -158,6 +191,7 @@ services:
       - dbc-manage
       - dbc-sqlwork
       - dbc-audit
+      - dbc-askdata
     ports:
       - "8003:8003"
     environment:

@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DBC · 智能问数 · LLM / Tool / LangGraph / Deep Agents</title>
+  <link rel="stylesheet" href="common.css" />
+  <style>
+    .doc { max-width: 1020px; margin: 0 auto; padding: 24px 20px 64px; }
+    .doc h1 { margin: 0 0 8px; font-size: 26px; }
+    .lead { color: var(--text-secondary); font-size: 15px; line-height: 1.7; margin: 0 0 24px; }
+    .toc { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+    .toc a {
+      display: inline-flex; padding: 6px 12px; border-radius: 999px;
+      background: #fff; border: 1px solid var(--border-strong); font-size: 13px;
+    }
+    .section {
+      background: #fff; border: 1px solid var(--border); border-radius: 10px;
+      padding: 22px; margin-bottom: 22px;
+    }
+    .section h2 { margin: 0 0 6px; font-size: 20px; }
+    .hint { margin: 0 0 18px; color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
+
+    /* 角色卡 */
+    .roles {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .role {
+      border-radius: 10px; padding: 12px 14px; border: 1.5px solid #d9d9d9;
+    }
+    .role .name { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+    .role .one { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+    .role.lc { background: #f0f5ff; border-color: #adc6ff; }
+    .role.lg { background: #f6ffed; border-color: #b7eb8f; }
+    .role.da { background: #fff7e6; border-color: #ffd591; }
+    .role.llm { background: #f9f0ff; border-color: #d3adf7; }
+    .role.tool { background: #e6fffb; border-color: #87e8de; }
+
+    /* 关系总览 */
+    .rel {
+      display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 8px;
+    }
+    .rel-layer {
+      width: 100%; max-width: 860px;
+      border-radius: 12px; padding: 14px 16px; border: 1.5px solid #d9d9d9;
+    }
+    .rel-layer .lt {
+      font-weight: 700; font-size: 13px; margin-bottom: 10px;
+      display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    }
+    .rel-layer .lt em {
+      font-style: normal; font-weight: 500; font-size: 12px; color: var(--text-secondary);
+    }
+    .rel-layer.orchestrator { background: #f6ffed; border-color: #95de64; }
+    .rel-layer.agent { background: #fffbe6; border-color: #ffd666; }
+    .rel-layer.runtime { background: #f9f0ff; border-color: #b37feb; }
+    .rel-layer.tools { background: #e6fffb; border-color: #5cdbd3; }
+    .rel-layer.infra { background: #fafafa; border-color: #d9d9d9; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      background: #fff; border: 1px solid #f0f0f0; border-radius: 8px;
+      padding: 8px 10px; font-size: 12px; line-height: 1.4; max-width: 200px;
+    }
+    .chip b { display: block; margin-bottom: 2px; color: #135200; }
+    .rel-arrow { color: #8c8c8c; font-size: 12px; text-align: center; }
+    .rel-arrow::before { content: "↓ 调用 / 调度"; display: block; font-size: 13px; color: #595959; }
+
+    /* LangGraph 节点图 */
+    .g-flow {
+      display: flex; flex-direction: column; align-items: center; gap: 0;
+    }
+    .g-node {
+      width: min(420px, 100%);
+      border-radius: 10px; border: 1.5px solid #b7eb8f; background: #f6ffed;
+      padding: 12px 14px; position: relative;
+    }
+    .g-node .n {
+      position: absolute; left: -8px; top: -8px; width: 24px; height: 24px;
+      border-radius: 50%; background: #389e0d; color: #fff; font-size: 11px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .g-node .t { font-weight: 700; font-size: 13px; margin: 0 0 4px 16px; }
+    .g-node .d { margin: 0; font-size: 12px; color: var(--text-secondary); line-height: 1.55; }
+    .g-node.branch { background: #fff7e6; border-color: #ffd591; }
+    .g-node.branch .n { background: #d48806; }
+    .g-node.deep { background: #fffbe6; border-color: #ffe58f; }
+    .g-node.deep .n { background: #ad6800; }
+    .g-node.end { background: #e6f4ff; border-color: #91caff; }
+    .g-node.end .n { background: #1677ff; }
+    .g-join { width: 2px; height: 14px; background: #bfbfbf; }
+    .g-fork {
+      width: min(640px, 100%);
+      display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; margin: 6px 0;
+    }
+    .g-fork .g-node { width: 100%; min-height: 96px; }
+    .g-fork .g-node .t { margin-left: 20px; font-size: 12px; }
+    .g-fork .g-node .n { left: 6px; }
+    .note {
+      margin-top: 14px; padding: 12px 14px; background: #fafafa; border-radius: 8px;
+      font-size: 12px; color: var(--text-secondary); line-height: 1.7;
+    }
+    .note strong { color: var(--text); }
+
+    /* Deep Agents 环 */
+    .loop-wrap {
+      display: grid; grid-template-columns: 1.2fr 1fr; gap: 16px; align-items: start;
+    }
+    @media (max-width: 800px) {
+      .loop-wrap { grid-template-columns: 1fr; }
+      .g-fork { grid-template-columns: 1fr 1fr; }
+    }
+    .loop {
+      position: relative;
+      border: 2px dashed #ffd591; border-radius: 16px;
+      padding: 20px 16px 16px; background: #fffbf0;
+    }
+    .loop-title {
+      position: absolute; top: -11px; left: 16px; background: #fffbf0;
+      padding: 0 8px; font-size: 12px; font-weight: 700; color: #ad6800;
+    }
+    .loop-steps { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .loop-box {
+      width: 100%; max-width: 280px; text-align: center;
+      border-radius: 8px; padding: 10px 12px; font-size: 13px; font-weight: 600;
+      border: 1.5px solid #d9d9d9; background: #fff;
+    }
+    .loop-box.llm { background: #f9f0ff; border-color: #d3adf7; }
+    .loop-box.gw { background: #e6fffb; border-color: #87e8de; }
+    .loop-box.out { background: #f6ffed; border-color: #b7eb8f; }
+    .loop-arr { color: #8c8c8c; font-size: 12px; }
+    .loop-back {
+      margin-top: 8px; text-align: center; font-size: 12px; color: #d48806;
+      border-top: 1px dashed #ffd591; padding-top: 8px;
+    }
+    .msg-list {
+      font-size: 12px; line-height: 1.55; color: var(--text-secondary);
+      background: #1f1f1f; color: #d9d9d9; border-radius: 8px; padding: 12px 14px;
+      font-family: ui-monospace, Consolas, monospace; overflow: auto;
+    }
+    .msg-list .c { color: #69c0ff; }
+    .msg-list .t { color: #95de64; }
+    .msg-list .r { color: #ffc069; }
+
+    /* 时序简图 */
+    .seq {
+      display: grid; gap: 8px;
+    }
+    .seq-row {
+      display: grid; grid-template-columns: 110px 1fr; gap: 10px; align-items: stretch;
+    }
+    .seq-who {
+      font-size: 12px; font-weight: 700; display: flex; align-items: center;
+      justify-content: flex-end; color: #595959; padding-right: 4px;
+    }
+    .seq-bar {
+      border-radius: 8px; padding: 10px 12px; font-size: 12px; line-height: 1.5;
+      border: 1px solid #f0f0f0;
+    }
+    .seq-bar.lg { background: #f6ffed; }
+    .seq-bar.llm { background: #f9f0ff; }
+    .seq-bar.tool { background: #e6fffb; }
+    .seq-bar.da { background: #fff7e6; }
+    .footer-note {
+      text-align: center; font-size: 12px; color: var(--text-secondary); margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="logo">DBC</div>
+      <nav class="nav-l1-group" aria-label="一级菜单">
+        <a class="nav-l1-item" href="index.html">首页</a>
+        <a class="nav-l1-item" href="SQL工作台.html">SQL 工作台</a>
+        <a class="nav-l1-item active" href="智能问数.html">智能问数</a>
+        <a class="nav-l1-item" href="工作空间.html">资产管理</a>
+        <a class="nav-l1-item" href="用户管理.html">用户中心</a>
+      </nav>
+      <div class="header-right">
+        <a class="btn" href="智能问数-架构与流程.html">架构小白版</a>
+      </div>
+    </header>
+
+    <div class="doc">
+      <h1>LLM · Tool · LangChain · LangGraph · Deep Agents</h1>
+      <p class="lead">
+        专讲「脑子里几块积木怎么配合」。记住一句口诀：
+        <strong>LangGraph 管大流程，Deep Agents 管某一站里的多轮工具，LLM 出主意，Tool 干实事，LangChain 是底层协议与依赖。</strong>
+      </p>
+      <div class="toc">
+        <a href="#roles">① 五个角色是啥</a>
+        <a href="#stack">② 谁调用谁</a>
+        <a href="#langgraph">③ LangGraph 总图</a>
+        <a href="#deep">④ Deep Agents 小环</a>
+        <a href="#seq">⑤ 一次问数时序</a>
+        <a href="智能问数-架构与流程.html">业务架构小白版</a>
+      </div>
+
+      <!-- 角色 -->
+      <section class="section" id="roles">
+        <h2>① 五个角色，人话版</h2>
+        <p class="hint">先对号入座，别被名词吓到。</p>
+        <div class="roles">
+          <div class="role lc">
+            <div class="name">LangChain</div>
+            <div class="one">生态与通用能力：消息格式、工具 JSON Schema 等。本项目依赖 <code>langchain-core</code>，不单独「跑一套 LangChain Agent」。</div>
+          </div>
+          <div class="role lg">
+            <div class="name">LangGraph</div>
+            <div class="one">总导演：把「搜集 → 路由 → 闲聊/确认/治理/生成 → 校验 → 呈现」画成一张状态图，按条件走边。</div>
+          </div>
+          <div class="role da">
+            <div class="name">Deep Agents（风格）</div>
+            <div class="one">某一站里的「小导演」：允许多轮 tool_call，模型自己决定要不要继续探测，直到吐出工作流 JSON。</div>
+          </div>
+          <div class="role llm">
+            <div class="name">LLM 大模型</div>
+            <div class="one">只会两种回复：① 纯文本（闲聊 / 最终 JSON）；② tool_calls（点名要调哪个 Tool）。</div>
+          </div>
+          <div class="role tool">
+            <div class="name">Tool（声明制）</div>
+            <div class="one">白名单能力：搜目录、看表结构、列画像/枚举、EXPLAIN… 经 ToolGateway 执行，再调 sqlwork。</div>
+          </div>
+        </div>
+        <div class="note">
+          <strong>和开源「DeepAgents 产品」的关系：</strong>
+          我们实现的是同款交互模式（多轮 tool_call + 强制作用域），代码在 <code>tool_agent.py</code> / <code>deep_govern.py</code>，挂在 LangGraph 的 GOVERN / QUERY 生成节点上。
+        </div>
+      </section>
+
+      <!-- 调用栈 -->
+      <section class="section" id="stack">
+        <h2>② 谁调用谁（从上到下）</h2>
+        <p class="hint">越往上越像「流程编排」，越往下越像「干活的手」。</p>
+        <div class="rel">
+          <div class="rel-layer orchestrator">
+            <div class="lt">LangGraph 状态机 <em>generate.py · StateGraph</em></div>
+            <div class="chips">
+              <div class="chip"><b>gather_context</b>搜目录</div>
+              <div class="chip"><b>router</b>调 LLM 判意图</div>
+              <div class="chip"><b>chat / hitl</b>闲聊或等人</div>
+              <div class="chip"><b>govern / build</b>进 Deep 环</div>
+              <div class="chip"><b>verify / present</b>校验与回会话</div>
+            </div>
+          </div>
+          <div class="rel-arrow"></div>
+          <div class="rel-layer agent">
+            <div class="lt">Deep Agents 风格环 <em>run_tool_agent · 限步数</em></div>
+            <div class="chips">
+              <div class="chip"><b>messages[]</b>对话上下文</div>
+              <div class="chip"><b>openai tools</b>来自 Registry</div>
+              <div class="chip"><b>tool_choice=auto</b>模型自决</div>
+              <div class="chip"><b>直到无 tool_calls</b>解析 JSON 草稿</div>
+            </div>
+          </div>
+          <div class="rel-arrow"></div>
+          <div class="rel-layer runtime">
+            <div class="lt">LLM Client <em>OpenAI 兼容 Chat Completions</em></div>
+            <div class="chips">
+              <div class="chip"><b>输入</b>system + history + tools</div>
+              <div class="chip"><b>输出 A</b>content 文本</div>
+              <div class="chip"><b>输出 B</b>tool_calls[]</div>
+              <div class="chip"><b>不碰库</b>只吐决策</div>
+            </div>
+          </div>
+          <div class="rel-arrow"></div>
+          <div class="rel-layer tools">
+            <div class="lt">ToolRegistry → ToolGateway <em>唯一出口</em></div>
+            <div class="chips">
+              <div class="chip"><b>search_catalog</b></div>
+              <div class="chip"><b>describe_table</b></div>
+              <div class="chip"><b>get_column_profile</b>枚举频次</div>
+              <div class="chip"><b>explain_sql</b></div>
+              <div class="chip"><b>sample_columns</b>仅 local</div>
+            </div>
+          </div>
+          <div class="rel-arrow"></div>
+          <div class="rel-layer infra">
+            <div class="lt">SqlworkClient → dbc-sqlwork → 目标库</div>
+            <div class="chips">
+              <div class="chip"><b>JWT 转发</b></div>
+              <div class="chip"><b>workspace + connection</b></div>
+              <div class="chip"><b>禁止模型直调</b></div>
+            </div>
+          </div>
+        </div>
+        <div class="note">
+          <strong>LangChain 在哪？</strong>
+          作为 LangGraph 的底座依赖（消息 / 工具描述等约定），图上不单独画一层「业务模块」——业务总控是 LangGraph，不是 LangChain AgentExecutor。
+        </div>
+      </section>
+
+      <!-- LangGraph -->
+      <section class="section" id="langgraph">
+        <h2>③ LangGraph：这一次请求的总流程</h2>
+        <p class="hint">绿色框 = 图节点；黄框 = Deep Agents 嵌入点；蓝框 = 结束回用户。</p>
+        <div class="g-flow">
+          <div class="g-node">
+            <div class="n">1</div>
+            <div class="t">gather_context</div>
+            <p class="d">服务端直接调 Tool：<code>search_catalog</code>，把可见表塞进 state（不一定经 LLM）。</p>
+          </div>
+          <div class="g-join"></div>
+          <div class="g-node">
+            <div class="n">2</div>
+            <div class="t">router · 调 LLM（无 tools）</div>
+            <p class="d">只输出 JSON：CHAT / QUERY / GOVERN / HITL。闲聊不会误进确认卡。</p>
+          </div>
+          <div class="g-join"></div>
+          <div class="g-fork">
+            <div class="g-node branch">
+              <div class="n">A</div>
+              <div class="t">chat_reply</div>
+              <p class="d">LLM 纯文本闲聊</p>
+            </div>
+            <div class="g-node branch">
+              <div class="n">B</div>
+              <div class="t">hitl</div>
+              <p class="d">等人确认，再续跑</p>
+            </div>
+            <div class="g-node deep">
+              <div class="n">C</div>
+              <div class="t">build_workflow</div>
+              <p class="d">QUERY · Deep 环</p>
+            </div>
+            <div class="g-node deep">
+              <div class="n">D</div>
+              <div class="t">govern_plan</div>
+              <p class="d">GOVERN · Deep 环</p>
+            </div>
+          </div>
+          <div class="g-join"></div>
+          <div class="g-node">
+            <div class="n">3</div>
+            <div class="t">verify（C/D 之后）</div>
+            <p class="d">对草稿节点 SQL 做校验/修复，内部可 EXPLAIN，不依赖模型自己去 execute。</p>
+          </div>
+          <div class="g-join"></div>
+          <div class="g-node end">
+            <div class="n">4</div>
+            <div class="t">present</div>
+            <p class="d">写回会话消息：回复文案 + 草稿卡片（保存 / 保存并执行）。</p>
+          </div>
+        </div>
+        <div class="note">
+          <strong>要点：</strong>LangGraph 负责「整段旅程走哪条路」；只有 C/D 两站打开工具箱让模型多轮探索。用户点「执行」不在这张图里——那是外面的 WorkflowRunner。
+        </div>
+      </section>
+
+      <!-- Deep Agents -->
+      <section class="section" id="deep">
+        <h2>④ Deep Agents 小环：模型 ↔ Tool 怎么转</h2>
+        <p class="hint">发生在 build / govern 节点内部。步数有上限（如 <code>llm_max_tool_rounds</code> / <code>deep_agent_max_steps</code>）。</p>
+        <div class="loop-wrap">
+          <div class="loop">
+            <div class="loop-title">多轮直到模型不再调用工具</div>
+            <div class="loop-steps">
+              <div class="loop-box llm">① LLM<br/><span style="font-weight:500;font-size:12px">看 messages + tools 声明</span></div>
+              <div class="loop-arr">↓ 若返回 tool_calls</div>
+              <div class="loop-box gw">② ToolGateway<br/><span style="font-weight:500;font-size:12px">校验参数 · 强制 workspace/connection · 调 Handler</span></div>
+              <div class="loop-arr">↓ sqlwork 查库 / 画像</div>
+              <div class="loop-box">③ 结果塞回 messages<br/><span style="font-weight:500;font-size:12px">role=tool · 截断后给模型</span></div>
+              <div class="loop-back">↩ 再调 LLM（下一轮）· 写 span(TOOL/LLM)</div>
+              <div class="loop-arr" style="margin-top:8px">↓ 若没有 tool_calls</div>
+              <div class="loop-box out">④ 解析 content → 工作流 JSON<br/><span style="font-weight:500;font-size:12px">nodes[] 含 SELECT</span></div>
+            </div>
+          </div>
+          <div>
+            <div class="msg-list">
+              <div class="c">system:</div>
+              <div>只能用 tools，码值用 value_counts…</div>
+              <br/>
+              <div class="c">user:</div>
+              <div>{ question, catalog, schema… }</div>
+              <br/>
+              <div class="t">assistant: tool_calls</div>
+              <div>describe_table(hr_employee)</div>
+              <br/>
+              <div class="r">tool:</div>
+              <div>[{ name, type… }]</div>
+              <br/>
+              <div class="t">assistant: tool_calls</div>
+              <div>get_column_profile(employment_status)</div>
+              <br/>
+              <div class="r">tool:</div>
+              <div>{ enum_like, value_counts:[active…] }</div>
+              <br/>
+              <div class="t">assistant: content</div>
+              <div>{"name":"…","nodes":[…]}</div>
+            </div>
+            <div class="note" style="margin-top:12px">
+              <strong>模型决定要不要画像：</strong>
+              涉及状态/类型等离散过滤才调 <code>get_column_profile</code>；闲聊路径根本进不了这个环。
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 时序 -->
+      <section class="section" id="seq">
+        <h2>⑤ 一次复杂问数：交互时序（浓缩）</h2>
+        <p class="hint">从左栏「谁」看横条「干了啥」。</p>
+        <div class="seq">
+          <div class="seq-row">
+            <div class="seq-who">LangGraph</div>
+            <div class="seq-bar lg">启动图 · gather 调 search_catalog · 进入 router</div>
+          </div>
+          <div class="seq-row">
+            <div class="seq-who">LLM</div>
+            <div class="seq-bar llm">路由：判定 GOVERN（要清洗 + 多表）</div>
+          </div>
+          <div class="seq-row">
+            <div class="seq-who">LangGraph</div>
+            <div class="seq-bar lg">边走到 govern_plan → 启动 Deep Agents 环</div>
+          </div>
+          <div class="seq-row">
+            <div class="seq-who">LLM ↔ Tool</div>
+            <div class="seq-bar da">多轮：describe / profile /（可选）catalog → 吐出 GOVERN+QUERY 节点 JSON</div>
+          </div>
+          <div class="seq-row">
+            <div class="seq-who">LangGraph</div>
+            <div class="seq-bar lg">verify 修 SQL → present 写会话 · 前端出「可保存工作流」</div>
+          </div>
+          <div class="seq-row">
+            <div class="seq-who">（你）</div>
+            <div class="seq-bar" style="background:#e6f4ff;border-color:#91caff">保存并执行 → <strong>WorkflowRunner</strong>（不是 LLM）按节点 CTAS 落临时表/结果表</div>
+          </div>
+        </div>
+        <div class="note">
+          <strong>分界线：</strong>
+          生成阶段 = LangGraph + LLM + Tool；执行阶段 = Runner + sqlwork。大模型不参与点「执行」之后的落表调度。
+        </div>
+      </section>
+
+      <p class="footer-note">
+        代码入口：<code>graph/generate.py</code>（LangGraph）·
+        <code>graph/tool_agent.py</code> / <code>deep_govern.py</code>（Deep 环）·
+        <code>tools/gateway.py</code>（Tool）·
+        <code>llm/client.py</code>（LLM）
+      </p>
+    </div>
+  </div>
+</body>
+</html>

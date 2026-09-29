@@ -8,6 +8,7 @@ import { manageRoutes } from '@/modules/manage/routes'
 import { authRoutes } from '@/modules/auth/routes'
 import { sqlworkRoutes } from '@/modules/sqlwork/routes'
 import { auditRoutes } from '@/modules/audit/routes'
+import { askdataRoutes } from '@/modules/askdata/routes'
 import { hasPermission } from '@/common/permission/menu'
 
 /** 个人域下可用 personal.space.view 替代的 manage 权限 */
@@ -30,6 +31,7 @@ const router = createRouter({
     ...manageRoutes,
     ...authRoutes,
     ...sqlworkRoutes,
+    ...askdataRoutes,
     ...auditRoutes,
   ],
 })

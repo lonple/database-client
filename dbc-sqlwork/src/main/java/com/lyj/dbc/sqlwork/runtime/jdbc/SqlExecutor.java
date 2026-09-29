@@ -28,21 +28,33 @@ public class SqlExecutor {
     private static final Logger log = LoggerFactory.getLogger(SqlExecutor.class);
 
     private final SqlworkProperties properties;
+    private final ExecuteCancelRegistry cancelRegistry;
 
-    public SqlExecutor(SqlworkProperties properties) {
+    public SqlExecutor(SqlworkProperties properties, ExecuteCancelRegistry cancelRegistry) {
         this.properties = properties;
+        this.cancelRegistry = cancelRegistry;
     }
 
     /** 从池借连接执行后归还（自动提交路径）。 */
     public ExecuteResult.StatementResult execute(DataSource dataSource, String sql, String statementType,
                                                    int maxRows, String schema) {
+        return execute(dataSource, sql, statementType, maxRows, schema, null);
+    }
+
+    public ExecuteResult.StatementResult execute(DataSource dataSource, String sql, String statementType,
+                                                   int maxRows, String schema, String cancelToken) {
         long start = System.currentTimeMillis();
         int timeout = Math.max(1, properties.getExecuteTimeoutSeconds());
         try (Connection conn = dataSource.getConnection();
              Statement stmt = conn.createStatement()) {
             stmt.setQueryTimeout(timeout);
             applySchema(conn, schema);
-            return runOnStatement(stmt, sql, statementType, maxRows, start);
+            cancelRegistry.register(cancelToken, stmt);
+            try {
+                return runOnStatement(stmt, sql, statementType, maxRows, start);
+            } finally {
+                cancelRegistry.unregister(cancelToken);
+            }
         } catch (SQLException ex) {
             log.warn("SQL 执行失败", ex);
             throw BizException.badRequest("SQL 执行失败: " + ex.getMessage());
@@ -56,6 +68,12 @@ public class SqlExecutor {
      */
     public ExecuteResult.StatementResult executeOnConnection(Connection conn, String sql, String statementType,
                                                              int maxRows, String schema, boolean applySchemaOnce) {
+        return executeOnConnection(conn, sql, statementType, maxRows, schema, applySchemaOnce, null);
+    }
+
+    public ExecuteResult.StatementResult executeOnConnection(Connection conn, String sql, String statementType,
+                                                             int maxRows, String schema, boolean applySchemaOnce,
+                                                             String cancelToken) {
         long start = System.currentTimeMillis();
         int timeout = Math.max(1, properties.getExecuteTimeoutSeconds());
         try (Statement stmt = conn.createStatement()) {
@@ -63,7 +81,12 @@ public class SqlExecutor {
             if (applySchemaOnce) {
                 applySchema(conn, schema);
             }
-            return runOnStatement(stmt, sql, statementType, maxRows, start);
+            cancelRegistry.register(cancelToken, stmt);
+            try {
+                return runOnStatement(stmt, sql, statementType, maxRows, start);
+            } finally {
+                cancelRegistry.unregister(cancelToken);
+            }
         } catch (SQLException ex) {
             log.warn("SQL 执行失败（租约连接）", ex);
             throw BizException.badRequest("SQL 执行失败: " + ex.getMessage());

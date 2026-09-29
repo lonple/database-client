@@ -140,6 +140,42 @@ public class PostgresDialect implements DbDialect {
         return new TablePage(items, total);
     }
 
+    @Override
+    public List<ColumnItem> listColumns(Connection connection, String database, String schema, String table)
+            throws SQLException {
+        if (table == null || table.isBlank()) {
+            throw new SQLException("table 不能为空");
+        }
+        String sql = """
+                SELECT column_name, data_type,
+                       (is_nullable = 'YES') AS nullable,
+                       NULL::text AS comment,
+                       ordinal_position
+                FROM information_schema.columns
+                WHERE table_catalog = COALESCE(?, current_database())
+                  AND table_schema = COALESCE(?, current_schema())
+                  AND table_name = ?
+                ORDER BY ordinal_position
+                """;
+        List<ColumnItem> items = new ArrayList<>();
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, blankToNull(database));
+            ps.setString(2, blankToNull(schema));
+            ps.setString(3, table.trim());
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    items.add(new ColumnItem(
+                            rs.getString(1),
+                            rs.getString(2),
+                            rs.getBoolean(3),
+                            rs.getString(4),
+                            rs.getInt(5)));
+                }
+            }
+        }
+        return items;
+    }
+
     private static List<String> normalizeAllowlist(java.util.Collection<String> nameAllowlist) {
         if (nameAllowlist == null) {
             return null;

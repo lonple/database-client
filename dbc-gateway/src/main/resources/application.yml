@@ -47,6 +47,12 @@ spring:
             - Path=/dbc-audit/**
           filters:
             - StripPrefix=1
+        - id: dbc-askdata
+          uri: lb://dbc-askdata
+          predicates:
+            - Path=/dbc-askdata/**
+          filters:
+            - StripPrefix=1
 
 management:
   endpoints:

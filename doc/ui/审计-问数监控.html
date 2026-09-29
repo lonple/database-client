@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DBC · 审计 · 智能问数监控</title>
+  <link rel="stylesheet" href="common.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="logo">DBC</div>
+      <nav class="nav-l1-group" aria-label="一级菜单">
+        <a class="nav-l1-item" href="index.html">首页</a>
+        <a class="nav-l1-item" href="SQL工作台.html">SQL 工作台</a>
+        <a class="nav-l1-item" href="智能问数.html">智能问数</a>
+        <a class="nav-l1-item active" href="审计-问数监控.html">审计日志</a>
+        <a class="nav-l1-item" href="用户管理.html">用户中心</a>
+      </nav>
+      <div class="header-right">
+        <span>admin</span>
+        <a class="btn" href="登录.html">退出</a>
+      </div>
+    </header>
+    <div class="body">
+      <aside class="sidebar">
+        <div class="side-label">审计日志</div>
+        <a class="side-item" href="#">业务日志</a>
+        <a class="side-item" href="#">SQL 操作日志</a>
+        <a class="side-item active" href="审计-问数监控.html">智能问数监控</a>
+      </aside>
+      <main class="main">
+        <div class="breadcrumb">审计日志 / 智能问数监控</div>
+        <div class="page-title">
+          <h2>智能问数监控</h2>
+          <p class="note" style="margin:0">数据来自 dbc-askdata（span / 汇总）；权限码 audit.askdata.view。Prometheus 曲线见 Grafana。</p>
+        </div>
+        <div class="card" style="margin-bottom:12px;padding:12px;display:flex;gap:16px;flex-wrap:wrap">
+          <div><div class="note">近 24h 调用</div><strong>1,286</strong></div>
+          <div><div class="note">失败率</div><strong>2.1%</strong></div>
+          <div><div class="note">P95 延迟</div><strong>1.8s</strong></div>
+          <div><div class="note">Token（出）</div><strong>420k</strong></div>
+        </div>
+        <div class="toolbar" style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap">
+          <input class="select" style="width:160px;height:32px;padding:0 8px" placeholder="工程 / 用户" />
+          <select class="select" style="width:120px"><option>全部状态</option><option>OK</option><option>ERROR</option></select>
+          <button type="button" class="btn btn-primary">查询</button>
+        </div>
+        <table class="data">
+          <thead>
+            <tr>
+              <th>时间</th>
+              <th>phase</th>
+              <th>kind</th>
+              <th>名称</th>
+              <th>耗时</th>
+              <th>Token</th>
+              <th>状态</th>
+              <th>traceId</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>2026-09-28 18:02:11</td>
+              <td>generate</td>
+              <td>LLM</td>
+              <td>qwen-local</td>
+              <td>820ms</td>
+              <td>1.2k / 0.4k</td>
+              <td><span class="tag tag-success">OK</span></td>
+              <td style="font-family:monospace;font-size:12px">a1b2c3…</td>
+            </tr>
+            <tr>
+              <td>2026-09-28 18:02:09</td>
+              <td>generate</td>
+              <td>TOOL</td>
+              <td>search_catalog</td>
+              <td>110ms</td>
+              <td>—</td>
+              <td><span class="tag tag-success">OK</span></td>
+              <td style="font-family:monospace;font-size:12px">a1b2c3…</td>
+            </tr>
+            <tr>
+              <td>2026-09-28 18:01:40</td>
+              <td>execute</td>
+              <td>GRAPH</td>
+              <td>run_terminal</td>
+              <td>2.1s</td>
+              <td>—</td>
+              <td><span class="tag" style="background:#fff2f0;color:#cf1322">ERROR</span></td>
+              <td style="font-family:monospace;font-size:12px">d4e5f6…</td>
+            </tr>
+          </tbody>
+        </table>
+      </main>
+    </div>
+  </div>
+</body>
+</html>

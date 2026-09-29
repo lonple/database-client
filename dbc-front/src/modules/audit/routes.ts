@@ -28,6 +28,16 @@ export const auditRoutes: RouteRecordRaw[] = [
           permission: 'audit.sql.view',
         },
       },
+      {
+        path: 'askdata-monitor',
+        name: 'audit-askdata-monitor',
+        component: () => import('@/modules/audit/views/AskdataMonitorView.vue'),
+        meta: {
+          module: 'audit',
+          title: '智能问数监控',
+          permission: 'audit.askdata.view',
+        },
+      },
     ],
   },
 ]
@@ -45,6 +55,12 @@ export const AUDIT_SIDE_MENUS: PermissionMenuItem[] = [
     path: '/audit/sql-logs',
     permission: 'audit.sql.view',
   },
+  {
+    key: 'audit-askdata-monitor',
+    label: '智能问数监控',
+    path: '/audit/askdata-monitor',
+    permission: 'audit.askdata.view',
+  },
 ]
 
-export const AUDIT_ANY_VIEW = ['audit.biz.view', 'audit.sql.view']
+export const AUDIT_ANY_VIEW = ['audit.biz.view', 'audit.sql.view', 'audit.askdata.view']

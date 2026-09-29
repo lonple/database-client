@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DBC · 智能问数 · 架构与业务流程（小白版）</title>
+  <link rel="stylesheet" href="common.css" />
+  <style>
+    .doc {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 24px 20px 64px;
+    }
+    .doc h1 {
+      margin: 0 0 8px;
+      font-size: 26px;
+    }
+    .lead {
+      color: var(--text-secondary);
+      font-size: 15px;
+      line-height: 1.7;
+      margin: 0 0 28px;
+    }
+    .toc {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 28px;
+    }
+    .toc a {
+      display: inline-flex;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: #fff;
+      border: 1px solid var(--border-strong);
+      font-size: 13px;
+    }
+    .section {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 22px 22px 28px;
+      margin-bottom: 24px;
+    }
+    .section h2 {
+      margin: 0 0 6px;
+      font-size: 20px;
+    }
+    .section .hint {
+      margin: 0 0 20px;
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .analogy {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin-bottom: 22px;
+    }
+    .analogy .card {
+      background: #fafafa;
+      border: 1px dashed var(--border-strong);
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+    .analogy .card strong {
+      display: block;
+      margin-bottom: 6px;
+    }
+    .analogy .card span {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    /* ---- 架构图 ---- */
+    .arch {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 10px;
+    }
+    .arch-row {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .arch-box {
+      border-radius: 10px;
+      padding: 14px 16px;
+      min-width: 160px;
+      text-align: center;
+      border: 1.5px solid var(--border-strong);
+      background: #fff;
+    }
+    .arch-box .t {
+      font-weight: 700;
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+    .arch-box .d {
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.45;
+    }
+    .arch-box.you { background: #e6f4ff; border-color: #91caff; }
+    .arch-box.front { background: #f9f0ff; border-color: #d3adf7; }
+    .arch-box.gw { background: #fff7e6; border-color: #ffd591; }
+    .arch-box.ask { background: #f6ffed; border-color: #b7eb8f; min-width: 280px; }
+    .arch-box.side { background: #fff; min-width: 140px; }
+    .arch-box.db { background: #fff1f0; border-color: #ffa39e; }
+    .arch-box.sqlw { background: #e6fffb; border-color: #87e8de; }
+    .arch-arrow {
+      text-align: center;
+      color: #8c8c8c;
+      font-size: 12px;
+      line-height: 1.2;
+    }
+    .arch-arrow::before {
+      content: "↓";
+      display: block;
+      font-size: 18px;
+      color: #595959;
+    }
+    .arch-inner {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px dashed #d9d9d9;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      text-align: left;
+    }
+    .arch-inner .mini {
+      background: #fff;
+      border: 1px solid #f0f0f0;
+      border-radius: 6px;
+      padding: 8px;
+      font-size: 12px;
+    }
+    .arch-inner .mini b {
+      display: block;
+      margin-bottom: 2px;
+      color: #389e0d;
+    }
+    .legend {
+      margin-top: 16px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.7;
+      background: #fafafa;
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+    .legend strong { color: var(--text); }
+
+    /* ---- 流程图 ---- */
+    .flow {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+    }
+    .flow-step {
+      width: min(520px, 100%);
+      border-radius: 10px;
+      border: 1.5px solid var(--border-strong);
+      background: #fff;
+      padding: 14px 16px;
+      position: relative;
+    }
+    .flow-step .num {
+      position: absolute;
+      left: -10px;
+      top: -10px;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .flow-step .title {
+      font-weight: 700;
+      font-size: 14px;
+      margin: 0 0 6px 18px;
+    }
+    .flow-step .body {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin: 0;
+    }
+    .flow-step.user { border-color: #91caff; background: #e6f4ff; }
+    .flow-step.sys { border-color: #b7eb8f; background: #f6ffed; }
+    .flow-step.llm { border-color: #d3adf7; background: #f9f0ff; }
+    .flow-step.tool { border-color: #ffd591; background: #fff7e6; }
+    .flow-step.hitl { border-color: #ffe58f; background: #fffbe6; }
+    .flow-step.out { border-color: #87e8de; background: #e6fffb; }
+    .flow-join {
+      width: 2px;
+      height: 18px;
+      background: #bfbfbf;
+    }
+    .flow-branch {
+      width: min(520px, 100%);
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      margin: 4px 0;
+    }
+    .flow-branch .flow-step {
+      width: 100%;
+      min-height: 110px;
+    }
+    .flow-branch .flow-step .num {
+      left: 8px;
+      top: -10px;
+    }
+    .flow-branch .flow-step .title {
+      margin-left: 28px;
+      font-size: 13px;
+    }
+    .flow-note {
+      width: min(520px, 100%);
+      margin: 8px 0 0;
+      font-size: 12px;
+      color: var(--text-secondary);
+      text-align: center;
+    }
+    .tag {
+      display: inline-block;
+      font-size: 11px;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: #0000000a;
+      margin-right: 4px;
+    }
+    .footer-note {
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 8px;
+    }
+    @media (max-width: 720px) {
+      .flow-branch { grid-template-columns: 1fr; }
+      .arch-inner { grid-template-columns: 1fr; }
+      .flow-step .num { left: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="logo">DBC</div>
+      <nav class="nav-l1-group" aria-label="一级菜单">
+        <a class="nav-l1-item" href="index.html">首页</a>
+        <a class="nav-l1-item" href="SQL工作台.html">SQL 工作台</a>
+        <a class="nav-l1-item active" href="智能问数.html">智能问数</a>
+        <a class="nav-l1-item" href="工作空间.html">资产管理</a>
+        <a class="nav-l1-item" href="用户管理.html">用户中心</a>
+      </nav>
+      <div class="header-right">
+        <a class="btn" href="智能问数-工作台.html">打开工作台</a>
+      </div>
+    </header>
+
+    <div class="doc">
+      <h1>智能问数：架构 &amp; 业务流程（小白版）</h1>
+      <p class="lead">
+        一句话：你用自然语言提问 → 系统帮你找表、想 SQL、生成「数据流」工作流 → 你点执行后去数据库里算出结果。
+        下面两张图：左边是「谁干啥」，右边是「从聊天到生成 SQL」怎么一步步走。
+      </p>
+      <div class="toc">
+        <a href="#arch">① 架构图（谁在干活）</a>
+        <a href="#flow">② 业务流程（对话 → 生成 SQL）</a>
+        <a href="智能问数-LLM与Agent工作流.html">③ LLM / LangGraph / Deep Agents</a>
+        <a href="智能问数-工作台.html">工作台原型</a>
+      </div>
+
+      <!-- ========== 架构 ========== -->
+      <section class="section" id="arch">
+        <h2>① 架构图：谁在干活</h2>
+        <p class="hint">把智能问数想成「你点菜，后厨分工做菜」。你不需要进厨房，也不直接碰刀（数据库）。</p>
+
+        <div class="analogy">
+          <div class="card">
+            <strong>你</strong>
+            <span>说人话：「各部门在职人数」</span>
+          </div>
+          <div class="card">
+            <strong>问数服务（大脑）</strong>
+            <span>理解问题、找表、让大模型写 SQL、排出工作流</span>
+          </div>
+          <div class="card">
+            <strong>SQL 工作台（双手）</strong>
+            <span>真正连数据库执行；问数服务不直接握库连接</span>
+          </div>
+          <div class="card">
+            <strong>两套库</strong>
+            <span>「来源库」读业务数据；「工作库」放临时表/结果表</span>
+          </div>
+        </div>
+
+        <div class="arch">
+          <div class="arch-row">
+            <div class="arch-box you">
+              <div class="t">你（浏览器）</div>
+              <div class="d">对话 / 画布 / 点执行</div>
+            </div>
+          </div>
+          <div class="arch-arrow">HTTPS 请求</div>
+          <div class="arch-row">
+            <div class="arch-box front">
+              <div class="t">dbc-front 前端</div>
+              <div class="d">智能问数工作台页面</div>
+            </div>
+          </div>
+          <div class="arch-arrow">统一入口 · 登录态 · TraceId</div>
+          <div class="arch-row">
+            <div class="arch-box gw">
+              <div class="t">Gateway 网关</div>
+              <div class="d">鉴权转发到问数服务</div>
+            </div>
+          </div>
+          <div class="arch-arrow">业务 API</div>
+          <div class="arch-row">
+            <div class="arch-box ask">
+              <div class="t">dbc-askdata 智能问数服务</div>
+              <div class="d">整件事的「总控台」</div>
+              <div class="arch-inner">
+                <div class="mini">
+                  <b>LangGraph</b>
+                  路由意图：闲聊 / 简单查 / 复杂治理 / 要你确认
+                </div>
+                <div class="mini">
+                  <b>声明式 Tool</b>
+                  查目录、看表结构、枚举画像……大模型只能调白名单
+                </div>
+                <div class="mini">
+                  <b>WorkflowRunner</b>
+                  你点执行后，按节点落临时表/结果表
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="arch-arrow">需要时并行找帮手</div>
+          <div class="arch-row">
+            <div class="arch-box side">
+              <div class="t">大模型 LLM</div>
+              <div class="d">写 SQL / 拆步骤<br/>（如通义 qwen）</div>
+            </div>
+            <div class="arch-box sqlw">
+              <div class="t">dbc-sqlwork</div>
+              <div class="d">唯一碰库通道<br/>元数据 + 执行 SQL</div>
+            </div>
+            <div class="arch-box side">
+              <div class="t">平台库 askdata</div>
+              <div class="d">工程 / 会话 / 工作流<br/>运行日志、监控 span</div>
+            </div>
+          </div>
+          <div class="arch-arrow">sqlwork 再去目标库</div>
+          <div class="arch-row">
+            <div class="arch-box db">
+              <div class="t">来源连接（只读业务）</div>
+              <div class="d">例：postgres / company<br/>员工、考勤、订单…</div>
+            </div>
+            <div class="arch-box db">
+              <div class="t">工作连接（写中间结果）</div>
+              <div class="d">例：postgres / public<br/>askdata_tmp_* / askdata_rst_*</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="legend">
+          <strong>小白记住 3 条就够：</strong><br/>
+          1）大模型<strong>不能</strong>随便执行 SQL，只能通过「已声明工具」看目录、画像；真正跑库是服务端 Runner。<br/>
+          2）画布上的 SELECT 是「算什么」；执行时会包成 <code>CREATE TABLE … AS SELECT</code> 落到工作连接。<br/>
+          3）平台库 <code>askdata</code> 存配置与过程；业务数据仍在你的来源库。
+        </div>
+      </section>
+
+      <!-- ========== 业务流程 ========== -->
+      <section class="section" id="flow">
+        <h2>② 业务流程：对话里智能问数 → 生成 SQL</h2>
+        <p class="hint">从你按下「发送」开始，到屏幕上出现可保存的工作流草稿为止（还没点「执行」）。</p>
+
+        <div class="flow">
+          <div class="flow-step user">
+            <div class="num">1</div>
+            <div class="title">你输入自然语言</div>
+            <p class="body">例如：「近 12 个月各部门人均考勤工时和人均报销，只要在职员工。」</p>
+          </div>
+          <div class="flow-join"></div>
+
+          <div class="flow-step sys">
+            <div class="num">2</div>
+            <div class="title">前端发给问数服务</div>
+            <p class="body">经 Gateway 带上登录态；右侧「业务工作日志」开始刷：收到消息、开始处理…</p>
+          </div>
+          <div class="flow-join"></div>
+
+          <div class="flow-step tool">
+            <div class="num">3</div>
+            <div class="title">搜集上下文 · 搜数据目录</div>
+            <p class="body">
+              <span class="tag">search_catalog</span>
+              在工程「来源连接」里按关键字找可能相关的表（如员工、考勤、报销）。
+            </p>
+          </div>
+          <div class="flow-join"></div>
+
+          <div class="flow-step llm">
+            <div class="num">4</div>
+            <div class="title">大模型路由：这题算哪一类？</div>
+            <p class="body">只输出一类意图，决定后面走哪条路（不是直接写最终 SQL）。</p>
+          </div>
+          <div class="flow-join"></div>
+
+          <div class="flow-branch">
+            <div class="flow-step user">
+              <div class="num">A</div>
+              <div class="title">CHAT 闲聊</div>
+              <p class="body">「你好」之类 → 普通回复，<strong>不</strong>弹确认卡、不生成工作流。</p>
+            </div>
+            <div class="flow-step hitl">
+              <div class="num">B</div>
+              <div class="title">HITL 缺信息</div>
+              <p class="body">要查数但缺表名/口径 → 让你确认后再继续。</p>
+            </div>
+            <div class="flow-step sys">
+              <div class="num">C</div>
+              <div class="title">QUERY / GOVERN</div>
+              <p class="body">简单问数或复杂清洗多表 → 进入生成草稿。</p>
+            </div>
+          </div>
+          <p class="flow-note">↓ 下面只展开「C：要生成 SQL / 工作流」的路径</p>
+          <div class="flow-join"></div>
+
+          <div class="flow-step llm">
+            <div class="num">5</div>
+            <div class="title">多轮 Tool：模型自己决定要不要深挖</div>
+            <p class="body">
+              <span class="tag">describe_table</span>看列结构<br/>
+              <span class="tag">get_column_profile</span>需要时再统计枚举（如 active / resigned）<br/>
+              模型判断「要不要调」——不是每列都画像。
+            </p>
+          </div>
+          <div class="flow-join"></div>
+
+          <div class="flow-step llm">
+            <div class="num">6</div>
+            <div class="title">产出工作流 JSON（节点 = 数据步骤）</div>
+            <p class="body">
+              每个节点是一段 <strong>SELECT</strong>：GOVERN=清洗后落临时表；末节点 QUERY=最终结果。<br/>
+              下游引用上游用 <code>n1</code> / <code>__node_n1__</code>，执行时服务端改成真实临时表名。
+            </p>
+          </div>
+          <div class="flow-join"></div>
+
+          <div class="flow-step tool">
+            <div class="num">7</div>
+            <div class="title">校验 / 修复（可 EXPLAIN）</div>
+            <p class="body">服务端检查 SQL 是否可读、能否通过解释计划；失败则让模型小修几轮。</p>
+          </div>
+          <div class="flow-join"></div>
+
+          <div class="flow-step out">
+            <div class="num">8</div>
+            <div class="title">回到对话：可保存的工作流卡片</div>
+            <p class="body">
+              你看到助手回复 +「保存到工程 / 保存并执行」。<br/>
+              保存后左侧出现工作流；画布是<strong>上下数据流</strong>：节点只写「在产什么数据」，点开才看 SQL。
+            </p>
+          </div>
+          <div class="flow-join"></div>
+
+          <div class="flow-step sys">
+            <div class="num">9</div>
+            <div class="title">（可选）你点执行 → 才真正跑库</div>
+            <p class="body">
+              Runner 在<strong>工作连接</strong>上：<code>CREATE TABLE askdata_tmp_* AS …</code> → 最终 <code>askdata_rst_*</code> → 底部「结果」Tab。<br/>
+              这不是生成阶段；生成只负责把「菜谱」写好。
+            </p>
+          </div>
+        </div>
+
+        <div class="legend" style="margin-top:20px">
+          <strong>和「直接让 AI 写一句 SQL」的差别：</strong><br/>
+          问数把问题拆成可复跑的<strong>数据流节点</strong>，中间结果进工作库，可停止、可看日志、可审计；碰库永远走 sqlwork，身份与权限不丢。
+        </div>
+      </section>
+
+      <p class="footer-note">
+        对应设计：<code>doc/设计/架构/02-智能问数架构概要.md</code> ·
+        <code>doc/设计/详细设计/08-智能问数详细设计.md</code>
+      </p>
+    </div>
+  </div>
+</body>
+</html>

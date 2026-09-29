@@ -138,7 +138,8 @@ public class SqlPipeline {
                 long stmtStart = System.currentTimeMillis();
                 try {
                     ExecuteResult.StatementResult one = dispatchExecute(
-                            session, ds, parsed, stmtType, maxRows, effectiveSchema, schemaAppliedOnLease);
+                            session, ds, parsed, stmtType, maxRows, effectiveSchema, schemaAppliedOnLease,
+                            request.getCancelToken());
                     if (session != null && session.inTransaction()) {
                         schemaAppliedOnLease = true;
                     }
@@ -237,7 +238,8 @@ public class SqlPipeline {
                                                           String stmtType,
                                                           int maxRows,
                                                           String schema,
-                                                          boolean schemaAlreadyApplied) {
+                                                          boolean schemaAlreadyApplied,
+                                                          String cancelToken) {
         String type = stmtType == null ? "" : stmtType.trim().toUpperCase();
         boolean manual = session != null && session.isManualMode();
 
@@ -251,7 +253,7 @@ public class SqlPipeline {
             Connection conn = sqlExecutor.borrowForTransaction(ds, schema);
             try {
                 ExecuteResult.StatementResult one = sqlExecutor.executeOnConnection(
-                        conn, parsed.sql(), stmtType, maxRows, null, false);
+                        conn, parsed.sql(), stmtType, maxRows, null, false, cancelToken);
                 sessionManager.bindLease(session, conn);
                 one.setMessage("事务已开启");
                 return one;
@@ -268,7 +270,7 @@ public class SqlPipeline {
             Connection lease = session.getLease();
             try {
                 ExecuteResult.StatementResult one = sqlExecutor.executeOnConnection(
-                        lease, parsed.sql(), stmtType, maxRows, null, false);
+                        lease, parsed.sql(), stmtType, maxRows, null, false, cancelToken);
                 // SQL 已提交/回滚，释放租约时不再 rollback
                 sessionManager.releaseLease(session, false);
                 one.setMessage("COMMIT".equals(type) ? "事务已提交" : "事务已回滚");
@@ -285,10 +287,10 @@ public class SqlPipeline {
                 throw BizException.badRequest("事务租约丢失，请重新 BEGIN");
             }
             return sqlExecutor.executeOnConnection(
-                    lease, parsed.sql(), stmtType, maxRows, schema, !schemaAlreadyApplied);
+                    lease, parsed.sql(), stmtType, maxRows, schema, !schemaAlreadyApplied, cancelToken);
         }
 
-        return sqlExecutor.execute(ds, parsed.sql(), stmtType, maxRows, schema);
+        return sqlExecutor.execute(ds, parsed.sql(), stmtType, maxRows, schema, cancelToken);
     }
 
     private static void silentClose(Connection conn) {
@@ -298,12 +300,12 @@ public class SqlPipeline {
         try {
             conn.rollback();
         } catch (SQLException e) {
-            // ignore
+            log.debug("事务连接 rollback 失败", e);
         }
         try {
             conn.close();
         } catch (SQLException e) {
-            // ignore
+            log.warn("关闭事务连接失败", e);
         }
     }
 

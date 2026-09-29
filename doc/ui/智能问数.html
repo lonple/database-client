@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DBC · 智能问数</title>
+  <link rel="stylesheet" href="common.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="logo">DBC</div>
+      <nav class="nav-l1-group" aria-label="一级菜单">
+        <a class="nav-l1-item" href="index.html">首页</a>
+        <a class="nav-l1-item" href="SQL工作台.html">SQL 工作台</a>
+        <a class="nav-l1-item active" href="智能问数.html">智能问数</a>
+        <a class="nav-l1-item" href="工作空间.html">资产管理</a>
+        <a class="nav-l1-item" href="用户管理.html">用户中心</a>
+      </nav>
+      <div class="header-right">
+        <span>alice</span>
+        <a class="btn" href="登录.html">退出</a>
+      </div>
+    </header>
+    <div class="body">
+      <main class="main" style="width:100%">
+        <div class="breadcrumb">智能问数</div>
+        <div class="page-title"><h2>智能问数</h2></div>
+        <div class="empty-state">
+          <strong>请先选择工作空间</strong>
+          <p style="margin:0 0 16px">进入后仅可切换工作空间；左侧工程→工作流；Chat/画布可执行，下侧控制台看日志与结果。</p>
+          <div style="display:inline-flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:center">
+            <select class="select" id="wsSelect" style="width:260px">
+              <option value="">选择工作空间</option>
+              <option value="1">订单项目-研发</option>
+              <option value="2">报表只读空间</option>
+            </select>
+            <a class="btn btn-primary" id="enterBtn" href="智能问数-工作台.html" onclick="return mustPick()">进入</a>
+          </div>
+        </div>
+        <p class="note">设计见 <a href="../设计/需求/02-智能问数需求分析.md">智能问数需求</a>。目标库访问只经 sqlwork；治理 SQL 只生成，末节点只读出数。</p>
+      </main>
+    </div>
+  </div>
+  <script>
+    function mustPick() {
+      if (!document.getElementById('wsSelect').value) {
+        alert('请选择工作空间')
+        return false
+      }
+      return true
+    }
+  </script>
+</body>
+</html>

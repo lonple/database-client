@@ -30,4 +30,10 @@ public class ExecuteRequest {
 
     /** 工作台会话 ID（手动事务 / Tab 生命周期） */
     private String sessionId;
+
+    /**
+     * 可选取消令牌；调用方生成 UUID，执行期间登记到服务端，
+     * 可通过 POST /execute/cancel 打断长查询。
+     */
+    private String cancelToken;
 }

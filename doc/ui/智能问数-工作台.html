@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DBC · 智能问数 · 订单项目-研发</title>
+  <link rel="stylesheet" href="common.css" />
+  <style>
+    .ad-bar {
+      display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+      padding: 10px 16px; background: #fff; border-bottom: 1px solid var(--border);
+    }
+    .ad-body { flex: 1; display: flex; min-height: 0; }
+    .ad-side {
+      width: 280px; background: #fafafa; border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; flex-shrink: 0;
+    }
+    .ad-side-hd {
+      padding: 12px 14px; border-bottom: 1px solid var(--border);
+      font-weight: 500; background: #fff;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .ad-tree { flex: 1; overflow: auto; padding: 8px 0; font-size: 13px; }
+    .ad-tree details { margin: 0; }
+    .ad-tree summary {
+      list-style: none; cursor: pointer; padding: 8px 10px; margin: 1px 6px;
+      border-radius: 6px; user-select: none;
+    }
+    .ad-tree summary::-webkit-details-marker { display: none; }
+    .ad-tree summary::before {
+      content: "▸"; display: inline-block; width: 14px;
+      color: var(--text-secondary); font-size: 11px;
+    }
+    .ad-tree details[open] > summary::before { content: "▾"; }
+    .ad-tree summary:hover, .ad-tree .wf:hover { background: #00000008; }
+    .ad-tree summary.active, .ad-tree .wf.active { background: #e6f4ff; color: var(--primary); }
+    .ad-tree .proj-t { font-weight: 600; }
+    .ad-tree .proj-d {
+      display: block; margin: 4px 0 0 14px; font-size: 12px;
+      color: var(--text-secondary); font-weight: 400; line-height: 1.4;
+    }
+    .ad-tree .nest { padding-left: 8px; }
+    .ad-tree .wf {
+      display: block; padding: 6px 10px 6px 28px; margin: 1px 6px;
+      border-radius: 6px; cursor: pointer; color: var(--text);
+    }
+    .ad-tree .wf .kind { font-size: 11px; color: var(--text-secondary); margin-right: 4px; }
+    .ad-main {
+      flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg);
+    }
+    .ad-panel-hd {
+      padding: 10px 16px; background: #fff; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    }
+    .ad-panel-hd h3 { margin: 0; font-size: 15px; }
+    .ad-panel-hd .sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+    .badge {
+      display: inline-flex; align-items: center; height: 24px; padding: 0 10px;
+      border-radius: 4px; font-size: 12px; font-weight: 600;
+      background: #f6ffed; color: #389e0d; border: 1px solid #b7eb8f;
+    }
+    .panel { display: none; flex: 1; flex-direction: column; min-height: 0; }
+    .panel.active { display: flex; }
+    .ad-chat-body { flex: 1; overflow: auto; padding: 16px; min-height: 0; }
+    .msg { margin-bottom: 12px; max-width: 92%; }
+    .msg.user { margin-left: auto; }
+    .bubble {
+      padding: 10px 12px; border-radius: 8px; line-height: 1.5;
+      font-size: 13px; white-space: pre-wrap;
+    }
+    .msg.user .bubble { background: var(--primary); color: #fff; }
+    .msg.assistant .bubble { background: #fff; border: 1px solid var(--border); }
+    .step {
+      border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px;
+      margin: 8px 0; font-size: 12px; background: #fff; max-width: 92%;
+    }
+    .step .k {
+      display: inline-block; padding: 0 6px; margin-right: 6px; border-radius: 4px;
+      background: #eee; font-weight: 600;
+    }
+    .step.exec { border-color: #91caff; background: #f0f7ff; }
+    .step.exec.ok .k { background: #b7eb8f; }
+    .step.exec.fail .k { background: #ffccc7; }
+    .result-entry {
+      max-width: 92%; margin: 10px 0; padding: 12px; border-radius: 8px;
+      border: 1px solid #b7eb8f; background: #f6ffed; font-size: 13px;
+    }
+    .hitl, .save-card {
+      max-width: 92%; border-radius: 8px; padding: 12px; margin: 10px 0; font-size: 13px;
+    }
+    .hitl { border: 1px solid #ffe58f; background: #fffbe6; }
+    .save-card { border: 1px solid #91caff; background: #e6f4ff; }
+    .hitl h4, .save-card h4, .result-entry h4 { margin: 0 0 6px; font-size: 13px; }
+    .hitl p, .save-card p, .result-entry p { margin: 0 0 10px; color: var(--text-secondary); line-height: 1.5; }
+    .composer {
+      border-top: 1px solid var(--border); padding: 10px 16px; background: #fff;
+      display: flex; gap: 8px;
+    }
+    .composer textarea {
+      flex: 1; min-height: 56px; resize: vertical;
+      border: 1px solid var(--border-strong); border-radius: 6px; padding: 8px; font: inherit;
+    }
+    .canvas-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+    .canvas-top { flex: 1; overflow: auto; padding: 16px; min-height: 120px; }
+    .wf-canvas {
+      min-height: 160px; background: #fff; border: 1px solid var(--border);
+      border-radius: 8px; padding: 28px 20px; overflow-x: auto;
+      background-image: radial-gradient(#e8e8e8 1px, transparent 1px);
+      background-size: 16px 16px;
+    }
+    .wf-row { display: flex; align-items: stretch; gap: 0; min-width: max-content; }
+    .wf-node {
+      width: 180px; background: #fff; border: 1.5px solid var(--border-strong);
+      border-radius: 8px; padding: 10px 12px; cursor: pointer;
+    }
+    .wf-node.query { border-color: #389e0d; }
+    .wf-node.ok { border-color: #389e0d; background: #f6ffed; }
+    .wf-node.fail { border-color: #ff4d4f; background: #fff2f0; }
+    .wf-node.run { border-color: #1677ff; background: #e6f4ff; }
+    .wf-node .nk { font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; }
+    .wf-node .nt { font-weight: 600; font-size: 13px; }
+    .wf-node .nd { font-size: 11px; color: var(--text-secondary); margin-top: 4px; }
+    .wf-node .st { font-size: 12px; margin-top: 8px; font-weight: 600; }
+    .wf-node .st.ok { color: #389e0d; }
+    .wf-node .st.fail { color: #cf1322; font-weight: 500; white-space: normal; }
+    .wf-edge {
+      width: 36px; height: 2px; background: #bfbfbf; position: relative;
+      flex-shrink: 0; align-self: center;
+    }
+    .wf-edge::after {
+      content: ""; position: absolute; right: -1px; top: -4px;
+      border: 5px solid transparent; border-left-color: #bfbfbf;
+    }
+    .node-sql {
+      margin-top: 10px; background: #1f1f1f; color: #f0f0f0; border-radius: 6px;
+      padding: 10px; font-family: ui-monospace, Consolas, monospace; font-size: 12px;
+      white-space: pre; overflow: auto; display: none;
+    }
+    .node-sql.show { display: block; }
+    .console {
+      border-top: 1px solid var(--border); background: #fff;
+      display: flex; flex-direction: column; height: 200px; flex-shrink: 0;
+    }
+    .console-hd {
+      display: flex; align-items: center; gap: 12px;
+      padding: 6px 12px; background: #fafafa; border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .console-status { margin-left: auto; font-size: 12px; color: var(--text-secondary); }
+    .console-status.running { color: #1677ff; }
+    .console-status.ok { color: #389e0d; }
+    .console-status.fail { color: #cf1322; }
+    .console-status.stopped { color: #d46b08; }
+    .console-body { flex: 1; overflow: auto; padding: 8px 12px; font-size: 12px; }
+    .console-log {
+      font-family: ui-monospace, Consolas, monospace; line-height: 1.6; color: #333;
+      white-space: pre-wrap;
+    }
+    .console-log .err { color: #cf1322; }
+    .console-log .ok { color: #389e0d; }
+    /* 结果弹窗 */
+    .modal-mask {
+      display: none; position: fixed; inset: 0; background: #00000066;
+      z-index: 1000; align-items: center; justify-content: center; padding: 24px;
+    }
+    .modal-mask.show { display: flex; }
+    .modal {
+      background: #fff; border-radius: 8px; width: min(720px, 100%);
+      max-height: min(80vh, 640px); display: flex; flex-direction: column;
+      box-shadow: 0 8px 24px #00000033;
+    }
+    .modal-hd {
+      padding: 12px 16px; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+      font-weight: 600;
+    }
+    .modal-bd { padding: 16px; overflow: auto; flex: 1; }
+    .modal-ft {
+      padding: 10px 16px; border-top: 1px solid var(--border); text-align: right;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="logo">DBC</div>
+      <nav class="nav-l1-group" aria-label="一级菜单">
+        <a class="nav-l1-item" href="index.html">首页</a>
+        <a class="nav-l1-item" href="SQL工作台.html">SQL 工作台</a>
+        <a class="nav-l1-item active" href="智能问数.html">智能问数</a>
+        <a class="nav-l1-item" href="工作空间.html">资产管理</a>
+        <a class="nav-l1-item" href="用户管理.html">用户中心</a>
+      </nav>
+      <div class="header-right">
+        <span>alice</span>
+        <a class="btn" href="登录.html">退出</a>
+      </div>
+    </header>
+
+    <div class="ad-bar">
+      <label>工作空间</label>
+      <select class="select" style="width:220px" onchange="if(this.value==='') location.href='智能问数.html'">
+        <option selected>订单项目-研发</option>
+        <option>报表只读空间</option>
+        <option value="">切换 / 重选…</option>
+      </select>
+    </div>
+
+    <div class="ad-body">
+      <aside class="ad-side">
+        <div class="ad-side-hd">
+          <span>问数工程</span>
+          <button type="button" class="btn btn-primary" style="height:28px;padding:0 10px;font-size:12px" id="btnNewProject">新建工程</button>
+        </div>
+        <div class="ad-tree" id="dirTree">
+          <details open>
+            <summary class="active" data-view="chat" id="sum-p1">
+              <span class="proj-t">考勤工时分析</span>
+              <span class="proj-d">工作连接 pg-hr-work · 统计各部门平均工时。</span>
+            </summary>
+            <div class="nest" id="children-p1"></div>
+          </details>
+          <details open>
+            <summary data-view="chat">
+              <span class="proj-t">近 7 日履约时效</span>
+              <span class="proj-d">按仓看订单平均履约时长。</span>
+            </summary>
+            <div class="nest">
+              <div class="wf" data-view="canvas" data-id="w-demo">
+                <span class="kind">工作流</span>仓维度履约查询
+              </div>
+            </div>
+          </details>
+        </div>
+      </aside>
+
+      <section class="ad-main panel active" id="panelChat">
+        <div class="ad-panel-hd">
+          <div>
+            <h3>考勤工时分析 · Chat</h3>
+            <div class="sub">工作连接：pg-hr-work · 临时表与结果落此连接 · 执行日志在会话中，结果点击弹窗</div>
+          </div>
+          <span class="badge">本地推理</span>
+        </div>
+        <div class="ad-chat-body" id="chatBody">
+          <div class="msg user"><div class="bubble">帮我统计考勤平均工时最低的班组。</div></div>
+          <div class="step"><span class="k">nlu</span>意图：按班组聚合平均工时</div>
+          <div class="step"><span class="k">catalog</span>涉表判定完成 · 已生成工作流草稿（清洗 → 查询）</div>
+          <div class="msg assistant">
+            <div class="bubble">草稿已就绪。可保存到工程，或直接执行。执行日志会出现在本会话中。</div>
+          </div>
+          <div class="save-card">
+            <h4>是否保存到问数工程？</h4>
+            <p>保存后左侧出现工作流子节点；不保存也可先执行。</p>
+            <button type="button" class="btn btn-primary" id="btnSave">保存</button>
+            <button type="button" class="btn" id="btnDiscard">不保存</button>
+            <button type="button" class="btn btn-primary" id="btnChatRun" style="margin-left:8px">执行</button>
+          </div>
+          <div id="chatExecAnchor"></div>
+        </div>
+        <div class="composer">
+          <textarea placeholder="用自然语言描述分析问题…"></textarea>
+          <button type="button" class="btn btn-primary">发送</button>
+        </div>
+      </section>
+
+      <section class="ad-main panel" id="panelCanvas">
+        <div class="ad-panel-hd">
+          <div>
+            <h3 id="canvasTitle">工作流 · 图形节点</h3>
+            <div class="sub">工作连接：pg-hr-work · 下侧执行日志；结果点击弹窗</div>
+          </div>
+          <div>
+            <button type="button" class="btn btn-primary" id="btnWfRun">执行</button>
+            <button type="button" class="btn" id="btnWfStop" disabled>停止</button>
+            <button type="button" class="btn" id="btnWfResult" disabled>查看执行结果</button>
+          </div>
+        </div>
+        <div class="canvas-wrap">
+          <div class="canvas-top">
+            <div class="wf-canvas">
+              <div class="wf-row">
+                <div class="wf-node" id="nodeG" data-sql="-- GOVERN_SQL · POSTGRESQL&#10;SELECT team_id, work_minutes&#10;FROM hr.attendance_raw&#10;WHERE work_minutes IS NOT NULL&#10;  AND work_minutes BETWEEN 0 AND 24 * 60;">
+                  <div class="nk">GOVERN_SQL</div>
+                  <div class="nt">清洗工时</div>
+                  <div class="nd">pg-hr-ro · PG</div>
+                  <div class="st" id="stG"></div>
+                </div>
+                <div class="wf-edge"></div>
+                <div class="wf-node query" id="nodeQ" data-sql="-- QUERY · POSTGRESQL&#10;SELECT team_id, AVG(work_minutes)/60.0 AS avg_hours&#10;FROM ads.attendance_hour_metric&#10;WHERE dt >= CURRENT_DATE - 30&#10;GROUP BY team_id&#10;ORDER BY avg_hours ASC&#10;LIMIT 20;">
+                  <div class="nk">QUERY · 末节点</div>
+                  <div class="nt">最低班组</div>
+                  <div class="nd">只读查询</div>
+                  <div class="st" id="stQ"></div>
+                </div>
+              </div>
+            </div>
+            <div class="node-sql" id="nodeDetail">点击节点查看 SQL</div>
+          </div>
+          <div class="console" id="wfConsole">
+            <div class="console-hd">
+              <span>执行日志</span>
+              <span class="console-status" id="wfRunStatus">未执行</span>
+            </div>
+            <div class="console-body">
+              <div class="console-log" id="wfLog">点击「执行」后在此输出执行日志。</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div class="modal-mask" id="projectModal" role="dialog" aria-modal="true">
+    <div class="modal" style="width:min(480px,100%);max-height:none">
+      <div class="modal-hd">
+        <span>新建问数工程</span>
+        <button type="button" class="btn" id="btnCloseProjectModal">关闭</button>
+      </div>
+      <div class="modal-bd">
+        <div style="margin-bottom:12px">
+          <label style="display:block;margin-bottom:4px;font-size:13px">名称 <span style="color:#cf1322">*</span></label>
+          <input class="select" id="projName" style="width:100%;height:32px;padding:0 8px" placeholder="例如：考勤工时分析" />
+        </div>
+        <div style="margin-bottom:12px">
+          <label style="display:block;margin-bottom:4px;font-size:13px">描述</label>
+          <textarea id="projDesc" style="width:100%;min-height:64px;padding:8px;border:1px solid var(--border-strong);border-radius:6px;font:inherit" placeholder="可选"></textarea>
+        </div>
+        <div>
+          <label style="display:block;margin-bottom:4px;font-size:13px">工作连接 <span style="color:#cf1322">*</span></label>
+          <select class="select" id="projConn" style="width:100%">
+            <option value="">请选择（用于临时表与结果落库）</option>
+            <option value="c1">pg-hr-work · POSTGRESQL</option>
+            <option value="c2">pg-order-ro · POSTGRESQL</option>
+            <option value="c3">mysql-bi · MYSQL</option>
+          </select>
+          <p class="note" style="margin:8px 0 0">执行时的临时表、最终结果及重新执行后的结果数据，均写入该连接（经 sqlwork）。</p>
+        </div>
+      </div>
+      <div class="modal-ft">
+        <button type="button" class="btn" id="btnCancelProject">取消</button>
+        <button type="button" class="btn btn-primary" id="btnCreateProject">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-mask" id="resultModal" role="dialog" aria-modal="true">
+    <div class="modal">
+      <div class="modal-hd">
+        <span>执行结果</span>
+        <button type="button" class="btn" id="btnCloseModal">关闭</button>
+      </div>
+      <div class="modal-bd" id="modalResultBody">
+        <table class="data">
+          <thead><tr><th>team_id</th><th>avg_hours</th></tr></thead>
+          <tbody>
+            <tr><td>T-08</td><td>6.2</td></tr>
+            <tr><td>T-03</td><td>6.5</td></tr>
+            <tr><td>T-11</td><td>6.8</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="modal-ft">
+        <button type="button" class="btn btn-primary" id="btnCloseModal2">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var panelChat = document.getElementById('panelChat')
+      var panelCanvas = document.getElementById('panelCanvas')
+      var chatBody = document.getElementById('chatBody')
+      var chatExecAnchor = document.getElementById('chatExecAnchor')
+      var childrenP1 = document.getElementById('children-p1')
+      var resultModal = document.getElementById('resultModal')
+      var timers = []
+      var running = false
+      var hasResult = false
+
+      function clearActive() {
+        document.querySelectorAll('#dirTree summary, #dirTree .wf').forEach(function (el) {
+          el.classList.remove('active')
+        })
+      }
+      function showChat() {
+        panelChat.classList.add('active')
+        panelCanvas.classList.remove('active')
+      }
+      function showCanvas(title) {
+        panelChat.classList.remove('active')
+        panelCanvas.classList.add('active')
+        document.getElementById('canvasTitle').textContent = title || '工作流 · 图形节点'
+      }
+
+      document.getElementById('dirTree').addEventListener('click', function (e) {
+        var wf = e.target.closest('.wf')
+        var sum = e.target.closest('summary')
+        if (wf) {
+          e.preventDefault()
+          clearActive()
+          wf.classList.add('active')
+          showCanvas('工作流 · ' + wf.textContent.replace(/\s+/g, ' ').trim())
+          return
+        }
+        if (sum && sum.dataset.view === 'chat') {
+          clearActive()
+          sum.classList.add('active')
+          showChat()
+        }
+      })
+
+      document.getElementById('btnSave').addEventListener('click', function () {
+        var el = document.createElement('div')
+        el.className = 'wf'
+        el.dataset.view = 'canvas'
+        el.innerHTML = '<span class="kind">工作流</span>考勤最低班组'
+        childrenP1.appendChild(el)
+      })
+
+      document.querySelectorAll('.wf-node').forEach(function (node) {
+        node.addEventListener('click', function () {
+          var d = document.getElementById('nodeDetail')
+          d.textContent = node.getAttribute('data-sql') || ''
+          d.classList.add('show')
+        })
+      })
+
+      document.getElementById('btnNewProject').addEventListener('click', function () {
+        document.getElementById('projectModal').classList.add('show')
+      })
+      function closeProjectModal() {
+        document.getElementById('projectModal').classList.remove('show')
+      }
+      document.getElementById('btnCloseProjectModal').addEventListener('click', closeProjectModal)
+      document.getElementById('btnCancelProject').addEventListener('click', closeProjectModal)
+      document.getElementById('btnCreateProject').addEventListener('click', function () {
+        var name = document.getElementById('projName').value.trim()
+        var conn = document.getElementById('projConn').value
+        if (!name) { alert('请填写工程名称'); return }
+        if (!conn) { alert('请选择工作连接'); return }
+        var connText = document.getElementById('projConn').selectedOptions[0].text.split('·')[0].trim()
+        var details = document.createElement('details')
+        details.open = true
+        details.innerHTML = '<summary data-view="chat"><span class="proj-t"></span><span class="proj-d"></span></summary><div class="nest"></div>'
+        details.querySelector('.proj-t').textContent = name
+        details.querySelector('.proj-d').textContent = '工作连接 ' + connText
+        document.getElementById('dirTree').insertBefore(details, document.getElementById('dirTree').firstChild)
+        closeProjectModal()
+      })
+
+      function openResultModal() {
+        if (!hasResult) return
+        resultModal.classList.add('show')
+      }
+      function closeResultModal() {
+        resultModal.classList.remove('show')
+      }
+      document.getElementById('btnCloseModal').addEventListener('click', closeResultModal)
+      document.getElementById('btnCloseModal2').addEventListener('click', closeResultModal)
+      resultModal.addEventListener('click', function (e) {
+        if (e.target === resultModal) closeResultModal()
+      })
+      document.getElementById('btnWfResult').addEventListener('click', openResultModal)
+
+      function resetNodes() {
+        ;['nodeG', 'nodeQ'].forEach(function (id) {
+          document.getElementById(id).classList.remove('ok', 'fail', 'run')
+        })
+        document.getElementById('stG').textContent = ''
+        document.getElementById('stG').className = 'st'
+        document.getElementById('stQ').textContent = ''
+        document.getElementById('stQ').className = 'st'
+      }
+
+      function appendChatLog(text, kind) {
+        var el = document.createElement('div')
+        el.className = 'step exec' + (kind === 'ok' ? ' ok' : kind === 'fail' ? ' fail' : '')
+        el.innerHTML = '<span class="k">exec</span>' + text
+        chatExecAnchor.appendChild(el)
+        chatBody.scrollTop = chatBody.scrollHeight
+      }
+
+      function appendWfLog(line, cls) {
+        var logEl = document.getElementById('wfLog')
+        if (logEl.dataset.inited !== '1') {
+          logEl.textContent = ''
+          logEl.dataset.inited = '1'
+        }
+        var span = document.createElement('div')
+        if (cls) span.className = cls
+        span.textContent = line
+        logEl.appendChild(span)
+        logEl.parentElement.scrollTop = logEl.parentElement.scrollHeight
+      }
+
+      function setWfStatus(text, cls) {
+        var el = document.getElementById('wfRunStatus')
+        el.textContent = text
+        el.className = 'console-status ' + (cls || '')
+      }
+
+      function stopRun() {
+        timers.forEach(clearTimeout)
+        timers = []
+        running = false
+        document.getElementById('btnWfStop').disabled = true
+        document.getElementById('btnWfRun').disabled = false
+        document.getElementById('btnChatRun').disabled = false
+      }
+
+      function finishWithResult() {
+        hasResult = true
+        document.getElementById('btnWfResult').disabled = false
+        var entry = document.createElement('div')
+        entry.className = 'result-entry'
+        entry.innerHTML = '<h4>执行完成 · 3 行</h4><p>结果已就绪，点击下方按钮在弹窗中查看。</p>' +
+          '<button type="button" class="btn btn-primary open-result">查看执行结果</button>'
+        chatExecAnchor.appendChild(entry)
+        entry.querySelector('.open-result').addEventListener('click', openResultModal)
+        chatBody.scrollTop = chatBody.scrollHeight
+      }
+
+      function runDemo(fromChat) {
+        if (running) return
+        running = true
+        hasResult = false
+        document.getElementById('btnWfResult').disabled = true
+        resetNodes()
+        document.getElementById('btnWfStop').disabled = false
+        document.getElementById('btnWfRun').disabled = true
+        document.getElementById('btnChatRun').disabled = true
+
+        if (fromChat) {
+          chatExecAnchor.innerHTML = ''
+          appendChatLog('开始执行工作流…')
+        }
+        document.getElementById('wfLog').dataset.inited = '0'
+        document.getElementById('wfLog').textContent = ''
+        setWfStatus('执行中…', 'running')
+        appendWfLog('[12:00:01] RUN started')
+
+        var t0 = setTimeout(function () {
+          if (fromChat) appendChatLog('节点「清洗工时」执行中…')
+          appendWfLog('[12:00:01] node 清洗工时 → RUNNING')
+          document.getElementById('nodeG').classList.add('run')
+        }, 200)
+
+        var t1 = setTimeout(function () {
+          document.getElementById('nodeG').classList.remove('run')
+          document.getElementById('nodeG').classList.add('ok')
+          document.getElementById('stG').textContent = '成功'
+          document.getElementById('stG').className = 'st ok'
+          if (fromChat) appendChatLog('节点「清洗工时」成功', 'ok')
+          appendWfLog('[12:00:02] node 清洗工时 → SUCCEEDED', 'ok')
+          if (fromChat) appendChatLog('节点「最低班组」执行中…')
+          appendWfLog('[12:00:02] node 最低班组 → RUNNING')
+          document.getElementById('nodeQ').classList.add('run')
+        }, 900)
+
+        var t2 = setTimeout(function () {
+          if (!running) return
+          document.getElementById('nodeQ').classList.remove('run')
+          document.getElementById('nodeQ').classList.add('ok')
+          document.getElementById('stQ').textContent = '成功'
+          document.getElementById('stQ').className = 'st ok'
+          if (fromChat) appendChatLog('节点「最低班组」成功', 'ok')
+          appendWfLog('[12:00:03] node 最低班组 → SUCCEEDED', 'ok')
+          appendWfLog('[12:00:03] RUN finished · 3 rows', 'ok')
+          setWfStatus('成功 · 3 行', 'ok')
+          if (fromChat) finishWithResult()
+          else {
+            hasResult = true
+            document.getElementById('btnWfResult').disabled = false
+          }
+          stopRun()
+        }, 1600)
+
+        timers = [t0, t1, t2]
+      }
+
+      document.getElementById('btnChatRun').addEventListener('click', function () {
+        showChat()
+        runDemo(true)
+      })
+      document.getElementById('btnWfRun').addEventListener('click', function () {
+        showCanvas(document.getElementById('canvasTitle').textContent)
+        runDemo(false)
+      })
+      document.getElementById('btnWfStop').addEventListener('click', function () {
+        if (!running) return
+        timers.forEach(clearTimeout)
+        timers = []
+        appendChatLog('用户停止 · 后续节点未执行', 'fail')
+        appendWfLog('[stop] 用户停止 · 后续节点未执行', 'err')
+        setWfStatus('已停止', 'stopped')
+        document.getElementById('nodeG').classList.remove('run')
+        document.getElementById('nodeQ').classList.remove('run')
+        stopRun()
+      })
+    })()
+  </script>
+</body>
+</html>

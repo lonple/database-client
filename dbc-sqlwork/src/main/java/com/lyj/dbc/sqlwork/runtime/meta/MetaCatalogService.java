@@ -1,5 +1,6 @@
 package com.lyj.dbc.sqlwork.runtime.meta;
 
+import com.lyj.dbc.sqlwork.api.vo.ColumnVO;
 import com.lyj.dbc.sqlwork.api.vo.ConnectionMaterial;
 import com.lyj.dbc.sqlwork.api.vo.MetaTreeVO;
 import com.lyj.dbc.sqlwork.api.vo.TablePageVO;
@@ -87,6 +88,29 @@ public class MetaCatalogService {
             dataSourceManager.evict(material.getConnectionId());
             log.warn("列出表失败 connectionId={}", material.getConnectionId(), ex);
             throw BizException.badRequest("列出表失败: " + summarize(ex));
+        }
+    }
+
+    public List<ColumnVO> listColumns(ConnectionMaterial material, String database, String schema, String table) {
+        if (table == null || table.isBlank()) {
+            throw BizException.badRequest("table 不能为空");
+        }
+        DbDialect dialect = dialectRegistry.require(material.getDbType());
+        DataSource ds = dataSourceManager.get(material);
+        try (Connection conn = ds.getConnection()) {
+            return dialect.listColumns(conn, database, schema, table).stream()
+                    .map(c -> ColumnVO.builder()
+                            .name(c.name())
+                            .dataType(c.dataType())
+                            .nullable(c.nullable())
+                            .comment(c.comment())
+                            .ordinal(c.ordinal())
+                            .build())
+                    .toList();
+        } catch (SQLException ex) {
+            dataSourceManager.evict(material.getConnectionId());
+            log.warn("列出列失败 connectionId={} table={}", material.getConnectionId(), table, ex);
+            throw BizException.badRequest("列出列失败: " + summarize(ex));
         }
     }
 

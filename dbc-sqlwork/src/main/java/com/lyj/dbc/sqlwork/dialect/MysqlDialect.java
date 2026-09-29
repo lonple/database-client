@@ -45,4 +45,9 @@ public class MysqlDialect implements DbDialect {
                                 int page, int size) {
         throw BizException.badRequest(MSG);
     }
+
+    @Override
+    public List<ColumnItem> listColumns(Connection connection, String database, String schema, String table) {
+        throw BizException.badRequest(MSG);
+    }
 }

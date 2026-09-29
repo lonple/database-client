@@ -18,7 +18,7 @@
 | 可见性 | 功能权限码 `audit.*.view`；数据范围/不可随意授权等后续再收紧（见 §2） |
 | HA / 单点 | **本期不管**（单实例 audit + 本地 ES 可接受）；生产再补集群 |
 
-前端顶栏：**审计日志**；侧栏：**业务日志**、**SQL 操作日志**。
+前端顶栏：**审计日志**；侧栏：**业务日志**、**SQL 操作日志**、**智能问数监控**（问数 LLM/Agent 运行监控，数据来自 `dbc-askdata`，见问数详设）。
 
 ### 1.1 敏感字段禁入（已定）
 
@@ -38,9 +38,10 @@ SQL 正文尽量整段入库；若语句本身含字面量密钥，属业务 SQL
 | --- | --- |
 | `audit.biz.view` | 业务日志列表/详情 |
 | `audit.sql.view` | SQL 操作日志列表/详情 |
+| `audit.askdata.view` | 智能问数监控（调用 span / 汇总；只读） |
 
 - 顶栏「审计日志」：持有任一 `audit.*.view`。
-- 侧栏按各自 view 显隐。
+- 侧栏按各自 view 显隐（含「智能问数监控」依赖 `audit.askdata.view`）。
 - **数据范围（本人/部门等）：本期不做**，有 view 即可查列表（实现先放开）。
 - **授权策略（后续）**：可改为仅固定平台角色（如 `SUPER_ADMIN` / 专用审计角色）绑定 `audit.*`，且**禁止在角色管理里随意勾选授权**（权限点标记为不可分配或角色管理 UI 隐藏）。本期种子可先绑 `SUPER_ADMIN`、`SYS_ADMIN`，不阻塞开发。
 
@@ -234,8 +235,9 @@ DELETE /_index_template/dev-dbc-audit-sql-template
 
 | 路由 | 说明 |
 | --- | --- |
-| `/audit/biz-logs` | 业务日志列表 + 详情抽屉（展示 after / changes / keys） |
-| `/audit/sql-logs` | SQL 操作日志列表 + 详情（SQL、失败详情） |
+| `/audit/biz-logs` | 业务日志列表 + 详情抽屉 |
+| `/audit/sql-logs` | SQL 操作日志列表 + 详情 |
+| `/audit/askdata-monitor` | **智能问数监控**（调 askdata admin API：汇总 + span 列表/详情） |
 
 模块目录：`dbc-front/src/modules/audit/`。
 
@@ -274,7 +276,7 @@ DELETE /_index_template/dev-dbc-audit-sql-template
 | 敏感字段 | **不得进入审计**（黑名单 + `@AuditIgnore`） |
 | 可见性 | `audit.biz.view` / `audit.sql.view`；数据范围本期不做；后续可改为固定角色且不可随意授权 |
 | HA / 单点 | **本期不管** |
-| 菜单 | 顶栏「审计日志」→ 侧栏「业务日志」「SQL 操作日志」 |
+| 菜单 | 顶栏「审计日志」→ 侧栏「业务日志」「SQL 操作日志」「智能问数监控」 |
 
 ### 11.1 对 §12 缺口的本期处理（产品拍板）
 

@@ -24,6 +24,15 @@
           SQL 工作台
         </button>
         <button
+          v-if="showAskdataNav"
+          type="button"
+          class="nav-l1-item"
+          :class="{ active: topActive === 'askdata' }"
+          @click="goAskdata"
+        >
+          智能问数
+        </button>
+        <button
           v-if="showAuthNav"
           type="button"
           class="nav-l1-item"
@@ -129,6 +138,7 @@ import { SYSTEM_SIDE_MENUS } from '@/modules/system/routes'
 import { MANAGE_SIDE_MENUS } from '@/modules/manage/routes'
 import { AUTH_SIDE_MENUS } from '@/modules/auth/routes'
 import { SQLWORK_ANY_VIEW } from '@/modules/sqlwork/routes'
+import { ASKDATA_ANY_VIEW } from '@/modules/askdata/routes'
 import { AUDIT_ANY_VIEW, AUDIT_SIDE_MENUS } from '@/modules/audit/routes'
 
 const PERSONAL_SPACE_VIEW = 'usercenter.personal.space.view'
@@ -161,6 +171,7 @@ const showAuthNav = computed(() => {
   )
 })
 const showSqlworkNav = computed(() => hasAnyPermission(permissions.value, SQLWORK_ANY_VIEW))
+const showAskdataNav = computed(() => hasAnyPermission(permissions.value, ASKDATA_ANY_VIEW))
 const showAuditNav = computed(
   () => !domain.isPersonal && hasAnyPermission(permissions.value, AUDIT_ANY_VIEW),
 )
@@ -208,6 +219,7 @@ const topActive = computed(() => {
   if (route.path.startsWith('/manage/auth')) return 'auth'
   if (route.path.startsWith('/manage')) return 'manage'
   if (route.path.startsWith('/sqlwork')) return 'sqlwork'
+  if (route.path.startsWith('/askdata')) return 'askdata'
   return 'home'
 })
 
@@ -225,6 +237,7 @@ const selected = computed(() => {
   if (route.name === 'system-apps') return 'system-apps'
   if (route.name === 'audit-biz-logs') return 'audit-biz-logs'
   if (route.name === 'audit-sql-logs') return 'audit-sql-logs'
+  if (route.name === 'audit-askdata-monitor') return 'audit-askdata-monitor'
   if (route.name === 'manage-instances') return 'manage-instances'
   if (route.name === 'manage-connections') return 'manage-connections'
   if (route.name === 'manage-auth-global-policies') return 'manage-auth-global-policies'
@@ -248,6 +261,7 @@ watch(
       showManageNav.value,
       showAuthNav.value,
       showSqlworkNav.value,
+      showAskdataNav.value,
       showAuditNav.value,
       filteredSideMenus.value.map((m) => m.key).join(','),
     ] as const,
@@ -290,6 +304,12 @@ watch(
     }
     if (route.path.startsWith('/sqlwork')) {
       if (!showSqlworkNav.value) {
+        router.replace('/home')
+      }
+      return
+    }
+    if (route.path.startsWith('/askdata')) {
+      if (!showAskdataNav.value) {
         router.replace('/home')
       }
       return
@@ -385,6 +405,10 @@ function goAuth() {
 
 function goSqlwork() {
   router.push('/sqlwork')
+}
+
+function goAskdata() {
+  router.push('/askdata')
 }
 
 function goAudit() {

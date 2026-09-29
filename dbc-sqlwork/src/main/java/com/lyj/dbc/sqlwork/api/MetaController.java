@@ -2,6 +2,7 @@ package com.lyj.dbc.sqlwork.api;
 
 import com.lyj.dbc.sqlwork.api.dto.AuthzEvaluateRequest;
 import com.lyj.dbc.sqlwork.api.vo.AuthzEvaluateResult;
+import com.lyj.dbc.sqlwork.api.vo.ColumnVO;
 import com.lyj.dbc.sqlwork.api.vo.ConnectionMaterial;
 import com.lyj.dbc.sqlwork.api.vo.MetaTreeVO;
 import com.lyj.dbc.sqlwork.api.vo.TablePageVO;
@@ -11,6 +12,7 @@ import com.lyj.dbc.sqlwork.common.BizException;
 import com.lyj.dbc.sqlwork.runtime.meta.MetaCatalogService;
 import com.lyj.dbc.sqlwork.runtime.meta.MetaVisibilityPlanner;
 import com.lyj.dbc.sqlwork.runtime.meta.MetaVisibilityPlanner.NamePlan;
+import com.lyj.dbc.sqlwork.runtime.meta.MetaVisibilityPlanner.TableMode;
 import com.lyj.dbc.sqlwork.runtime.meta.MetaVisibilityPlanner.TablePlan;
 import com.lyj.dbc.sqlwork.security.LoginUser;
 import com.lyj.dbc.sqlwork.security.SecurityUtils;
@@ -86,6 +88,26 @@ public class MetaController {
             case CATALOG_PAGE -> metaCatalogService.listTables(
                     ctx.material(), database, schema, keyword, page, size);
         });
+    }
+
+    @GetMapping("/columns")
+    public ApiResponse<List<ColumnVO>> columns(
+            @RequestParam Long workspaceId,
+            @RequestParam Long connectionId,
+            @RequestParam(required = false) String database,
+            @RequestParam(required = false) String schema,
+            @RequestParam String table) {
+        AuthzContext ctx = authorize(workspaceId, connectionId);
+        TablePlan plan = MetaVisibilityPlanner.planTables(ctx.authz(), database, schema);
+        if (plan.mode() == TableMode.EMPTY) {
+            throw BizException.forbidden("无该表元数据访问权限");
+        }
+        if (plan.mode() == TableMode.NAME_ALLOWLIST
+                && (plan.nameAllowlist() == null || plan.nameAllowlist().stream()
+                .noneMatch(n -> n != null && n.equalsIgnoreCase(table)))) {
+            throw BizException.forbidden("无该表元数据访问权限");
+        }
+        return ApiResponse.ok(metaCatalogService.listColumns(ctx.material(), database, schema, table));
     }
 
     @GetMapping("/tree")
