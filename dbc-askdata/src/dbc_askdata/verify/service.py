@@ -12,10 +12,22 @@ log = logging.getLogger(__name__)
 
 
 class VerifyResult:
-    def __init__(self, ok: bool, message: str = "ok", dialect_sql: str | None = None) -> None:
+    def __init__(
+        self,
+        ok: bool,
+        message: str = "ok",
+        dialect_sql: str | None = None,
+        *,
+        code: str | None = None,
+        needs_hitl: bool = False,
+        need_profile: list[dict[str, str]] | None = None,
+    ) -> None:
         self.ok = ok
         self.message = message
         self.dialect_sql = dialect_sql
+        self.code = code
+        self.needs_hitl = needs_hitl
+        self.need_profile = need_profile or []
 
 
 def static_check(sql: str, *, dialect: str = "postgres") -> VerifyResult:
@@ -65,4 +77,6 @@ async def explain_check(
         return VerifyResult(True, "EXPLAIN ok", static.dialect_sql)
     except Exception as ex:
         log.warning("EXPLAIN 校验失败", exc_info=True)
-        return VerifyResult(False, f"EXPLAIN 失败: {ex}")
+        detail = getattr(ex, "detail", None)
+        msg = detail if isinstance(detail, str) and detail.strip() else str(ex)
+        return VerifyResult(False, f"EXPLAIN 失败: {msg}")

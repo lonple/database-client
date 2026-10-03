@@ -29,6 +29,7 @@ dependencyManagement {
 }
 
 dependencies {
+    implementation("com.lyj.dbc:dbc-usercenter-client:0.1.0")
     implementation("com.lyj.dbc:dbc-audit-client:0.1.0")
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-validation")

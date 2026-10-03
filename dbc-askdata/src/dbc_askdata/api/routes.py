@@ -22,6 +22,7 @@ from dbc_askdata.clients.sqlwork import SqlworkClient
 from dbc_askdata.config import Settings, get_settings
 from dbc_askdata.db.models import (
     AskHitl,
+    AskLlmSpan,
     AskMessage,
     AskProject,
     AskSession,
@@ -154,6 +155,7 @@ async def list_projects(
         .where(
             AskProject.workspace_id == workspace_id,
             AskProject.deleted.is_(False),
+            AskProject.hidden.is_(False),
             AskProject.owner_user_id == user.user_id,
         )
         .order_by(AskProject.id.desc())
@@ -174,6 +176,7 @@ async def project_tree(
             .where(
                 AskProject.workspace_id == workspace_id,
                 AskProject.deleted.is_(False),
+                AskProject.hidden.is_(False),
                 AskProject.owner_user_id == user.user_id,
             )
             .order_by(AskProject.id.desc())
@@ -355,6 +358,46 @@ async def get_work_logs(
     if s is None or s.owner_user_id != user.user_id:
         raise HTTPException(status_code=404, detail="会话不存在")
     return ApiResponse.ok(await list_work_logs(session_id, after=max(0, after)))
+
+
+@router.get("/sessions/{session_id}/llm-spans")
+async def list_session_llm_spans(
+    session_id: int,
+    user: LoginUser = Depends(require_permission("askdata.use")),
+    session: AsyncSession = Depends(get_session),
+):
+    """会话归属者可查看本会话 LLM/图/工具 span，作为进程内 work-log 过期后的持久回退。"""
+    s = await session.get(AskSession, session_id)
+    if s is None or s.owner_user_id != user.user_id:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    rows = (
+        await session.execute(
+            select(AskLlmSpan)
+            .where(AskLlmSpan.session_id == session_id)
+            .order_by(AskLlmSpan.id.asc())
+            .limit(500)
+        )
+    ).scalars().all()
+    return ApiResponse.ok(
+        {
+            "sessionId": session_id,
+            "items": [
+                {
+                    "id": r.id,
+                    "phase": r.phase,
+                    "kind": r.kind,
+                    "name": r.name,
+                    "status": r.status,
+                    "latencyMs": r.latency_ms,
+                    "model": r.model,
+                    "errorMessage": r.error_message,
+                    "startedAt": r.started_at,
+                    "finishedAt": r.finished_at,
+                }
+                for r in rows
+            ],
+        }
+    )
 
 
 @router.post("/chat")
@@ -785,6 +828,8 @@ async def run_detail(
             "id": run.id,
             "status": run.status,
             "errorMessage": run.error_message,
+            "sessionId": run.session_id,
+            "workflowId": run.workflow_id,
             "logs": [
                 {"id": l.id, "level": l.level, "message": l.message, "createdAt": l.created_at}
                 for l in logs

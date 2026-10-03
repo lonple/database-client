@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""向本地 PG schema company 灌入约 3 年仿生产 IT 公司数据。
+"""向本地 PG schema company 灌入约 3 年仿生产 IT 公司数据（company_eval_v2）。
 
 连接默认：postgresql://postgres:root@127.0.0.1:5432/postgres
-故意掺入空值、缺卡、金额不一致、状态异常等脏数据，供智能问数演练。
+规模：员工 1000；日考勤约 55～70 万；含有意识缺陷包（空值/口径冲突/需抽样），供问数测评。
 """
 
 from __future__ import annotations
@@ -10,7 +10,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import random
-import string
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -19,9 +18,20 @@ from typing import Any
 import asyncpg
 
 DSN_DEFAULT = "postgresql://postgres:root@127.0.0.1:5432/postgres"
-SEED = 20260928
+DATASET_VERSION = "company_eval_v2"
+SEED = 20261002
 START = date(2023, 10, 1)
 END = date(2026, 9, 28)
+
+# 规模常量（测评定稿）
+EMP_TOTAL = 1000
+EMP_INITIAL = 620
+EMP_LATER = 380
+EMP_RESIGN = 180
+CUSTOMER_N = 300
+PROJECT_N = 150
+ORDER_N = 1200
+ATTEND_COVERAGE = (0.82, 0.92)  # 工作日在职抽样覆盖
 
 SURNAMES = list("赵钱孙李周吴郑王冯陈褚卫蒋沈韩杨朱秦尤许何吕施张孔曹严华金魏陶姜戚谢邹喻")
 GIVEN = [
@@ -281,9 +291,9 @@ async def seed_employees(conn: asyncpg.Connection, st: State) -> None:
     }
     salary_by_rank = {1: 9000, 2: 14000, 3: 20000, 4: 28000, 5: 38000, 6: 32000, 7: 45000, 8: 65000}
 
-    # 期初约 95 人，后续入职约 70，离职约 25 → 累计约 165，期末在职约 140
-    initial_n = 95
-    later_n = 70
+    # 累计 EMP_TOTAL；期初 EMP_INITIAL + 后续 EMP_LATER；离职 EMP_RESIGN
+    # 缺陷包 B：约 8% 离职行 status 仍为 active（口径冲突，稳定可测）
+    assert EMP_INITIAL + EMP_LATER == EMP_TOTAL
     rows: list[tuple] = []
     seq = 1
 
@@ -296,8 +306,9 @@ async def seed_employees(conn: asyncpg.Connection, st: State) -> None:
         name = rand_name(rng)
         emp_no = f"E{hire.year % 100:02d}{seq:04d}"
         seq += 1
-        gender = rng.choice(["M", "F", "M", "F", None])  # 偶发空
-        email = None if rng.random() < 0.07 else f"{emp_no.lower()}@starlink-it.example"
+        # 缺陷包 A：空值（性别/邮箱/电话/城市/职位）
+        gender = rng.choice(["M", "F", "M", "F", None])
+        email = None if rng.random() < 0.07 else f"{emp_no.lower()}@dbc-demo.example"
         phone = None if rng.random() < 0.12 else f"1{rng.choice('345789')}{rng.randint(100000000, 999999999)}"
         city = rng.choice(CITIES)
         base = salary_by_rank[level["rank"]] * rng.uniform(0.9, 1.15)
@@ -315,27 +326,24 @@ async def seed_employees(conn: asyncpg.Connection, st: State) -> None:
             base_salary=base,
         )
 
-    for _ in range(initial_n):
-        # 入职日散落在 START 之前 0~900 天
+    for _ in range(EMP_INITIAL):
         hire = START - timedelta(days=rng.randint(0, 900))
         st.emps.append(make_emp(hire))
 
-    for _ in range(later_n):
+    for _ in range(EMP_LATER):
         hire = START + timedelta(days=rng.randint(0, (END - START).days - 30))
         st.emps.append(make_emp(hire))
 
-    # 离职：约 28 人，且须在 hire 之后
     resign_candidates = [e for e in st.emps if (END - e.hire_date).days > 120]
-    for e in rng.sample(resign_candidates, k=min(28, len(resign_candidates))):
+    for e in rng.sample(resign_candidates, k=min(EMP_RESIGN, len(resign_candidates))):
         span = (END - max(e.hire_date, START)).days
         if span < 30:
             continue
         leave = max(e.hire_date, START) + timedelta(days=rng.randint(30, span))
         e.leave_date = leave
         e.status = "resigned"
-        # 少量脏数据：离职但 status 仍 active
         if rng.random() < 0.08:
-            e.status = "active"
+            e.status = "active"  # 包 B：有 leave_date 但 status=active
 
     for e in st.emps:
         rows.append(
@@ -389,7 +397,7 @@ async def seed_customers_products(conn: asyncpg.Connection, st: State) -> None:
     if not sales:
         sales = st.emps[:10]
     rows = []
-    for i in range(28):
+    for i in range(CUSTOMER_N):
         code = f"C{i+1:04d}"
         name = f"{rng.choice(CUSTOMER_PREFIX)}{rng.choice(['科技','信息','股份','集团','有限'])}有限公司"
         owner = rng.choice(sales)
@@ -426,7 +434,7 @@ async def seed_projects(conn: asyncpg.Connection, st: State) -> None:
         pms = st.emps
     types = ["implementation", "custom_dev", "ops", "poc"]
     rows = []
-    for i in range(24):
+    for i in range(PROJECT_N):
         cust = rng.choice(st.customers)
         start = START + timedelta(days=rng.randint(0, 700))
         duration = rng.randint(90, 480)
@@ -442,7 +450,7 @@ async def seed_projects(conn: asyncpg.Connection, st: State) -> None:
                 end = plan_end
         elif start > END - timedelta(days=60):
             status = "planning"
-        code = f"PRJ{start.year}{i+1:03d}"
+        code = f"PRJ{start.year}{i+1:04d}"
         name = f"{cust['code']}-{rng.choice(['上线实施','定制开发','运维托管','POC验证','迁移升级'])}"
         pm = rng.choice(pms)
         dept = rng.choice(rd_depts)
@@ -567,7 +575,7 @@ async def seed_attendance(conn: asyncpg.Connection, st: State) -> None:
     while cur <= END:
         if is_workday(cur):
             actives = active_on(st.emps, cur)
-            sample_n = int(len(actives) * rng.uniform(0.72, 0.95))
+            sample_n = int(len(actives) * rng.uniform(*ATTEND_COVERAGE))
             for e in rng.sample(actives, k=max(1, sample_n)):
                 # 缺勤/请假/异常
                 roll = rng.random()
@@ -771,7 +779,7 @@ async def seed_finance(conn: asyncpg.Connection, st: State) -> None:
     claim_id_seq = 0
     tmp_claims: list[dict] = []
     for e in st.emps:
-        n = rng.randint(2, 18)
+        n = rng.randint(3, 10)  # 千人规模下控制报销总量约 0.6～1 万单
         for _ in range(n):
             if e.hire_date >= END:
                 continue
@@ -920,7 +928,7 @@ async def seed_sales(conn: asyncpg.Connection, st: State) -> None:
         sales_emps = st.emps
     sales_dept = next(d for d in st.depts if d["code"] == "SALES")
     order_tmp = []
-    for i in range(95):
+    for i in range(ORDER_N):
         od = START + timedelta(days=rng.randint(0, (END - START).days))
         cust = rng.choice(st.customers)
         owner = rng.choice(sales_emps)
@@ -931,7 +939,7 @@ async def seed_sales(conn: asyncpg.Connection, st: State) -> None:
         sign = od + timedelta(days=rng.randint(0, 20)) if status != "draft" else None
         if rng.random() < 0.05:
             od = None  # 脏：无下单日
-        order_no = f"SO{od.strftime('%Y%m') if od else 'XXXXXX'}{i+1:04d}"
+        order_no = f"SO{(od or START).strftime('%Y%m')}{i+1:05d}"
         n_items = rng.randint(1, 3)
         items = []
         total = 0.0
@@ -1078,6 +1086,7 @@ async def backfill_dept_managers(conn: asyncpg.Connection, st: State) -> None:
 
 
 async def print_stats(conn: asyncpg.Connection) -> None:
+    print(f"==> dataset {DATASET_VERSION} SEED={SEED} window={START}..{END}")
     tables = [
         "org_department",
         "hr_job_level",

@@ -70,6 +70,8 @@ export interface RunDetail {
   id: number
   status: string
   errorMessage?: string | null
+  sessionId?: number | null
+  workflowId?: number | null
   logs: Array<{ id: number; level: string; message: string; createdAt?: string }>
   result?: {
     columns?: Array<{ name: string; type?: string }>
@@ -173,6 +175,26 @@ export function fetchWorkLogs(sessionId: number, after = 0) {
     params: { after },
     timeout: 10000,
   }) as Promise<ApiResponse<{ total: number; items: Array<{ at: string; level: string; message: string }>; next: number }>>
+}
+
+export function fetchSessionLlmSpans(sessionId: number) {
+  return http.get(`${ASKDATA_BASE}/api/sessions/${sessionId}/llm-spans`) as Promise<
+    ApiResponse<{
+      sessionId: number
+      items: Array<{
+        id: number
+        phase?: string
+        kind?: string
+        name?: string
+        status?: string
+        latencyMs?: number
+        model?: string
+        errorMessage?: string
+        startedAt?: string
+        finishedAt?: string
+      }>
+    }>
+  >
 }
 
 export function chat(sessionId: number, message: string) {

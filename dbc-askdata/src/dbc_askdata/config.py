@@ -18,6 +18,15 @@ class Settings(BaseSettings):
     app_name: str = "dbc-askdata"
     host: str = "0.0.0.0"
     port: int = 8009
+    log_level: str = Field(
+        default="INFO",
+        description="根日志级别：DEBUG|INFO|WARNING|ERROR",
+        validation_alias=AliasChoices(
+            "DBC_ASKDATA_LOG_LEVEL",
+            "LOG_LEVEL",
+            "log_level",
+        ),
+    )
 
     database_url: str = Field(
         default="postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/postgres",
@@ -27,6 +36,27 @@ class Settings(BaseSettings):
 
     sqlwork_base_url: str = Field(default="http://127.0.0.1:8007")
     sqlwork_timeout_seconds: float = 60.0
+
+    # ---- 知识库（旁路 ada-memory → Milvus ada_document / ada_slice）----
+    ada_memory_base_url: str = Field(
+        default="http://127.0.0.1:8100",
+        description="ada-memory 基址；创建/切片/发布后由 ada-memory 向量同步至 Milvus",
+        validation_alias=AliasChoices(
+            "DBC_ASKDATA_ADA_MEMORY_BASE_URL",
+            "ADA_MEMORY_BASE_URL",
+            "ada_memory_base_url",
+        ),
+    )
+    ada_memory_timeout_seconds: float = Field(default=180.0)
+    ada_memory_product_name: str = Field(
+        default="dbc产品",
+        description="问数调用 ada-memory 检索时的默认产品名",
+        validation_alias=AliasChoices(
+            "DBC_ASKDATA_ADA_MEMORY_PRODUCT_NAME",
+            "ADA_MEMORY_PRODUCT_NAME",
+            "ada_memory_product_name",
+        ),
+    )
     # 鉴权拉权限：与 manage 一致走 usercenter /auth/me（JWT 不含 permissions）
     usercenter_base_url: str = Field(
         default="http://127.0.0.1:8004",
@@ -87,11 +117,21 @@ class Settings(BaseSettings):
     profile_enum_top_n: int = 30
 
     verify_max_repair_rounds: int = 3
+    sql_review_max_regen: int = 1
     workflow_run_row_limit: int = 1000
     allow_user_execute: bool = True
     temp_table_prefix: str = "askdata_tmp_"
     result_table_prefix: str = "askdata_rst_"
     rerun_cleanup: str = "drop_then_recreate"
+
+    # ---- 测评 ----
+    eval_cases_dir: str = Field(
+        default="scripts/demo-company/eval/cases",
+        description="模板用例 JSONL 目录（相对仓库根或绝对路径）；空则跳过启动导入",
+    )
+    eval_expect_sql_timeout_ms: int = 60_000
+    eval_task_concurrency: int = 2
+    eval_seed_on_startup: bool = True
 
     deep_agent_max_steps: int = 6
 

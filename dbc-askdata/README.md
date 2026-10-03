@@ -29,6 +29,12 @@ $env:ADA_LLM_API_KEY = "sk-..."   # 或写入 secrets/askdata-llm-api-key.txt
 .\scripts\run-local.cmd
 ```
 
+默认以 **debugpy** 监听 `127.0.0.1:5678` 启动（可断点调试）。在 Cursor 打开「运行和调试」→ 选 **dbc-askdata: Attach** → 开始调试。
+
+- 启动后先等 IDE 附加：`.\scripts\run-local.ps1 -WaitForDebugger`
+- 不需要调试：`.\scripts\run-local.ps1 -NoDebugger`
+- 热重载（与 debugpy 互斥）：`.\scripts\run-local.ps1 -NoDebugger -Reload`
+
 仅本地 Ollama：
 
 ```powershell

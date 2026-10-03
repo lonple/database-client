@@ -5,6 +5,28 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>DBC · 智能问数</title>
   <link rel="stylesheet" href="common.css" />
+  <style>
+    .entry-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      max-width: 640px;
+      margin: 0 auto;
+      text-align: left;
+    }
+    .entry-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px 18px;
+    }
+    .entry-card h3 { margin: 0 0 8px; font-size: 16px; }
+    .entry-card p { margin: 0 0 16px; color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
+    .pick-row {
+      display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center;
+      margin-bottom: 24px;
+    }
+  </style>
 </head>
 <body>
   <div class="app">
@@ -28,17 +50,28 @@
         <div class="page-title"><h2>智能问数</h2></div>
         <div class="empty-state">
           <strong>请先选择工作空间</strong>
-          <p style="margin:0 0 16px">进入后仅可切换工作空间；左侧工程→工作流；Chat/画布可执行，下侧控制台看日志与结果。</p>
-          <div style="display:inline-flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:center">
+          <p style="margin:0 0 16px">选择后可进入问数工作台，或进入测评空间做回归评测。</p>
+          <div class="pick-row">
             <select class="select" id="wsSelect" style="width:260px">
               <option value="">选择工作空间</option>
               <option value="1">订单项目-研发</option>
               <option value="2">报表只读空间</option>
             </select>
-            <a class="btn btn-primary" id="enterBtn" href="智能问数-工作台.html" onclick="return mustPick()">进入</a>
+          </div>
+          <div class="entry-grid">
+            <div class="entry-card">
+              <h3>问数工作台</h3>
+              <p>自然语言生成工作流；人工确认保存与执行；适合日常探索。</p>
+              <a class="btn btn-primary" href="智能问数-工作台.html" onclick="return mustPick()">进入工作台</a>
+            </div>
+            <div class="entry-card">
+              <h3>测评空间</h3>
+              <p>引用模板用例、自定义用例、创建测评任务；自动跑批比对正确率。</p>
+              <a class="btn btn-primary" href="智能问数-测评空间.html" onclick="return mustPick()">进入测评空间</a>
+            </div>
           </div>
         </div>
-        <p class="note">设计见 <a href="../设计/需求/02-智能问数需求分析.md">智能问数需求</a>。目标库访问只经 sqlwork；治理 SQL 只生成，末节点只读出数。</p>
+        <p class="note">设计见 <a href="../设计/需求/03-智能问数测评需求分析.md">测评需求</a>、<a href="../设计/需求/02-智能问数需求分析.md">问数需求</a>。碰库只经 sqlwork。</p>
       </main>
     </div>
   </div>

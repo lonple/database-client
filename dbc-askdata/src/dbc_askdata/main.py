@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
 
-from dbc_askdata.api import admin, routes
+from dbc_askdata.api import admin, eval_routes, knowledge_routes, routes
 from dbc_askdata.api.schemas import ApiResponse
 from dbc_askdata.audit.client import AuditClient
 from dbc_askdata.config import get_settings
@@ -17,7 +17,19 @@ from dbc_askdata.llm.client import LlmClient
 from dbc_askdata.observability.metrics import metrics_payload
 from dbc_askdata.observability.trace import resolve_trace_id
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [%(name)s] %(message)s")
+_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] %(message)s"
+
+
+def _configure_logging(level_name: str | None = None) -> None:
+    name = (level_name or get_settings().log_level or "INFO").upper()
+    level = getattr(logging, name, None)
+    if not isinstance(level, int):
+        level = logging.INFO
+    logging.basicConfig(level=level, format=_LOG_FORMAT, force=True)
+    logging.getLogger().setLevel(level)
+
+
+_configure_logging()
 log = logging.getLogger("dbc_askdata")
 
 # 进程级单例（启动时初始化）
@@ -29,6 +41,7 @@ audit_client: AuditClient | None = None
 async def lifespan(_app: FastAPI):
     global llm_client, audit_client
     settings = get_settings()
+    _configure_logging(settings.log_level)
     if settings.llm_residency == "cloud" and settings.sample_tool_enabled():
         raise RuntimeError("启动断言失败: residency=cloud 时不得启用 sample_columns")
     settings.assert_llm_ready()
@@ -48,6 +61,17 @@ async def lifespan(_app: FastAPI):
         raise RuntimeError(f"缺少迁移目录: {migration_dir}")
     await ensure_schema(engine, settings.database_schema, migration_dir)
 
+    if settings.eval_seed_on_startup:
+        from dbc_askdata.db.session import SessionLocal
+        from dbc_askdata.eval.templates import seed_eval_templates
+
+        try:
+            async with SessionLocal() as session:
+                await seed_eval_templates(session, settings)
+        except Exception:
+            log.error("测评模板/用例种子导入失败", exc_info=True)
+            raise
+
     from dbc_askdata.discovery.nacos import NacosRegistrar
 
     registrar = NacosRegistrar(settings)
@@ -65,6 +89,8 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="dbc-askdata", version="0.1.0", lifespan=lifespan)
 app.include_router(routes.router)
+app.include_router(eval_routes.router)
+app.include_router(knowledge_routes.router)
 app.include_router(admin.router)
 
 

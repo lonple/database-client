@@ -35,10 +35,13 @@ class ToolRegistry:
     def names(self) -> list[str]:
         return sorted(self._tools.keys())
 
-    def openai_tools(self) -> list[dict[str, Any]]:
+    def openai_tools(self, *, exclude: set[str] | None = None) -> list[dict[str, Any]]:
         """供 LLM function-calling；仅暴露已声明 Tool。"""
+        skip = exclude or set()
         out: list[dict[str, Any]] = []
         for decl in self._tools.values():
+            if decl.name in skip:
+                continue
             schema = decl.parameters_model.model_json_schema()
             out.append(
                 {
@@ -59,8 +62,8 @@ class ToolGateway:
     def __init__(self, registry: ToolRegistry) -> None:
         self._registry = registry
 
-    def openai_tools(self) -> list[dict[str, Any]]:
-        return self._registry.openai_tools()
+    def openai_tools(self, *, exclude: set[str] | None = None) -> list[dict[str, Any]]:
+        return self._registry.openai_tools(exclude=exclude)
 
     async def invoke(self, name: str, args: dict[str, Any] | None) -> Any:
         decl = self._registry.get(name)

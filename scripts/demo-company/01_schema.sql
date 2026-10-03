@@ -5,7 +5,7 @@
 DROP SCHEMA IF EXISTS company CASCADE;
 CREATE SCHEMA company;
 
-COMMENT ON SCHEMA company IS '智能问数演示：模拟 IT 公司经营/人事/财务/销售数据（故意含空值与脏数据）';
+COMMENT ON SCHEMA company IS '智能问数测评库 company_eval_v2：模拟 IT 公司数据（故意含空值与脏数据；完整注释见仓库 metadata MD）';
 
 -- ========== 组织人事 ==========
 CREATE TABLE company.org_department (

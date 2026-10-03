@@ -38,11 +38,36 @@ class SqlworkClient:
             msg = body.get("message") if isinstance(body, dict) else None
             raise HTTPException(status_code=resp.status_code, detail=msg or f"sqlwork HTTP {resp.status_code}")
         if isinstance(body, dict) and "data" in body:
-            # 对齐平台 ApiResponse：success=false 时抛业务错误
-            if body.get("success") is False:
+            # 对齐平台 ApiResponse：code!=0 或 success=false 时抛业务错误
+            if body.get("success") is False or (
+                body.get("code") is not None and int(body.get("code") or 0) != 0
+            ):
                 raise HTTPException(status_code=400, detail=body.get("message") or "sqlwork 业务失败")
             return body.get("data")
         return body
+
+    @staticmethod
+    def ensure_execute_ok(data: Any) -> dict[str, Any]:
+        """sqlwork /execute 在语句失败时仍可能 HTTP 200，需检查 statements[].success。"""
+        if not isinstance(data, dict):
+            return {}
+        if data.get("stoppedOnError") is True or data.get("stopped_on_error") is True:
+            stmts = data.get("statements") or []
+            msg = data.get("message") or "SQL 执行失败"
+            for s in stmts:
+                if isinstance(s, dict) and s.get("success") is False:
+                    msg = s.get("message") or msg
+                    break
+            raise HTTPException(status_code=400, detail=str(msg))
+        stmts = data.get("statements")
+        if isinstance(stmts, list) and stmts:
+            for s in stmts:
+                if isinstance(s, dict) and s.get("success") is False:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=str(s.get("message") or data.get("message") or "SQL 执行失败"),
+                    )
+        return data
 
     async def list_connections(self, workspace_id: int) -> list[dict[str, Any]]:
         async with httpx.AsyncClient(timeout=self._timeout) as client:
@@ -145,7 +170,7 @@ class SqlworkClient:
             body["cancelToken"] = cancel_token
         async with httpx.AsyncClient(timeout=self._timeout) as client:
             resp = await client.post(f"{self._base}/execute", json=body, headers=self._headers())
-            return (await self._unwrap(resp)) or {}
+            return self.ensure_execute_ok(await self._unwrap(resp))
 
     async def cancel(self, cancel_token: str) -> dict[str, Any]:
         async with httpx.AsyncClient(timeout=self._timeout) as client:

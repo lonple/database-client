@@ -175,6 +175,7 @@ services:
       DBC_ASKDATA_LLM_API_KEY: ${DBC_ASKDATA_LLM_API_KEY:-${ADA_LLM_API_KEY:-}}
       DBC_ASKDATA_AUDIT_ENABLED: "true"
       DBC_ASKDATA_AUDIT_MTLS_BASE_URL: https://dbc-audit:8048
+      DBC_ASKDATA_LOG_LEVEL: ${DBC_ASKDATA_LOG_LEVEL:-INFO}
     volumes:
       - ${DBC_DOCKER_WORKSPACE}/secrets:/app/secrets
       - ${DBC_DOCKER_WORKSPACE}/askdata/logs:/app/logs

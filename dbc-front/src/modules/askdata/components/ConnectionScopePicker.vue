@@ -58,7 +58,8 @@ export interface ConnectionScopeValue {
 const props = withDefaults(
   defineProps<{
     modelValue: ConnectionScopeValue
-    workspaceId: number
+    /** 固定工作空间；若连接项自带 workspaceId 则优先用连接上的 */
+    workspaceId?: number
     connections: ConnectionSummary[]
     connectionLabel?: string
     connectionPlaceholder?: string
@@ -89,6 +90,13 @@ const selectedConn = computed(() =>
   props.connections.find((c) => c.connectionId === props.modelValue.connectionId),
 )
 
+/** 元数据拉取用的工作空间：优先连接自带，其次 props */
+const effectiveWorkspaceId = computed(() => {
+  const fromConn = selectedConn.value?.workspaceId
+  if (fromConn != null && fromConn > 0) return fromConn
+  return props.workspaceId && props.workspaceId > 0 ? props.workspaceId : undefined
+})
+
 const showSchema = computed(() =>
   selectedConn.value ? isPgStyle(selectedConn.value.dbType) : false,
 )
@@ -100,11 +108,24 @@ function patch(partial: Partial<ConnectionScopeValue>) {
   emit('update:modelValue', { ...props.modelValue, ...partial })
 }
 
+function resolveWorkspaceId(connectionId?: number): number | undefined {
+  if (connectionId != null) {
+    const c = props.connections.find((x) => x.connectionId === connectionId)
+    if (c?.workspaceId != null && c.workspaceId > 0) return c.workspaceId
+  }
+  return effectiveWorkspaceId.value
+}
+
 async function loadDatabases(connectionId: number) {
+  const workspaceId = resolveWorkspaceId(connectionId)
+  if (!workspaceId) {
+    message.warning('无法解析连接所属工作空间')
+    return
+  }
   loadingDb.value = true
   databases.value = []
   try {
-    const resp = await fetchDatabases(props.workspaceId, connectionId)
+    const resp = await fetchDatabases(workspaceId, connectionId)
     databases.value = resp.data || []
   } catch (e: any) {
     message.error(e?.message || '加载库失败')
@@ -118,10 +139,15 @@ async function loadSchemas(connectionId: number, database: string) {
     schemas.value = []
     return
   }
+  const workspaceId = resolveWorkspaceId(connectionId)
+  if (!workspaceId) {
+    message.warning('无法解析连接所属工作空间')
+    return
+  }
   loadingSchema.value = true
   schemas.value = []
   try {
-    const resp = await fetchSchemas(props.workspaceId, connectionId, database)
+    const resp = await fetchSchemas(workspaceId, connectionId, database)
     schemas.value = resp.data || []
   } catch (e: any) {
     message.error(e?.message || '加载模式失败')
@@ -151,7 +177,7 @@ function onSchema(schema?: string) {
 }
 
 watch(
-  () => [props.modelValue.connectionId, props.workspaceId] as const,
+  () => [props.modelValue.connectionId, effectiveWorkspaceId.value] as const,
   ([cid]) => {
     if (cid && !databases.value.length) loadDatabases(cid)
   },

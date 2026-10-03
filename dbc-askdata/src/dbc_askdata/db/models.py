@@ -33,6 +33,7 @@ class AskProject(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
     deleted: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    hidden: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
 
 class AskSession(Base):
@@ -195,3 +196,28 @@ class AskLlmSpan(Base):
     payload_meta: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AskKnowledge(Base):
+    """问数知识索引：类型 + 切片规则 + 元数据过滤字段 + memory 文章 id。"""
+
+    __tablename__ = "ask_knowledge"
+    __table_args__ = {"schema": _SCHEMA}
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    document_id: Mapped[int] = mapped_column(BigInteger, nullable=False, unique=True, index=True)
+    knowledge_category: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    slice_logic: Mapped[str] = mapped_column(String(32), nullable=False, default="AI_SUGGEST", server_default="AI_SUGGEST")
+    slice_rule: Mapped[str | None] = mapped_column(Text)
+    workspace_id: Mapped[int | None] = mapped_column(BigInteger)
+    connection_id: Mapped[int | None] = mapped_column(BigInteger, index=True)
+    database_name: Mapped[str | None] = mapped_column(String(256))
+    schema_name: Mapped[str | None] = mapped_column(String(256))
+    connection_name: Mapped[str | None] = mapped_column(String(256))
+    db_type: Mapped[str | None] = mapped_column(String(64))
+    owner_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+    deleted: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")

@@ -14,6 +14,8 @@ export interface ConnectionSummary {
   connectionId: number
   name: string
   dbType: string
+  /** 问数知识库等场景：连接所属工作空间（跨空间汇总时携带） */
+  workspaceId?: number
 }
 
 export interface AuthzTableRef {

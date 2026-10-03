@@ -17,7 +17,7 @@ Write-Host "==> apply schema via dbc-postgres"
 Get-Content -Raw -Encoding UTF8 (Join-Path $Here "01_schema.sql") | docker exec -i dbc-postgres psql -U postgres -d postgres -v ON_ERROR_STOP=1
 if ($LASTEXITCODE -ne 0) { throw "schema apply failed" }
 
-Write-Host "==> seed data"
+Write-Host "==> seed data ($((Get-Item (Join-Path $Here 'seed_company.py')).Name) company_eval_v2, may take ~1min)"
 & $Py (Join-Path $Here "seed_company.py") --dsn "postgresql://postgres:root@127.0.0.1:5432/postgres"
 if ($LASTEXITCODE -ne 0) { throw "seed failed" }
 

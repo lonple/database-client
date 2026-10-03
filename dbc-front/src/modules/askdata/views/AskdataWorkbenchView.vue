@@ -62,6 +62,7 @@
           <div class="sub">{{ panelSub }}</div>
         </div>
         <div class="actions">
+          <a-button size="small" @click="backToSpaces">返回空间切换</a-button>
           <a-radio-group v-model:value="mode" button-style="solid" size="small">
             <a-radio-button value="chat">对话</a-radio-button>
             <a-radio-button value="canvas">画布</a-radio-button>
@@ -92,8 +93,11 @@
             <div v-if="m.hitlId && m.showHitl" class="hitl">
               <h4>需要确认</h4>
               <p>{{ m.content }}</p>
-              <a-space>
-                <a-input v-model:value="hitlTable" placeholder="确认表名（可选）" style="width: 180px" />
+              <a-space direction="vertical" style="width: 100%">
+                <a-input
+                  v-model:value="hitlNote"
+                  placeholder="补充真实码值 / 口径（可选；不要填口语缩写）"
+                />
                 <a-button type="primary" size="small" :loading="hitlLoading" @click="onResolveHitl(m.hitlId!)">
                   确认并继续生成
                 </a-button>
@@ -273,7 +277,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { Empty, Modal, message } from 'ant-design-vue'
 import * as askApi from '@/modules/askdata/api/askdata'
 import ConnectionScopePicker, {
@@ -293,7 +297,12 @@ type UiMessage = {
 
 const simpleImage = Empty.PRESENTED_IMAGE_SIMPLE
 const route = useRoute()
+const router = useRouter()
 const workspaceId = computed(() => Number(route.params.workspaceId))
+
+function backToSpaces() {
+  router.push({ name: 'askdata-spaces' })
+}
 
 const tree = ref<askApi.TreeProject[]>([])
 const treeLoading = ref(false)
@@ -318,7 +327,7 @@ const createForm = reactive({
   source: {} as ConnectionScopeValue,
   work: {} as ConnectionScopeValue,
 })
-const hitlTable = ref('')
+const hitlNote = ref('')
 const hitlLoading = ref(false)
 const currentRunId = ref<number | null>(null)
 const consoleTab = ref<'logs' | 'result' | 'detail'>('logs')
@@ -414,7 +423,7 @@ async function onClearSession() {
         await askApi.clearSessionMessages(sessionId.value!)
         messages.value = []
         resetWorkLogs()
-        hitlTable.value = ''
+        hitlNote.value = ''
         message.success('会话已清空')
       } catch (e: any) {
         message.error(e?.message || '清空失败')
@@ -714,9 +723,10 @@ async function onResolveHitl(hitlId: number) {
   hitlLoading.value = true
   startWorkLogPoll()
   try {
+    const note = hitlNote.value.trim()
     const resp = await askApi.resolveHitl(hitlId, {
       ack: true,
-      table: hitlTable.value || undefined,
+      text: note || undefined,
       route: 'QUERY',
     })
     const data = resp.data as any
@@ -731,7 +741,7 @@ async function onResolveHitl(hitlId: number) {
       hitlId: data?.needsHitl ? data?.id : null,
       showHitl: !!data?.needsHitl,
     })
-    hitlTable.value = ''
+    hitlNote.value = ''
     await pullWorkLogs()
     message.success('已确认并继续')
   } catch (e: any) {
@@ -988,7 +998,7 @@ onUnmounted(() => {
 <style scoped>
 .ad-layout {
   display: flex;
-  height: calc(100vh - 56px);
+  height: 100%;
   background: #f5f5f5;
 }
 .ad-side {

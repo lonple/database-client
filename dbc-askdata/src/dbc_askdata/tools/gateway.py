@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field
 
 from dbc_askdata.clients.sqlwork import SqlworkClient
 from dbc_askdata.config import Settings
+from dbc_askdata.knowledge.general_knowledge import search_catalog_directory_knowledge
+from dbc_askdata.knowledge.table_knowledge import search_table_knowledge
 from dbc_askdata.tools.registry import ToolDecl, ToolRegistry
 
 
@@ -155,7 +157,7 @@ def build_tool_registry(settings: Settings, sqlwork: SqlworkClient) -> ToolRegis
         return await sqlwork.list_connections(args["workspace_id"])
 
     async def search_catalog(args: dict[str, Any]) -> Any:
-        return await sqlwork.list_tables(
+        tables = await sqlwork.list_tables(
             args["workspace_id"],
             args["connection_id"],
             database=args.get("database"),
@@ -164,15 +166,38 @@ def build_tool_registry(settings: Settings, sqlwork: SqlworkClient) -> ToolRegis
             page=args.get("page") or 1,
             size=min(int(args.get("size") or 50), 100),
         )
+        # 旁路 GENERAL 切片：schema/database +「库表目录」，topK=1；失败不阻断目录
+        knowledge = await search_catalog_directory_knowledge(
+            settings,
+            database=args.get("database"),
+            schema=args.get("schema_name"),
+        )
+        if isinstance(tables, dict):
+            out = dict(tables)
+            out["knowledge"] = knowledge
+            return out
+        return {"items": tables or [], "knowledge": knowledge}
 
     async def describe_table(args: dict[str, Any]) -> Any:
-        return await sqlwork.list_columns(
+        columns = await sqlwork.list_columns(
             args["workspace_id"],
             args["connection_id"],
             table=args["table"],
             database=args.get("database"),
             schema=args.get("schema_name"),
         )
+        knowledge = await search_table_knowledge(
+            settings,
+            connection_id=int(args["connection_id"]),
+            database=args.get("database"),
+            schema=args.get("schema_name"),
+            table=str(args.get("table") or ""),
+            top_k=1,
+        )
+        return {
+            "columns": columns,
+            "knowledge": knowledge,
+        }
 
     async def get_column_profile(args: dict[str, Any]) -> Any:
         """列画像 + 枚举值频次；由模型在需要码值时主动调用。"""
@@ -272,7 +297,9 @@ def build_tool_registry(settings: Settings, sqlwork: SqlworkClient) -> ToolRegis
     registry.register(
         ToolDecl(
             name="search_catalog",
-            description="按关键字检索表/视图",
+            description=(
+                "按关键字检索表/视图；并附带当前库/模式下「库表目录」相关知识切片（若有，最多 1 条）"
+            ),
             parameters_model=SearchCatalogArgs,
             handler=search_catalog,
         )
@@ -280,7 +307,11 @@ def build_tool_registry(settings: Settings, sqlwork: SqlworkClient) -> ToolRegis
     registry.register(
         ToolDecl(
             name="describe_table",
-            description="查看表列结构（名称/类型/注释），不含枚举取值",
+            description=(
+                "查看表列结构（名称/类型/注释），并附带该连接/库/模式下元数据知识库中"
+                "与表名相关的切片（业务说明/表注释等，若有）。"
+                "拿到 knowledge 后须再核对表业务含义是否匹配用户问题；不符则换表重探"
+            ),
             parameters_model=DescribeTableArgs,
             handler=describe_table,
         )

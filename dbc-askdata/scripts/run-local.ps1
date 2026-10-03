@@ -2,10 +2,17 @@
 param(
   [switch]$SkipInstall,
   [switch]$Reload,
+  # 默认开启 debugpy，可用 Cursor/VS Code Attach 断点调试；关闭：-NoDebugger
+  [switch]$NoDebugger,
+  [int]$DebugpyPort = 5678,
+  # 启动后等待 IDE 附加再继续（首次下断点联调可用）
+  [switch]$WaitForDebugger,
   [string]$DatabaseUrl = "postgresql+asyncpg://postgres:root@127.0.0.1:5432/postgres",
   [string]$SqlworkBaseUrl = "http://127.0.0.1:8007",
   [string]$ListenAddress = "0.0.0.0",
   [int]$Port = 8009,
+  [ValidateSet("debug", "info", "warning", "error", "critical")]
+  [string]$LogLevel = "info",
   [string]$PythonExe = ""
 )
 
@@ -16,11 +23,13 @@ $RepoRoot = Split-Path -Parent $AskdataRoot
 $SecretsDir = Join-Path $RepoRoot "secrets"
 $JwtFile = Join-Path $SecretsDir "jwt-secret.txt"
 $VenvDir = Join-Path $AskdataRoot ".venv"
+$UseDebugger = -not $NoDebugger
 
 Write-Host "==> dbc-askdata local start" -ForegroundColor Cyan
 Write-Host ("    askdata : {0}" -f $AskdataRoot)
 Write-Host ("    secrets : {0}" -f $SecretsDir)
 Write-Host ("    port    : {0}" -f $Port)
+Write-Host ("    debugger: {0}" -f ($(if ($UseDebugger) { "debugpy :$DebugpyPort" } else { "off" })))
 
 if (-not (Test-Path -LiteralPath $JwtFile)) {
   throw ("JWT secret missing: {0}. Start usercenter first or create repo-root secrets/jwt-secret.txt" -f $JwtFile)
@@ -120,6 +129,10 @@ if (-not $env:DBC_ASKDATA_NACOS_REGISTER) {
 if (-not $env:DBC_ASKDATA_NACOS_IP) {
   $env:DBC_ASKDATA_NACOS_IP = "127.0.0.1"
 }
+# 日志级别（可选）；调试模式与日志级别无关
+if (-not $env:DBC_ASKDATA_LOG_LEVEL) {
+  $env:DBC_ASKDATA_LOG_LEVEL = $LogLevel.ToUpperInvariant()
+}
 # Local default: audit ON (same as prod). Missing p12 fails fast instead of silent disable.
 $AskdataP12 = Join-Path $SecretsDir "mtls\clients\dbc-askdata.p12"
 $AskdataPass = Join-Path $SecretsDir "mtls\clients\dbc-askdata.pass"
@@ -152,6 +165,7 @@ Write-Host ("    DBC_ASKDATA_LLM_BASE_URL     = {0}" -f $env:DBC_ASKDATA_LLM_BAS
 Write-Host ("    DBC_ASKDATA_LLM_MODEL        = {0}" -f $env:DBC_ASKDATA_LLM_MODEL)
 Write-Host ("    DBC_ASKDATA_AUDIT_ENABLED    = {0}" -f $env:DBC_ASKDATA_AUDIT_ENABLED)
 Write-Host ("    DBC_ASKDATA_AUDIT_MTLS_BASE_URL = {0}" -f $env:DBC_ASKDATA_AUDIT_MTLS_BASE_URL)
+Write-Host ("    DBC_ASKDATA_LOG_LEVEL        = {0}" -f $env:DBC_ASKDATA_LOG_LEVEL)
 Write-Host ("    DBC_NACOS_ADDR               = {0}" -f $env:DBC_NACOS_ADDR)
 Write-Host ("    DBC_ASKDATA_NACOS_REGISTER   = {0}" -f $env:DBC_ASKDATA_NACOS_REGISTER)
 Write-Host ("    DBC_ASKDATA_NACOS_IP         = {0}" -f $env:DBC_ASKDATA_NACOS_IP)
@@ -186,15 +200,46 @@ if ($listeners.Count -eq 0) {
 Write-Host "==> starting uvicorn ..." -ForegroundColor Cyan
 
 Set-Location $AskdataRoot
-$uvicornArgs = @(
-  "-m", "uvicorn",
-  "dbc_askdata.main:app",
-  "--host", $ListenAddress,
-  "--port", "$Port"
-)
-if ($Reload) {
-  $uvicornArgs += "--reload"
+if ($UseDebugger) {
+  if ($Reload) {
+    Write-Host "==> WARN: -Reload 与 debugpy 不兼容，已忽略 -Reload" -ForegroundColor Yellow
+  }
+  Write-Host "==> ensure debugpy ..." -ForegroundColor Yellow
+  & $VenvPython -m pip install -q "debugpy>=1.8.0"
+  if ($LASTEXITCODE -ne 0) {
+    throw "pip install debugpy failed"
+  }
+  $pyArgs = @(
+    "-m", "debugpy",
+    "--listen", ("127.0.0.1:{0}" -f $DebugpyPort)
+  )
+  if ($WaitForDebugger) {
+    $pyArgs += "--wait-for-client"
+    Write-Host ("==> waiting for debugger attach on 127.0.0.1:{0} ..." -f $DebugpyPort) -ForegroundColor Magenta
+  } else {
+    Write-Host ("==> debugpy listening 127.0.0.1:{0}" -f $DebugpyPort) -ForegroundColor Magenta
+    Write-Host "    断点不会自动停住：请在 Cursor 打开「运行和调试」→ 选「dbc-askdata: Attach」→ 绿色开始调试" -ForegroundColor Magenta
+    Write-Host "    或停掉本进程后，直接 F5 用「dbc-askdata: Launch (推荐，F5 可断点)」" -ForegroundColor Magenta
+  }
+  $pyArgs += @(
+    "-m", "uvicorn",
+    "dbc_askdata.main:app",
+    "--host", $ListenAddress,
+    "--port", "$Port",
+    "--log-level", $LogLevel.ToLowerInvariant()
+  )
+  & $VenvPython @pyArgs
+} else {
+  $uvicornArgs = @(
+    "-m", "uvicorn",
+    "dbc_askdata.main:app",
+    "--host", $ListenAddress,
+    "--port", "$Port",
+    "--log-level", $LogLevel.ToLowerInvariant()
+  )
+  if ($Reload) {
+    $uvicornArgs += "--reload"
+  }
+  & $VenvPython @uvicornArgs
 }
-
-& $VenvPython @uvicornArgs
 exit $LASTEXITCODE
