@@ -57,6 +57,40 @@ class AuditClient:
         trace_id: str | None = None,
         client_ip: str | None = None,
     ) -> None:
+        """入队异步上报；主流程不阻塞 mTLS HTTP。"""
+        from dbc_askdata.observability.obs_queue import enqueue
+
+        await enqueue(
+            {
+                "type": "audit_biz",
+                "action": action,
+                "resourceType": resource_type,
+                "resourceId": str(resource_id),
+                "operatorUserId": operator_user_id,
+                "operatorUsername": operator_username or "",
+                "result": result,
+                "failReason": fail_reason,
+                "details": details or {},
+                "traceId": trace_id,
+                "clientIp": client_ip,
+            }
+        )
+
+    async def emit_biz_sync(
+        self,
+        *,
+        action: str,
+        resource_type: str,
+        resource_id: str,
+        operator_user_id: int,
+        operator_username: str = "",
+        result: str = "SUCCESS",
+        fail_reason: str | None = None,
+        details: dict[str, Any] | None = None,
+        trace_id: str | None = None,
+        client_ip: str | None = None,
+    ) -> None:
+        """Worker 实际上报。"""
         event = {
             "eventId": str(uuid.uuid4()),
             "category": "BIZ",
@@ -86,6 +120,7 @@ class AuditClient:
             timeout=10.0,
             verify=verify,
             cert=(str(self._cert_pem), str(self._key_pem)),
+            trust_env=False,
         ) as client:
             resp = await client.post(url, json={"events": events})
             if resp.status_code >= 400:

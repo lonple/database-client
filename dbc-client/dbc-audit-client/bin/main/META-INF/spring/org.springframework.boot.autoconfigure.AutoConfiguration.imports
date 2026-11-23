@@ -1,0 +1,2 @@
+com.lyj.dbc.client.audit.AuditClientAutoConfiguration
+com.lyj.dbc.client.audit.AuditLogAspectAutoConfiguration

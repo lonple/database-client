@@ -1,0 +1,17 @@
+## 公共 SQL 纪律（build 用）
+- 时间：相对时间（今天/本月/今年/近N天）一律用上下文 `current_time`（Asia/Shanghai）写成真实 YYYY-MM-DD；禁止训练记忆旧年份。
+- 目录：`catalog_tables` 已含表名、说明与字段压缩（bodySummary）；禁止 `search_catalog`。选表对照 description/bodySummary，禁止凭英文表名互替。
+- 推荐：`recommended_tables` / `catalog_tables` 为语义匹配结果（含图谱邻接表），优先使用；不够再从中选或 describe 补列。
+- 表结构：选表、列名优先用 bodySummary。**仅当**缺列、缺类型/注释、或进入下方「离散条件」流程时，才对该表 `describe_table`；同一表已 describe 过则禁止再调。`table` 只传物理表名（如 `prj_project`），不要传 `schema.table`。画像报列不存在时：对照 describe 的 columns 换真实列，禁止反复 describe 同一张表。禁止臆造列名。
+- knowledge：describe 返回的表意须再核对；不符则换表（新表才 describe），禁止在错表上硬写。
+- 类型：条件值与字段是否同一类由你判断。全是数字不一定是数值列；手机号、证件号、日期、带前导零的编码要结合字段类型和说明，可以对应字符或日期列。
+- 关联：优先用上下文 `table_relations` 的 `edges`（fromTable/fromColumn/toTable/toColumn）写 ON，`joinTexts` 作对照。条件值与当前字段类型对不上、且该列出现在某条 edge 上时，改到对端表重选条件字段。上下文没有这条边时再 `list_table_relations(table)`。两张表都已确定、只缺 JOIN 列时才 `query_table_relations(fromTable,toTable)`。禁止臆造关联列。
+- WHERE 工具判定（按谓词类型）：
+  - **必须走工具**（全等集合条件）：WHERE 里凡出现 `=` / `!=` / `<>` / `IN` / `NOT IN`，且右侧是字面量（含中文标签、码值、部门名、状态、类型、业务编码等），**每一个这样的条件字段**都要先 `describe_table`（该表未描述过时），再对该列调 `get_column_profile(condition_value=用户原词或该字面量)`，按返回 `action` 写最终字面量。禁止「看完 describe 就直接写中文/臆造码」；禁止占位符。字典列把拆好的 `[{key,value},...]` 放进 `column_comment`。等 `use_key`/`use_literal`/`follow_fk`/`retry_same_table`/`hitl` 后再写 SQL。同一 SQL 多个等值条件 → 每个列各调一次 profile。
+  - **不走 profile**（连续/时间条件）：日期时间范围（今天/本月/近 N 天、`>=`/`<=`/`BETWEEN` 落在 date/timestamp）用上下文 `current_time` 写成真实 YYYY-MM-DD（或时间戳），列名用 bodySummary/describe 即可。金额、数量等纯数值区间比较（`>`/`<`/`>=`/`<=`/`BETWEEN`）同理，不调 profile。
+  - **可不走工具**：`IS NULL` / `IS NOT NULL`；`LIKE`/`ILIKE`；仅投影、聚合、无过滤。
+  - 多列类型都像时不要锁第一列；时间列与离散码列不要混用同一套 profile 规则。
+- 分组：实体维度优先业务唯一编码（*_code/*_no），其次 id；**禁止**仅用 *_name/*_title 作分组键；需名称时 GROUP BY 编码（或 id）+ MAX(name)（或编码与名称一并分组）。status 等本身为码字段可直接 GROUP BY。
+- 源表：必须 `schema.表名`（如 company.hr_employee），禁止未限定表名。
+- 写法：优先 `SELECT … JOIN …` 与必要的子查询；**优先不要**使用 `WITH … AS`（CTE）。能用 JOIN/子查询表达的不要再套 CTE。
+- 上下文：有 `hitl_confirmation` 时码值/口径用其原文，仅标识符才当表名；有 `db_general_knowledge` 须遵守；有 `sql_ex_knowledge`（知识库 SQL_EX 分类示例）须遵守其中语法与正确写法；有 `review_critique`/`verify_critique` 必须按指摘改正（错表/错列重新 describe），禁止原样重出；有 `eval_alias_rules` 须遵守（COUNT 别名 cnt）。

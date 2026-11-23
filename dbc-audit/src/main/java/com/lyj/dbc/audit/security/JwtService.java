@@ -17,11 +17,16 @@ import java.util.stream.Collectors;
 @Component
 public class JwtService {
 
+    public static final String TYP_ACCESS = "access";
+
     private final JwtProperties properties;
     private final SecretKey key;
+    private final JwtDenyListService denyListService;
 
-    public JwtService(JwtProperties properties, SecretFileStore secretFileStore) {
+    public JwtService(JwtProperties properties, SecretFileStore secretFileStore,
+                      JwtDenyListService denyListService) {
         this.properties = properties;
+        this.denyListService = denyListService;
         String secret = secretFileStore.readOrCreate(SecretFileStore.FILE_JWT, 48);
         properties.setSecret(secret);
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
@@ -33,6 +38,12 @@ public class JwtService {
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
+        if (!TYP_ACCESS.equals(claims.get("typ", String.class))) {
+            throw new IllegalArgumentException("令牌类型不匹配");
+        }
+        if (denyListService.isDenied(claims.getId())) {
+            throw new IllegalArgumentException("令牌已失效");
+        }
         String roleCodes = claims.get("roleCodes", String.class);
         if (roleCodes == null || roleCodes.isBlank()) {
             roleCodes = claims.get("roleCode", String.class);

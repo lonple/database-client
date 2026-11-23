@@ -292,7 +292,8 @@ API：`POST/PUT/DELETE /sessions`、`POST /sessions/{id}/heartbeat`；`POST /exe
 
 - 键：`connectionId`（+ 可选 jdbcUrl 指纹）；配置变更时 manage 通知或 sqlwork 短 TTL 失效重建。
 - 凭证：每次建池经 manage inner 取解密后的 JDBC URL/user/password（内存短暂使用）；**禁止** sqlwork 库存密文副本。
-- Druid：`maxActive` 小（如 5）；`validationQuery` 方言化；空闲驱逐；目标池不开启监控 Servlet。
+- Druid：`maxActive` 默认 **40**（`dbc.sqlwork.pool-max-size` / `DBC_SQLWORK_POOL_MAX_SIZE`）；须低于目标库 `max_connections`，并与同实例其它服务池合计留余量。本地平台 PG 见 `deploy/middleware/docker-compose.yml`（`max_connections=1000`）。`validationQuery` 方言化；空闲驱逐；目标池不开启监控 Servlet。
+- 元数据：`POST /meta/columns/batch` 同连接复用一次 JDBC 拉多表列（单次≤20），供问数预 describe。
 - 执行：`Statement`/`PreparedStatement`；`setQueryTimeout`；`maxRows`；大字段截断策略（字符串最大长度可配）。
 - 取消：本期靠超时；后续再接 `Statement.cancel`。
 

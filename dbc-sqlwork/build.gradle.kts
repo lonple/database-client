@@ -35,6 +35,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
+    implementation("org.springframework.boot:spring-boot-starter-data-redis")
     implementation("com.alibaba.cloud:spring-cloud-starter-alibaba-nacos-discovery")
     implementation("org.springframework.cloud:spring-cloud-starter-loadbalancer")
     // 目标库连接池 + SQL 方言解析（同一依赖）

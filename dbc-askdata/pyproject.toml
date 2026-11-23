@@ -23,13 +23,20 @@ dependencies = [
   "langchain-core>=0.3.0",
   "orjson>=3.10.0",
   "cryptography>=42.0.0",
+  "python-multipart>=0.0.9",
+  "redis>=5.0.0",
+  "PyYAML>=6.0",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "ruff>=0.6", "debugpy>=1.8.0"]
+document = ["docling>=2.20.0"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"dbc_askdata" = ["agent_bundle.yaml", "llm/**/*.yaml", "llm/**/*.md"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

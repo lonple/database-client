@@ -73,7 +73,12 @@ public interface DbDialect {
 
     /**
      * 表/视图项。
+     *
+     * @param comment 表注释（中文说明），无则 null
      */
-    record TableItem(String schema, String name, String objectType) {
+    record TableItem(String schema, String name, String objectType, String comment) {
+        public TableItem(String schema, String name, String objectType) {
+            this(schema, name, objectType, null);
+        }
     }
 }

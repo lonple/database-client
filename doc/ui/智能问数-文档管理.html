@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DBC · 文档管理</title>
+  <link rel="stylesheet" href="common.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="logo">DBC</div>
+      <nav class="nav-l1-group" aria-label="一级菜单">
+        <a class="nav-l1-item" href="index.html">首页</a>
+        <a class="nav-l1-item" href="SQL工作台.html">SQL 工作台</a>
+        <a class="nav-l1-item active" href="智能问数.html">智能问数</a>
+        <a class="nav-l1-item" href="工作空间.html">资产管理</a>
+        <a class="nav-l1-item" href="用户管理.html">用户中心</a>
+      </nav>
+      <div class="header-right">
+        <span>alice</span>
+        <a class="btn" href="登录.html">退出</a>
+      </div>
+    </header>
+    <div class="body">
+      <aside class="sidebar">
+        <div class="side-label">智能问数</div>
+        <a class="side-item" href="智能问数.html">问数空间</a>
+        <a class="side-item" href="智能问数.html">知识库</a>
+        <a class="side-item active" href="智能问数-文档管理.html">文档管理</a>
+      </aside>
+      <main class="main">
+        <div class="breadcrumb">智能问数 / 文档管理</div>
+        <div class="page-title">
+          <h2>文档管理</h2>
+          <button class="btn btn-primary" type="button" onclick="document.getElementById('uploadModal').classList.add('show')">上传文档</button>
+        </div>
+        <div class="toolbar">
+          <input class="input" type="search" placeholder="名称" style="width:200px" />
+          <select class="select" style="width:140px">
+            <option>全部格式</option>
+            <option>docx</option>
+            <option>pdf</option>
+            <option>xlsx</option>
+            <option>html</option>
+            <option>图片</option>
+          </select>
+          <select class="select" style="width:140px">
+            <option>全部状态</option>
+            <option>转换中</option>
+            <option>成功</option>
+            <option>失败</option>
+          </select>
+          <button class="btn" type="button">查询</button>
+        </div>
+        <div class="panel">
+          <table class="data">
+            <thead>
+              <tr>
+                <th>名称</th>
+                <th>格式</th>
+                <th>转换状态</th>
+                <th>已导入知识库</th>
+                <th>更新时间</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><a href="智能问数-文档详情.html">订单口径说明</a></td>
+                <td>docx</td>
+                <td><span class="tag tag-success">成功</span></td>
+                <td>草稿</td>
+                <td>2026-10-05 18:02</td>
+                <td><a href="智能问数-文档详情.html">详情</a></td>
+              </tr>
+              <tr>
+                <td><a href="智能问数-文档详情.html">报销表截图</a></td>
+                <td>png</td>
+                <td><span class="tag tag-success">成功</span></td>
+                <td>—</td>
+                <td>2026-10-05 17:40</td>
+                <td><a href="智能问数-文档详情.html">详情</a></td>
+              </tr>
+              <tr>
+                <td>扫描合同（失败样例）</td>
+                <td>pdf</td>
+                <td><span class="tag tag-default">失败</span></td>
+                <td>—</td>
+                <td>2026-10-05 16:11</td>
+                <td><a href="智能问数-文档详情.html">详情</a></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="note">仅本人可见。办公文档抽正文、表格、嵌图引用，不识别嵌图文字。图片文件识别文字与表格。导入知识库只产生草稿。需求见 <a href="../设计/需求/04-智能问数文档管理需求分析.md">文档管理需求</a>。</p>
+      </main>
+    </div>
+  </div>
+  <div class="modal-mask" id="uploadModal">
+    <div class="modal" style="width:480px;background:#fff;padding:20px;border-radius:8px">
+      <h3>上传文档</h3>
+      <p class="note">支持 docx / pdf / xlsx / html / png / jpg。单文件 20MB。不接受 exe 与宏文件。</p>
+      <div class="field">
+        <label>文件 *</label>
+        <input class="input" type="file" />
+      </div>
+      <div style="text-align:right;margin-top:16px">
+        <button class="btn" type="button" onclick="document.getElementById('uploadModal').classList.remove('show')">取消</button>
+        <a class="btn btn-primary" href="智能问数-文档详情.html">开始转换</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

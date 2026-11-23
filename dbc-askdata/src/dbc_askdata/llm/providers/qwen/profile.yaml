@@ -1,0 +1,31 @@
+# 通义千问（DashScope OpenAI 兼容）Provider Profile
+id: qwen
+version: "1"
+default_base_url: "https://dashscope.aliyuncs.com/compatible-mode"
+models:
+  default: "qwen-max"         # SQL 生成
+  light: "qwen-flash"         # gate / chat / review / table_intent（避免 qwen3.6-flash 未开通 403）
+# 当前磁盘上的提示词包版本，对应 prompts/。升级模型后若文案要改，新建 prompts/vN/ 并改绑定。
+prompt_pack_version: "1"
+# 大模型版本 -> 提示词版本。一次调用记日志时按实际 model 取这一列。
+prompt_bindings:
+  - model: "qwen-max"
+    prompt_version: "1"
+  - model: "qwen-flash"
+    prompt_version: "1"
+  - model: "qwen3.6-flash"
+    prompt_version: "1"
+adapter:
+  kind: openai_compatible
+  # DashScope：必须传 enable_thinking；问数短 JSON 默认关闭思考链
+  pass_enable_thinking: true
+  enable_thinking: false
+prompts:
+  gate_system: prompts/gate_system.md
+  fine_router_system: prompts/fine_router_system.md
+  chat_system: prompts/chat_system.md
+  build_system: prompts/build_system.md
+  # govern_system 已下线（QUERY-only）；保留空映射兼容旧 bundle 读取
+  govern_system: prompts/govern_system.md
+  review_system: prompts/review_system.md
+  table_intent_system: prompts/table_intent_system.md

@@ -53,6 +53,20 @@ export interface TreeProject {
   workflows: TreeWorkflow[]
 }
 
+export interface HitlUiField {
+  key: string
+  label: string
+  required?: boolean
+  candidates?: string[]
+}
+
+export interface HitlUi {
+  kind?: string
+  title?: string
+  hint?: string
+  fields?: HitlUiField[]
+}
+
 export interface ChatResponse {
   reply: string
   draftId?: number | null
@@ -64,6 +78,18 @@ export interface ChatResponse {
   needsHitl?: boolean
   route?: string
   traceId?: string
+  turnId?: number | null
+  hitlUi?: HitlUi | null
+}
+
+export interface RunFeedbackState {
+  runId?: number
+  workflowId?: number
+  usefulDone?: boolean
+  uselessDone?: boolean
+  memoryDone?: boolean
+  sampleId?: number | null
+  knowledgeSaved?: boolean
 }
 
 export interface RunDetail {
@@ -72,6 +98,12 @@ export interface RunDetail {
   errorMessage?: string | null
   sessionId?: number | null
   workflowId?: number | null
+  startedAt?: string | null
+  finishedAt?: string | null
+  /** 工作流执行墙钟耗时（finishedAt - startedAt） */
+  elapsedMs?: number | null
+  feedbackReady?: boolean
+  feedback?: RunFeedbackState | null
   logs: Array<{ id: number; level: string; message: string; createdAt?: string }>
   result?: {
     columns?: Array<{ name: string; type?: string }>
@@ -84,17 +116,42 @@ export interface RunDetail {
 export interface LlmSpanItem {
   id: number
   traceId?: string
+  turnId?: number
   phase: string
   kind: string
   name: string
   status: string
   latencyMs?: number
+  tokenIn?: number | null
+  tokenOut?: number | null
   model?: string
   residency?: string
   workspaceId?: number
   projectId?: number
   errorMessage?: string
   startedAt?: string
+  finishedAt?: string
+}
+
+export interface AskTurnItem {
+  id: number
+  rootTraceId?: string
+  question: string
+  status: string
+  workspaceId?: number
+  projectId?: number
+  sessionId?: number
+  userId?: number
+  hitlId?: number
+  route?: string
+  tokenIn?: number
+  tokenOut?: number
+  tokenTotal?: number
+  spanCount?: number
+  latencyMs?: number | null
+  errorMessage?: string
+  startedAt?: string
+  finishedAt?: string
 }
 
 export function fetchProjects(workspaceId: number) {
@@ -140,6 +197,9 @@ export interface SessionMessage {
     draft?: ChatResponse['draft']
     route?: string
     traceId?: string
+    turnId?: number | null
+    saved?: boolean
+    workflowId?: number | null
   } | null
   createdAt?: string
 }
@@ -170,11 +230,21 @@ export function clearSessionMessages(sessionId: number) {
   >
 }
 
-export function fetchWorkLogs(sessionId: number, after = 0) {
+export function fetchWorkLogs(sessionId: number, after = 0, turnId?: number | null) {
   return http.get(`${ASKDATA_BASE}/api/sessions/${sessionId}/work-logs`, {
-    params: { after },
+    params: {
+      after,
+      ...(turnId != null ? { turnId } : {}),
+    },
     timeout: 10000,
-  }) as Promise<ApiResponse<{ total: number; items: Array<{ at: string; level: string; message: string }>; next: number }>>
+  }) as Promise<
+    ApiResponse<{
+      total: number
+      items: Array<{ id?: number; at: string; level: string; message: string }>
+      next: number
+      turnId?: number | null
+    }>
+  >
 }
 
 export function fetchSessionLlmSpans(sessionId: number) {
@@ -204,15 +274,37 @@ export function chat(sessionId: number, message: string) {
   }) as Promise<ApiResponse<ChatResponse>>
 }
 
+/** 工作台今日 LLM 额度；测评页不要调用 */
+export function fetchQuotaMe() {
+  return http.get(`${ASKDATA_BASE}/api/quota/me`, {
+    ...withTraceHeaders(),
+  }) as Promise<
+    ApiResponse<{
+      usageDate: string
+      used: number
+      limit: number
+      remaining: number | null
+      enabled: boolean
+    }>
+  >
+}
+
 export function saveWorkflow(body: {
   projectId: number
   name: string
   description?: string
   nodesJson: Record<string, unknown>
   draftId?: number
+  sessionId?: number
 }) {
   return http.post(`${ASKDATA_BASE}/api/workflows`, body) as Promise<
-    ApiResponse<{ id: number; name: string; projectId: number }>
+    ApiResponse<{
+      id: number
+      name: string
+      projectId: number
+      alreadySaved?: boolean
+      messageId?: number | null
+    }>
   >
 }
 
@@ -240,6 +332,45 @@ export function startRun(workflowId: number, sessionId?: number) {
     { workflowId, sessionId },
     { timeout: 300000, ...withTraceHeaders() },
   ) as Promise<ApiResponse<{ id: number; status: string; errorMessage?: string; traceId?: string }>>
+}
+
+/** 执行成功后确认 SQL 正确：写入样本 + 问句知识草稿（待审批） */
+export function confirmSqlCorrect(body: {
+  runId: number
+  sessionId: number
+  question?: string
+  hitlResolution?: Record<string, unknown>
+}) {
+  return http.post(`${ASKDATA_BASE}/api/runs/confirm-correct`, body, {
+    ...withTraceHeaders(),
+  }) as Promise<
+    ApiResponse<{
+      sampleId: number
+      workflowId: number
+      runId: number
+      question: string
+      knowledge?: Record<string, unknown>
+    }>
+  >
+}
+
+/** 画布：有用 / 无用 / 保存记忆（幂等） */
+export function submitRunFeedback(
+  runId: number,
+  body: { action: 'useful' | 'useless' | 'memory'; sessionId?: number; question?: string },
+) {
+  return http.post(`${ASKDATA_BASE}/api/runs/${runId}/feedback`, body, {
+    ...withTraceHeaders(),
+  }) as Promise<
+    ApiResponse<{
+      alreadyProcessed?: boolean
+      action?: string
+      message?: string
+      sampleId?: number
+      knowledge?: Record<string, unknown>
+      feedback?: RunFeedbackState
+    }>
+  >
 }
 
 export function stopRun(runId: number) {
@@ -270,12 +401,32 @@ export function resolveHitl(hitlId: number, resolution: Record<string, unknown>)
   >
 }
 
+export function fetchAskTurns(params: {
+  page: number
+  size: number
+  workspaceId?: number
+  projectId?: number
+  status?: string
+}) {
+  return http.get(`${ASKDATA_BASE}/api/admin/llm/turns`, {
+    params: {
+      page: params.page,
+      size: params.size,
+      workspace_id: params.workspaceId,
+      project_id: params.projectId,
+      status: params.status,
+    },
+  }) as Promise<ApiResponse<{ page: number; size: number; total: number; items: AskTurnItem[] }>>
+}
+
 export function fetchLlmSpans(params: {
   page: number
   size: number
   workspaceId?: number
   kind?: string
   status?: string
+  turnId?: number
+  traceId?: string
 }) {
   return http.get(`${ASKDATA_BASE}/api/admin/llm/spans`, {
     params: {
@@ -284,6 +435,8 @@ export function fetchLlmSpans(params: {
       workspace_id: params.workspaceId,
       kind: params.kind,
       status: params.status,
+      turn_id: params.turnId,
+      trace_id: params.traceId,
     },
   }) as Promise<ApiResponse<{ page: number; size: number; total: number; items: LlmSpanItem[] }>>
 }

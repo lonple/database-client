@@ -7,6 +7,11 @@ spring:
   # 与 manage 驱动上传 64MB 对齐，避免网关缓冲截断大 body
   codec:
     max-in-memory-size: 64MB
+  data:
+    redis:
+      host: ${DBC_REDIS_HOST:127.0.0.1}
+      port: ${DBC_REDIS_PORT:6379}
+      password: ${DBC_REDIS_PASSWORD:}
   cloud:
     nacos:
       discovery:
@@ -15,7 +20,12 @@ spring:
       globalcors:
         cors-configurations:
           '[/**]':
-            allowedOriginPatterns: "*"
+            # 生产通过部署配置覆盖；禁止使用 *
+            allowedOriginPatterns:
+              - "http://127.0.0.1:8005"
+              - "http://localhost:8005"
+              - "http://127.0.0.1:8080"
+              - "http://localhost:8080"
             allowedMethods: "*"
             allowedHeaders: "*"
             allowCredentials: true
@@ -53,6 +63,22 @@ spring:
             - Path=/dbc-askdata/**
           filters:
             - StripPrefix=1
+        - id: dbc-knowledge
+          uri: lb://dbc-knowledge
+          predicates:
+            - Path=/dbc-knowledge/**
+          filters:
+            - StripPrefix=1
+        - id: dbc-graph
+          uri: lb://dbc-graph
+          predicates:
+            - Path=/dbc-graph/**
+          filters:
+            - StripPrefix=1
+
+dbc:
+  secrets:
+    dir: ${DBC_SECRETS_DIR:secrets}
 
 management:
   endpoints:

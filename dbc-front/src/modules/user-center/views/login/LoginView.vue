@@ -37,10 +37,20 @@ async function onSubmit() {
   loading.value = true
   try {
     const resp = await authApi.login(form.username, form.password)
-    auth.setSession(resp.data.token, resp.data.user)
+    if (!resp.data?.accessToken || !resp.data.user) {
+      message.error('登录响应无效')
+      return
+    }
+    auth.setSession(resp.data.accessToken, resp.data.user)
     message.success('登录成功')
     const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/home'
     router.replace(redirect)
+  } catch (err: unknown) {
+    const msg =
+      (err as { message?: string })?.message ||
+      (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+      '登录失败'
+    message.error(msg)
   } finally {
     loading.value = false
   }

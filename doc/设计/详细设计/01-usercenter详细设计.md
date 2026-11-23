@@ -254,11 +254,18 @@ usercenter 内置权限由 Flyway 种子；其它服务经 inner 幂等注册（
 
 分页：`data: { "records", "total", "page", "size" }`。
 
-### 7.2 JWT
+### 7.2 浏览器会话（双令牌）
 
-- 算法 HS256；密钥 `secrets/jwt-secret.txt` 或环境变量 `DBC_JWT_SECRET`。
-- 请求头：`Authorization: Bearer <jwt>`。
-- 默认有效期 8 小时（`dbc.jwt.expire-hours`）。
+| 凭证 | 存放 | 传递 | 声明 |
+| --- | --- | --- | --- |
+| access JWT | 前端**内存** | `Authorization: Bearer` | `typ=access`、`jti`、短 TTL（默认 30 分钟，`dbc.auth.access-ttl-minutes`） |
+| refresh JWT | Cookie `dbc_refresh`：HttpOnly；Secure（生产）；SameSite=Lax；Path=`/dbc-usercenter/auth` | 仅 refresh/logout | `typ=refresh`、`jti`、较长 TTL（默认 8 小时，`dbc.auth.refresh-ttl-hours`） |
+| csrf | Cookie `dbc_csrf`（可读） | 头 `X-Dbc-CSRF` | **仅**校验 `POST /auth/refresh`、`POST /auth/logout` |
+
+- 算法 HS256；密钥 `secrets/jwt-secret.txt`（与各服务 / 网关共用）。
+- **禁止** access 写入 localStorage / Access Cookie；登录 JSON 的 `accessToken` 仅供前端写入内存。
+- 业务接口不依赖 Cookie 会话 → **无业务 CSRF**；Spring `csrf().disable()` + 自建刷新/登出 CSRF。
+- 登出 / 吊销：Redis key `dbc:jwt:deny:{jti}`，TTL=令牌剩余寿命；网关与各服务解析 access 时检查。
 - 401 返回 JSON，不回传栈。
 
 ### 7.3 密码
@@ -294,12 +301,15 @@ usercenter 内置权限由 Flyway 种子；其它服务经 inner 幂等注册（
 { "username": "admin", "password": "admin" }
 ```
 
-响应 `data`：
+响应：
+
+- `Set-Cookie`：`dbc_refresh`（HttpOnly）、`dbc_csrf`（可读）
+- `data`：
 
 ```json
 {
-  "token": "<jwt>",
-  "expiresIn": 28800,
+  "accessToken": "<access-jwt>",
+  "expiresIn": 1800,
   "user": {
     "id": 1,
     "username": "admin",
@@ -317,11 +327,22 @@ usercenter 内置权限由 Flyway 种子；其它服务经 inner 幂等注册（
 }
 ```
 
-> `role` 为兼容字段，等于 `roles[0]`；新客户端应使用 `roles[]`。
+> `role` 为兼容字段，等于 `roles[0]`；新客户端应使用 `roles[]`。前端不得持久化 `accessToken`。
+
+#### POST `/dbc-usercenter/auth/refresh`（匿名；凭 refresh Cookie）
+
+- 须带 Cookie `dbc_refresh`、`dbc_csrf` 与头 `X-Dbc-CSRF`（与 csrf Cookie 一致）。
+- 成功：轮换 access（及建议轮换 refresh/csrf）；JSON 返回新 `accessToken`、`expiresIn`；更新 Cookie。
+- 网关对该路径**不**要求 Bearer。
+
+#### POST `/dbc-usercenter/auth/logout`
+
+- 须 CSRF（同上）；可同时带 Bearer access（可选）。
+- 将 access/refresh 的 `jti` 写入拒绝名单；清除 Cookie。
 
 #### GET `/dbc-usercenter/auth/me`
 
-需登录；返回当前用户（含 `roles[]`、`permissions[]`）。
+需 Bearer access；返回当前用户（含 `roles[]`、`permissions[]`）。
 
 #### GET `/dbc-usercenter/auth/data-scope`
 
@@ -567,8 +588,14 @@ mybatis-plus:
       logic-delete-field: deleted
 
 dbc:
-  jwt:
-    expire-hours: 8
+  auth:
+    access-ttl-minutes: 30
+    refresh-ttl-hours: 8
+    cookie:
+      secure: false
+      refresh-path: /dbc-usercenter/auth
+  cors:
+    allowed-origin-patterns: http://127.0.0.1:8005,http://localhost:8005
   secrets:
     dir: ${DBC_SECRETS_DIR:secrets}
   mtls:

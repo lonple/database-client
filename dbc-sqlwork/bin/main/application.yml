@@ -1,0 +1,52 @@
+server:
+  port: 8007
+
+spring:
+  application:
+    name: dbc-sqlwork
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${DBC_NACOS_ADDR:127.0.0.1:8000}
+  data:
+    redis:
+      host: ${DBC_REDIS_HOST:127.0.0.1}
+      port: ${DBC_REDIS_PORT:6379}
+      password: ${DBC_REDIS_PASSWORD:}
+
+dbc:
+  jwt:
+    expire-hours: 8
+  secrets:
+    dir: ${DBC_SECRETS_DIR:secrets}
+  sqlwork:
+    manage-base-url: ${DBC_MANAGE_BASE_URL:http://dbc-manage}
+    client-id: dbc-sqlwork
+    execute-max-rows: 1000
+    execute-timeout-seconds: 30
+    # 目标库 Druid 池 maxActive；问数并发 describe/execute 时 5 易排队，默认 40。
+    # 须低于目标库 max_connections，并与同实例其它服务池合计留余量。
+    pool-max-size: ${DBC_SQLWORK_POOL_MAX_SIZE:40}
+    session-max-per-user: 10
+    session-idle-ttl-seconds: 1800
+    session-transaction-idle-ttl-seconds: 900
+    session-cleanup-interval-ms: 30000
+    usercenter-mtls-base-url: ${DBC_USERCENTER_MTLS_BASE_URL:discovery://dbc-usercenter}
+    permission-register-initial-delay-ms: 2000
+    permission-register-max-delay-ms: 60000
+  audit:
+    client:
+      enabled: true
+      mtls-base-url: ${DBC_AUDIT_MTLS_BASE_URL:discovery://dbc-audit}
+      client-id: dbc-sqlwork
+      secrets-dir: ${DBC_SECRETS_DIR:secrets}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  level:
+    com.lyj.dbc.sqlwork: INFO

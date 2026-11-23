@@ -4,7 +4,7 @@
 # Usage:
 #   .\scripts\docker-stop.cmd
 #   .\scripts\docker-stop.cmd -WipeData
-#   .\scripts\docker-stop.cmd -WorkspaceRoot D:\data\dbc
+#   .\scripts\docker-stop.cmd -WorkspaceRoot E:\app\docker\workspace\dbc
 # =============================================================================
 
 param(

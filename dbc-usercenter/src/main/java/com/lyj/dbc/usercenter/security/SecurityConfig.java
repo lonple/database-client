@@ -3,6 +3,7 @@ package com.lyj.dbc.usercenter.security;
 import com.lyj.dbc.usercenter.common.ApiResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -28,14 +29,25 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
+    /** 避免 AuthCsrfFilter 作为 Servlet Filter 再注册一次（仅挂 Security 链）。 */
+    @Bean
+    public FilterRegistrationBean<AuthCsrfFilter> disableAuthCsrfServletFilter(AuthCsrfFilter filter) {
+        FilterRegistrationBean<AuthCsrfFilter> reg = new FilterRegistrationBean<>(filter);
+        reg.setEnabled(false);
+        return reg;
+    }
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthFilter jwtAuthFilter,
+                                                   AuthCsrfFilter authCsrfFilter,
                                                    ObjectMapper objectMapper) throws Exception {
+        // 不用 Spring 表单 CSRF；refresh/logout 由 AuthCsrfFilter 做 Double-Submit。见架构 §3.1 / usercenter 详设 §7.2
         http.csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/login", "/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers("/auth/login", "/auth/refresh", "/auth/logout",
+                                "/actuator/health", "/actuator/info").permitAll()
                         .requestMatchers("/inner/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .anyRequest().authenticated()
@@ -46,6 +58,7 @@ public class SecurityConfig {
                         .accessDeniedHandler((request, response, accessDeniedException) ->
                                 writeJson(response, HttpServletResponse.SC_FORBIDDEN, objectMapper, "无权限"))
                 )
+                .addFilterBefore(authCsrfFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

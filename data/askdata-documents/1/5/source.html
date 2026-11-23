@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>I/O 多路复用监听流程 · 图解</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  :root{
+    --bg:#f5f7fb;
+    --card:#ffffff;
+    --text:#1e293b;
+    --sub:#64748b;
+    --line:#e2e8f0;
+    --blue:#3b82f6;
+    --green:#22c55e;
+    --amber:#f59e0b;
+    --purple:#8b5cf6;
+    --rose:#f43f5e;
+    --cyan:#06b6d4;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    padding:40px 20px 80px;
+    background:
+      radial-gradient(1200px 600px at 10% -10%, #e0ecff 0%, transparent 55%),
+      radial-gradient(1000px 500px at 100% 0%, #e6fbef 0%, transparent 50%),
+      var(--bg);
+    font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,-apple-system,sans-serif;
+    color:var(--text);
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1080px;margin:0 auto;}
+
+  header{text-align:center;margin-bottom:44px;}
+  header h1{
+    font-size:34px;
+    margin:0 0 12px;
+    letter-spacing:.5px;
+    background:linear-gradient(100deg,#2563eb,#7c3aed 55%,#059669);
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+  }
+  header p{
+    margin:0;
+    color:var(--sub);
+    font-size:15px;
+    line-height:1.8;
+  }
+
+  .card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:18px;
+    padding:28px 30px 24px;
+    margin-bottom:30px;
+    box-shadow:0 10px 30px -18px rgba(30,64,175,.25), 0 2px 8px -4px rgba(15,23,42,.06);
+    overflow:hidden;
+  }
+  .card h2{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    font-size:20px;
+    margin:0 0 6px;
+  }
+  .card h2 .idx{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:30px;height:30px;
+    border-radius:9px;
+    font-size:14px;
+    font-weight:700;
+    color:#fff;
+    background:linear-gradient(135deg,#3b82f6,#6366f1);
+    box-shadow:0 4px 10px -3px rgba(59,130,246,.6);
+    flex:none;
+  }
+  .card h2.epoll .idx{background:linear-gradient(135deg,#10b981,#0ea5e9);box-shadow:0 4px 10px -3px rgba(16,185,129,.6);}
+  .card h2.kernel .idx{background:linear-gradient(135deg,#8b5cf6,#d946ef);box-shadow:0 4px 10px -3px rgba(139,92,246,.6);}
+  .card h2.wq .idx{background:linear-gradient(135deg,#f59e0b,#f43f5e);box-shadow:0 4px 10px -3px rgba(244,63,94,.5);}
+  .card h2.cb .idx{background:linear-gradient(135deg,#0ea5e9,#6366f1);box-shadow:0 4px 10px -3px rgba(14,165,233,.5);}
+  .card h2.faq .idx{background:linear-gradient(135deg,#64748b,#334155);box-shadow:0 4px 10px -3px rgba(51,65,85,.4);}
+  .card h2.mem .idx{background:linear-gradient(135deg,#06b6d4,#3b82f6);box-shadow:0 4px 10px -3px rgba(6,182,212,.5);}
+  .card h2.net .idx{background:linear-gradient(135deg,#f43f5e,#8b5cf6);box-shadow:0 4px 10px -3px rgba(244,63,94,.5);}
+  .card h2.tree .idx{background:linear-gradient(135deg,#22c55e,#84cc16);box-shadow:0 4px 10px -3px rgba(34,197,94,.5);}
+  .card .desc{
+    color:var(--sub);
+    font-size:14px;
+    margin:6px 0 22px;
+    line-height:1.75;
+  }
+
+  .diagram{
+    background:linear-gradient(180deg,#fbfdff,#f7f9fd);
+    border:1px dashed #dbe4f0;
+    border-radius:14px;
+    padding:22px 14px;
+    overflow-x:auto;
+  }
+  .mermaid{display:flex;justify-content:center;}
+
+  .notes{
+    margin-top:20px;
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+    gap:12px;
+  }
+  .note{
+    background:#f8fafc;
+    border-left:3px solid var(--blue);
+    border-radius:8px;
+    padding:12px 14px;
+    font-size:13.5px;
+    line-height:1.7;
+    color:#475569;
+  }
+  .note b{color:#1e293b;}
+  .note.green{border-left-color:var(--green);}
+  .note.amber{border-left-color:var(--amber);}
+  .note.purple{border-left-color:var(--purple);}
+  .note.rose{border-left-color:var(--rose);}
+  .note.cyan{border-left-color:var(--cyan);}
+
+  pre.code{
+    background:#0f172a;
+    color:#e2e8f0;
+    border-radius:12px;
+    padding:18px 20px;
+    font-family:"SF Mono",Menlo,Consolas,monospace;
+    font-size:13px;
+    line-height:1.75;
+    overflow-x:auto;
+    margin:16px 0 0;
+    border:1px solid #1e293b;
+  }
+  pre.code .c{color:#64748b;}
+  pre.code .k{color:#f472b6;}
+  pre.code .s{color:#86efac;}
+  pre.code .t{color:#7dd3fc;}
+  pre.code .f{color:#fbbf24;}
+
+  .wq-box{
+    background:#0f172a;
+    border-radius:14px;
+    padding:22px 24px;
+    color:#cbd5e1;
+    font-family:"SF Mono",Menlo,Consolas,monospace;
+    font-size:13px;
+    line-height:1.9;
+    overflow-x:auto;
+    margin-top:16px;
+    border:1px solid #1e293b;
+  }
+  .wq-box .title{color:#f8fafc;font-weight:700;}
+  .wq-box .blue{color:#93c5fd;}
+  .wq-box .green{color:#86efac;}
+  .wq-box .amber{color:#fcd34d;}
+  .wq-box .purple{color:#c4b5fd;}
+  .wq-box .rose{color:#fda4af;}
+  .wq-box .cyan{color:#67e8f9;}
+  .wq-box .gray{color:#94a3b8;}
+
+  table{
+    width:100%;
+    border-collapse:separate;
+    border-spacing:0;
+    font-size:14px;
+    margin-top:8px;
+    border:1px solid var(--line);
+    border-radius:12px;
+    overflow:hidden;
+  }
+  th,td{
+    padding:13px 16px;
+    text-align:left;
+    border-bottom:1px solid var(--line);
+  }
+  th{
+    background:#f1f5f9;
+    font-weight:600;
+    color:#334155;
+    font-size:13.5px;
+  }
+  tbody tr:nth-child(even){background:#fafcff;}
+  tbody tr:last-child td{border-bottom:none;}
+  td:first-child{font-weight:600;color:#334155;}
+  code.inline{
+    background:#eef2f7;
+    color:#be123c;
+    padding:2px 6px;
+    border-radius:5px;
+    font-family:"SF Mono",Menlo,Consolas,monospace;
+    font-size:12.5px;
+  }
+
+  .quote{
+    margin-top:30px;
+    background:linear-gradient(120deg,#eef4ff,#e9fbf2);
+    border:1px solid #dbe7ff;
+    border-radius:16px;
+    padding:26px 28px;
+    font-size:16px;
+    line-height:2;
+    color:#334155;
+  }
+  .quote .big{
+    display:block;
+    font-size:18px;
+    font-weight:700;
+    color:#1d4ed8;
+    margin-bottom:10px;
+  }
+  .quote em{font-style:normal;color:#059669;font-weight:700;}
+
+  .legend{
+    display:flex;flex-wrap:wrap;gap:16px;justify-content:center;
+    margin:0 0 26px;font-size:13px;color:var(--sub);
+  }
+  .legend span{display:inline-flex;align-items:center;gap:7px;}
+  .dot{width:13px;height:13px;border-radius:4px;display:inline-block;border:2px solid;}
+  .d-blue{background:#dbeafe;border-color:#60a5fa;}
+  .d-amber{background:#fef3c7;border-color:#fbbf24;}
+  .d-green{background:#dcfce7;border-color:#4ade80;}
+  .d-purple{background:#ede9fe;border-color:#a78bfa;}
+  .d-gray{background:#f1f5f9;border-color:#cbd5e1;}
+  .d-rose{background:#ffe4e6;border-color:#fb7185;}
+  .d-cyan{background:#cffafe;border-color:#22d3ee;}
+
+  .split{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:18px;
+    margin-top:18px;
+  }
+  .split .col{
+    border-radius:12px;
+    padding:16px 18px;
+    font-size:13.5px;
+    line-height:1.8;
+  }
+  .split .col.user{
+    background:#eff6ff;
+    border:1px solid #bfdbfe;
+  }
+  .split .col.kernel{
+    background:#f5f3ff;
+    border:1px solid #ddd6fe;
+  }
+  .split .col h4{
+    margin:0 0 10px;
+    font-size:14px;
+    display:flex;align-items:center;gap:8px;
+  }
+  .split .col.user h4{color:#1d4ed8;}
+  .split .col.kernel h4{color:#6d28d9;}
+  .split .col ul{margin:0;padding-left:18px;}
+  .split .col li{margin-bottom:5px;}
+  @media (max-width:640px){
+    .split{grid-template-columns:1fr;}
+  }
+
+  footer{
+    text-align:center;color:#94a3b8;font-size:13px;margin-top:40px;
+  }
+
+  @media (max-width:640px){
+    body{padding:24px 12px 60px;}
+    header h1{font-size:24px;}
+    .card{padding:20px 16px 18px;}
+    .card h2{font-size:17px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>I/O 多路复用 · 监听流程全图解</h1>
+    <p>select / poll / epoll 到底是怎么“监听”的？<br>
+       一句话：<b>select/poll 是进程亲自睡在每个 socket 的等待队列上；epoll 是回调睡在每个 socket 的等待队列上，进程只睡在 epoll 实例上。</b></p>
+  </header>
+
+  <div class="legend">
+    <span><i class="dot d-blue"></i>起点 / 准备</span>
+    <span><i class="dot d-amber"></i>判断分支</span>
+    <span><i class="dot d-purple"></i>内核事件</span>
+    <span><i class="dot d-green"></i>就绪 / 通知</span>
+    <span><i class="dot d-rose"></i>等待队列 / 回调</span>
+    <span><i class="dot d-cyan"></i>用户态 / 内核态</span>
+    <span><i class="dot d-gray"></i>常规处理</span>
+  </div>
+
+  <!-- 图 1 -->
+  <div class="card">
+    <h2><span class="idx">1</span>总览：从注册到处理</h2>
+    <p class="desc">整个多路复用的生命周期，可以概括为 5 个阶段：准备 → 调用等待 → 事件到达 → 被唤醒 → 处理业务。</p>
+    <div class="diagram">
+      <pre class="mermaid">
+flowchart TD
+    A["① 应用准备 fd 与关心的事件"] --> B["② 调用 select / poll / epoll_wait"]
+    B --> C{"内核检查：已有就绪 fd ？"}
+    C -- 有 --> D["立即返回就绪 fd 集合"]
+    C -- 没有 --> E["进入等待机制"]
+    E --> F["③ 事件到达：网卡中断 → 协议栈 → 数据进入 socket 缓冲区"]
+    F --> G["内核唤醒该 socket 的等待队列"]
+    G --> H{"多路复用实现"}
+    H -- "select / poll" --> I["唤醒睡眠中的进程"]
+    H -- "epoll" --> J["触发回调 ep_poll_callback<br/>把 fd 加入就绪链表"]
+    I --> K["④ 应用被唤醒 / 返回"]
+    J --> K
+    D --> K
+    K --> L["⑤ 遍历 / 读取就绪 fd"]
+    L --> M["read / write 处理业务"]
+
+    classDef start fill:#dbeafe,stroke:#60a5fa,stroke-width:2px,color:#1e3a8a
+    classDef decision fill:#fef3c7,stroke:#fbbf24,stroke-width:2px,color:#92400e
+    classDef event fill:#ede9fe,stroke:#a78bfa,stroke-width:2px,color:#5b21b6
+    classDef notify fill:#dcfce7,stroke:#4ade80,stroke-width:2px,color:#166534
+    classDef process fill:#f1f5f9,stroke:#cbd5e1,stroke-width:2px,color:#334155
+
+    class A,B start
+    class C,H decision
+    class F,G event
+    class D,I,J notify
+    class E,K,L,M process
+      </pre>
+    </div>
+    <div class="notes">
+      <div class="note"><b>阶段 ①②</b>：应用把关心的 fd 交给内核，然后阻塞等待。</div>
+      <div class="note purple"><b>阶段 ③</b>：数据到达是内核协议栈的事，跟应用无关。</div>
+      <div class="note green"><b>阶段 ④</b>：内核通过等待队列 / 回调，主动通知应用。</div>
+      <div class="note amber"><b>阶段 ⑤</b>：多路复用只告诉你“谁就绪”，读写还得自己做。</div>
+    </div>
+  </div>
+
+  <!-- 图 2 -->
+  <div class="card">
+    <h2><span class="idx">2</span>select / poll 的监听流程</h2>
+    <p class="desc">特点：每次调用都要传全部 fd，内核 O(n) 遍历，进程亲自挂到每个 socket 的等待队列上，醒来后还得再遍历一遍。</p>
+    <div class="diagram">
+      <pre class="mermaid">
+flowchart TD
+    A["应用调用 select / poll<br/>传入全部 fd 集合"] --> B["fd 集合从用户态复制到内核态"]
+    B --> C["内核 O(n) 遍历所有 fd<br/>检查可读 / 可写 / 异常"]
+    C --> D{"有就绪 fd ？"}
+    D -- 有 --> E["返回就绪集合"]
+    D -- 没有 --> F["把当前进程挂到<br/>所有被监听 socket 的等待队列上"]
+    F --> G["进程睡眠"]
+    G --> H["某个 socket 事件到来<br/>协议栈唤醒该 socket 的等待队列"]
+    H --> I["进程被唤醒"]
+    I --> J["只知道有事件发生<br/>不知道是哪个 fd"]
+    J --> K["重新 O(n) 遍历全部 fd<br/>找出就绪 fd"]
+    K --> E
+    E --> L["应用对就绪 fd 执行 read / write"]
+
+    classDef start fill:#dbeafe,stroke:#60a5fa,stroke-width:2px,color:#1e3a8a
+    classDef decision fill:#fef3c7,stroke:#fbbf24,stroke-width:2px,color:#92400e
+    classDef success fill:#dcfce7,stroke:#4ade80,stroke-width:2px,color:#166534
+    classDef process fill:#f1f5f9,stroke:#cbd5e1,stroke-width:2px,color:#334155
+
+    class A,B start
+    class D decision
+    class E,L success
+    class C,F,G,H,I,J,K process
+      </pre>
+    </div>
+    <div class="notes">
+      <div class="note amber"><b>复制开销</b>：每次调用都要把 fd 集合从用户态复制到内核态。</div>
+      <div class="note amber"><b>遍历开销</b>：内核 O(n) 检查，返回后应用还要 O(n) 找。</div>
+      <div class="note"><b>等待队列</b>：进程自己被挂到 n 个 socket 的等待队列上。</div>
+      <div class="note"><b>fd 上限</b>：select 受 FD_SETSIZE 限制，通常 1024。</div>
+    </div>
+  </div>
+
+  <!-- 图 3 -->
+  <div class="card">
+    <h2 class="epoll"><span class="idx">3</span>epoll 的监听流程</h2>
+    <p class="desc">特点：fd 提前注册进红黑树，每个 socket 的等待队列上挂的是回调函数；事件发生时回调把 fd 丢进就绪链表，epoll_wait 只读链表。</p>
+    <div class="diagram">
+      <pre class="mermaid">
+flowchart TD
+    A["epoll_create<br/>创建 eventpoll 对象"] --> B["epoll_ctl<br/>注册 fd 与事件"]
+    B --> C["fd 加入红黑树"]
+    C --> D["向该 fd 的等待队列<br/>注册回调 ep_poll_callback"]
+    D --> E["epoll_wait 等待事件"]
+    E --> F{"就绪链表是否为空 ？"}
+    F -- 非空 --> G["直接返回就绪事件"]
+    F -- 空 --> H["当前进程挂到 eventpoll 等待队列<br/>并睡眠"]
+    H --> I["某个 fd 事件到来<br/>协议栈唤醒该 socket 等待队列"]
+    I --> J["触发 ep_poll_callback"]
+    J --> K["把对应 epitem 加入就绪链表"]
+    K --> L["唤醒 epoll_wait 上的进程"]
+    L --> M["epoll_wait 返回就绪链表"]
+    M --> N["应用对就绪 fd 执行 read / write"]
+    G --> N
+
+    classDef start fill:#dbeafe,stroke:#60a5fa,stroke-width:2px,color:#1e3a8a
+    classDef decision fill:#fef3c7,stroke:#fbbf24,stroke-width:2px,color:#92400e
+    classDef event fill:#ede9fe,stroke:#a78bfa,stroke-width:2px,color:#5b21b6
+    classDef success fill:#dcfce7,stroke:#4ade80,stroke-width:2px,color:#166534
+    classDef process fill:#f1f5f9,stroke:#cbd5e1,stroke-width:2px,color:#334155
+
+    class A,B,D start
+    class F decision
+    class G,N success
+    class I,J,K,L event
+    class C,E,H,M process
+      </pre>
+    </div>
+    <div class="notes">
+      <div class="note green"><b>红黑树</b>：fd 只需注册一次，不用每次调用都传全量。</div>
+      <div class="note purple"><b>回调机制</b>：等待队列上挂的是 ep_poll_callback，不是进程。</div>
+      <div class="note green"><b>就绪链表</b>：epoll_wait 只处理就绪链表，复杂度 O(就绪数)。</div>
+      <div class="note amber"><b>LT / ET</b>：LT 只要可读就反复通知；ET 只在状态变化时通知一次。</div>
+    </div>
+  </div>
+
+  <!-- 图 4 -->
+  <div class="card">
+    <h2 class="kernel"><span class="idx">4</span>内核侧：事件到来时发生了什么</h2>
+    <p class="desc">这张图是理解“监听”本质的关键 —— socket 有数据了，不是应用主动发现的，而是内核唤醒等待者。</p>
+    <div class="diagram">
+      <pre class="mermaid">
+flowchart LR
+    A["网卡收到数据"] --> B["网卡中断"]
+    B --> C["内核协议栈<br/>处理 TCP / IP"]
+    C --> D["数据放入对应 socket<br/>接收缓冲区"]
+    D --> E["唤醒该 socket 的等待队列"]
+    E --> F{"等待队列上挂的是谁 ？"}
+    F -- "select / poll：进程" --> G["唤醒进程<br/>进程醒来重新遍历 fd"]
+    F -- "epoll：回调" --> H["执行 ep_poll_callback<br/>把 fd 放入就绪链表"]
+    H --> I["唤醒 epoll_wait 进程"]
+
+    classDef process fill:#f1f5f9,stroke:#cbd5e1,stroke-width:2px,color:#334155
+    classDef decision fill:#fef3c7,stroke:#fbbf24,stroke-width:2px,color:#92400e
+    classDef notify fill:#dcfce7,stroke:#4ade80,stroke-width:2px,color:#166534
+    classDef event fill:#ede9fe,stroke:#a78bfa,stroke-width:2px,color:#5b21b6
+
+    class A,B,C,D,E process
+    class F decision
+    class G notify
+    class H,I event
+      </pre>
+    </div>
+    <div class="notes">
+      <div class="note"><b>可读</b>：接收缓冲区有数据，或对端关闭连接。</div>
+      <div class="note"><b>可写</b>：发送缓冲区还有空间。</div>
+      <div class="note amber"><b>异常</b>：连接出错等错误状态。</div>
+      <div class="note purple"><b>核心差异</b>：等待队列上挂的是“进程”还是“回调”。</div>
+    </div>
+  </div>
+
+  <!-- 图 5 -->
+  <div class="card">
+    <h2 class="wq"><span class="idx">5</span>等待队列到底是什么？</h2>
+    <p class="desc">等待队列（wait queue）是 Linux 内核最基础的结构之一，本质就是一个「通知名单」：谁在等这个事件、事件来了怎么通知他。</p>
+
+    <div class="wq-box">
+<span class="title">// 队列头：挂在 socket 上</span>
+<span class="k">struct</span> wait_queue_head {
+    spinlock_t      lock;   <span class="gray">// 保护队列的锁</span>
+    <span class="k">struct</span> list_head head;   <span class="gray">// 链表头</span>
+};
+
+<span class="title">// 队列节点：每个“等待者”对应一个节点</span>
+<span class="k">struct</span> wait_queue_entry {
+    <span class="k">unsigned int</span>        flags;
+    <span class="blue">void</span>                *private;  <span class="gray">// ← 通知谁</span>
+    <span class="rose">wait_queue_func_t</span>   func;     <span class="gray">// ← 怎么通知（函数指针）</span>
+    <span class="k">struct</span> list_head     entry;    <span class="gray">// 链表节点</span>
+};
+    </div>
+
+    <div class="notes">
+      <div class="note rose"><b>private</b>：通知谁。可以指向进程，也可以指向一个 epitem。</div>
+      <div class="note amber"><b>func</b>：怎么通知。是一个函数指针，wake_up 时挨个调用。</div>
+      <div class="note"><b>本质</b>：等待队列 = 链表 + 锁，每个节点自带“通知谁 + 怎么通知”。</div>
+      <div class="note green"><b>每个 socket 都有一个</b>：挂在 <code class="inline">struct sock</code> 里，叫 sk_wq。</div>
+    </div>
+
+    <p class="desc" style="margin:26px 0 0;">socket 内部的等待队列结构示意：</p>
+    <div class="wq-box">
+<span class="title">┌─────────────────────────────────────────────────┐</span>
+<span class="title">│                     socket                       │</span>
+<span class="title">│                                                  │</span>
+<span class="title">│</span>  <span class="green">接收缓冲区</span>   <span class="gray">← 有数据 = 可读</span>
+<span class="title">│</span>  <span class="green">发送缓冲区</span>   <span class="gray">← 有空间 = 可写</span>
+<span class="title">│</span>
+<span class="title">│</span>  <span class="amber">等待队列（一个链表）</span>
+<span class="title">│</span>    ├── 节点A: private=<span class="blue">进程P</span>,   func=<span class="rose">autoremove_wake_function</span>
+<span class="title">│</span>    └── 节点B: private=<span class="purple">epitem</span>,  func=<span class="rose">ep_poll_callback</span>
+<span class="title">└─────────────────────────────────────────────────┘</span>
+    </div>
+  </div>
+
+  <!-- 图 6 -->
+  <div class="card">
+    <h2 class="wq"><span class="idx">6</span>等待队列上挂的两种东西</h2>
+    <p class="desc">同样是等待队列，挂“进程”还是挂“回调”，决定了事件发生时谁被通知 —— 这就是 select/poll 和 epoll 最本质的区别。</p>
+
+    <div class="diagram">
+      <pre class="mermaid">
+flowchart TD
+    subgraph S1["情况 1：进程阻塞在 read / select / poll"]
+        A1["调用 read / select / poll"] --> A2["创建 wait_queue_entry<br/>private = 当前进程<br/>func = autoremove_wake_function"]
+        A2 --> A3["节点加入 socket 等待队列"]
+        A3 --> A4["进程睡眠"]
+        A4 --> A5["事件到来 → wake_up<br/>遍历节点调用 func"]
+        A5 --> A6["autoremove_wake_function<br/>把进程设为可运行"]
+        A6 --> A7["进程被唤醒，read / select 返回"]
+    end
+
+    subgraph S2["情况 2：epoll 注册了这个 socket"]
+        B1["epoll_ctl 注册 sockfd"] --> B2["创建 epitem<br/>插入 epfd 红黑树"]
+        B2 --> B3["创建 wait_queue_entry<br/>private = epitem<br/>func = ep_poll_callback"]
+        B3 --> B4["节点加入 socket 等待队列<br/>（注册时挂好，不是事件来才挂）"]
+        B4 --> B5["事件到来 → wake_up<br/>遍历节点调用 func"]
+        B5 --> B6["ep_poll_callback<br/>把 epitem 加入就绪链表"]
+        B6 --> B7["唤醒 epoll_wait 进程"]
+    end
+
+    classDef start fill:#dbeafe,stroke:#60a5fa,stroke-width:2px,color:#1e3a8a
+    classDef event fill:#ede9fe,stroke:#a78bfa,stroke-width:2px,color:#5b21b6
+    classDef success fill:#dcfce7,stroke:#4ade80,stroke-width:2px,color:#166534
+    classDef process fill:#f1f5f9,stroke:#cbd5e1,stroke-width:2px,color:#334155
+
+    class A1,B1 start
+    class A5,B5 event
+    class A6,A7,B6,B7 success
+    class A2,A3,A4,B2,B3,B4 process
+      </pre>
+    </div>
+
+    <table>
+      <thead>
+        <tr><th>场景</th><th>private 指向</th><th>func</th><th>事件发生时</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>阻塞 read</td><td>进程 task_struct</td><td>autoremove_wake_function</td><td>唤醒进程</td></tr>
+        <tr><td>select / poll</td><td>进程 task_struct</td><td>autoremove_wake_function</td><td>唤醒进程，重新遍历 fd</td></tr>
+        <tr><td>epoll</td><td>epitem</td><td>ep_poll_callback</td><td>把 fd 加入就绪链表，唤醒 epoll_wait</td></tr>
+      </tbody>
+    </table>
+
+    <div class="notes">
+      <div class="note rose"><b>关键区别</b>：select/poll 挂的是进程，epoll 挂的是回调。</div>
+      <div class="note amber"><b>注册时机</b>：epoll 的回调在 epoll_ctl 时就已经挂好，不是事件来了才挂。</div>
+      <div class="note purple"><b>回调做的事</b>：把 fd 加入 epoll 的「就绪链表」，不是加入等待队列。</div>
+      <div class="note green"><b>结果</b>：epoll 不需要醒来后遍历全部 fd。</div>
+    </div>
+  </div>
+
+  <!-- 图 7 -->
+  <div class="card">
+    <h2 class="cb"><span class="idx">7</span>网卡可读时，完整回调链路</h2>
+    <p class="desc">从网卡收到数据，到应用从 epoll_wait 返回，中间到底发生了什么？下面一步一步拆开。</p>
+
+    <div class="diagram">
+      <pre class="mermaid">
+flowchart TD
+    S1["① 网卡收到 TCP 包"] --> S2["② DMA 写入内核内存<br/>网卡发起硬件中断"]
+    S2 --> S3["③ 硬中断处理：记录有包<br/>触发 NET_RX_SOFTIRQ 软中断"]
+    S3 --> S4["④ 软中断走网络协议栈<br/>IP 层 → TCP 层"]
+    S4 --> S5["⑤ 按四元组找到对应 socket<br/>数据放入接收缓冲区"]
+    S5 --> S6["⑥ 协议栈调用 sk_data_ready<br/>= sock_def_readable"]
+    S6 --> S7["⑦ wake_up 遍历 socket 等待队列<br/>挨个调用节点的 func"]
+    S7 --> S8{"节点 func 是哪一种 ？"}
+    S8 -- "autoremove_wake_function" --> S9["把进程设为可运行<br/>read / select 返回"]
+    S8 -- "ep_poll_callback" --> S10["把 epitem 加入 epfd 就绪链表"]
+    S10 --> S11["唤醒 epoll_wait 上的进程"]
+    S11 --> S12["epoll_wait 返回就绪事件<br/>应用 read 数据"]
+
+    classDef start fill:#dbeafe,stroke:#60a5fa,stroke-width:2px,color:#1e3a8a
+    classDef event fill:#ede9fe,stroke:#a78bfa,stroke-width:2px,color:#5b21b6
+    classDef decision fill:#fef3c7,stroke:#fbbf24,stroke-width:2px,color:#92400e
+    classDef success fill:#dcfce7,stroke:#4ade80,stroke-width:2px,color:#166534
+    classDef process fill:#f1f5f9,stroke:#cbd5e1,stroke-width:2px,color:#334155
+
+    class S1,S2 start
+    class S3,S4,S5,S6,S7 process
+    class S8 decision
+    class S9,S10,S11 event
+    class S12 success
+      </pre>
+    </div>
+
+    <div class="notes">
+      <div class="note"><b>硬中断只做最少的事</b>：记录 + 触发软中断，然后马上返回。</div>
+      <div class="note purple"><b>协议栈在软中断里跑</b>：数据包一层层解析，最后放进 socket 接收缓冲区。</div>
+      <div class="note amber"><b>sk_data_ready 是函数指针</b>：socket 初始化时指向 sock_def_readable。</div>
+      <div class="note rose"><b>wake_up 是回调的源头</b>：遍历等待队列，调用每个节点的 func。</div>
+    </div>
+
+    <p class="desc" style="margin:26px 0 0;">关键代码路径（简化）：</p>
+    <pre class="code"><span class="c">// 协议栈收到数据后，放入 socket 缓冲区，然后调用：</span>
+sk-><span class="f">sk_data_ready</span>(sk);   <span class="c">// 函数指针，指向 sock_def_readable</span>
+
+<span class="c">// sock_def_readable 核心动作：</span>
+<span class="k">void</span> <span class="f">sock_def_readable</span>(<span class="k">struct</span> sock *sk)
+{
+    <span class="f">wake_up_interruptible_sync_poll</span>(
+        &sk->sk_wq->wait,   <span class="c">// ← socket 的等待队列</span>
+        ...
+    );
+}
+
+<span class="c">// wake_up 系列函数做的事：遍历等待队列，调用每个节点的 func</span>
+<span class="k">void</span> <span class="f">__wake_up_common</span>(<span class="k">struct</span> wait_queue_head *wq_head, ...)
+{
+    <span class="k">struct</span> wait_queue_entry *curr;
+    <span class="f">list_for_each_entry</span>(curr, &wq_head->head, entry) {
+        curr-><span class="f">func</span>(curr, ...);   <span class="c">// ← 回调就是在这里被调用的</span>
+    }
+}</pre>
+
+    <div class="notes">
+      <div class="note"><b>所谓回调</b>：就是提前存在等待队列节点里的一个函数指针。</div>
+      <div class="note green"><b>所谓唤醒</b>：就是 wake_up 遍历链表，挨个调用这些函数指针。</div>
+    </div>
+  </div>
+
+  <!-- 图 8 -->
+  <div class="card">
+    <h2 class="cb"><span class="idx">8</span>可写是怎么触发的？</h2>
+    <p class="desc">可写和可读机制完全一样，只是触发点不同：一个是数据进缓冲区，一个是缓冲区腾出空间。</p>
+
+    <div class="diagram">
+      <pre class="mermaid">
+flowchart TD
+    W1["应用 write 把发送缓冲区写满"] --> W2["数据交给网卡发送"]
+    W2 --> W3["网卡发送完成<br/>收到对端 ACK"]
+    W3 --> W4["TCP 协议栈释放已确认的数据"]
+    W4 --> W5["发送缓冲区腾出空间"]
+    W5 --> W6["调用 sk_write_space<br/>= sock_def_write_space"]
+    W6 --> W7["wake_up 遍历 socket 等待队列<br/>调用节点 func"]
+    W7 --> W8{"节点 func 是哪一种 ？"}
+    W8 -- "autoremove_wake_function" --> W9["唤醒阻塞在 write 的进程"]
+    W8 -- "ep_poll_callback" --> W10["把 epitem 加入就绪链表<br/>epoll_wait 返回可写事件"]
+
+    classDef start fill:#dbeafe,stroke:#60a5fa,stroke-width:2px,color:#1e3a8a
+    classDef event fill:#ede9fe,stroke:#a78bfa,stroke-width:2px,color:#5b21b6
+    classDef decision fill:#fef3c7,stroke:#fbbf24,stroke-width:2px,color:#92400e
+    classDef success fill:#dcfce7,stroke:#4ade80,stroke-width:2px,color:#166534
+    classDef process fill:#f1f5f9,stroke:#cbd5e1,stroke-width:2px,color:#334155
+
+    class W1,W2 start
+    class W3,W4,W5,W6,W7 process
+    class W8 decision
+    class W9,W10 event
+      </pre>
+    </div>
+
+    <table>
+      <thead>
+        <tr><th>事件</th><th>触发点</th><th>调用函数</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>可读</td><td>接收缓冲区有数据</td><td><code class="inline">sk_data_ready</code> → <code class="inline">sock_def_readable</code></td></tr>
+        <tr><td>可写</td><td>发送缓冲区有空间</td><td><code class="inline">sk_write_space</code> → <code class="inline">sock_def_write_space</code></td></tr>
+        <tr><td>异常 / 关闭</td><td>连接状态变化</td><td><code class="inline">sk_state_change</code> → <code class="inline">sock_def_wakeup</code></td></tr>
+      </tbody>
+    </table>
+
+    <div class="notes">
+      <div class="note"><b>三条路径</b>：可读、可写、异常，最后都归到 <code class="inline">wake_up(socket 等待队列)</code>。</div>
+      <div class="note green"><b>机制统一</b>：都是遍历等待队列，调用节点里的 func。</div>
+    </div>
+  </div>
+
+  <!-- 图 9 -->
+  <div class="card">
+    <h2 class="cb"><span class="idx">9</span>一张图看懂：回调是怎么被调用的</h2>
+    <p class="desc">把等待队列、回调、就绪链表、epoll_wait 放在一起看，整条链路就清晰了。</p>
+
+    <div class="diagram">
+      <pre class="mermaid">
+flowchart LR
+    subgraph NET["网络 / 协议栈"]
+        N1["网卡中断"] --> N2["软中断<br/>TCP/IP 协议栈"]
+        N2 --> N3["数据放入 socket 接收缓冲区"]
+        N3 --> N4["调用 sk_data_ready"]
+    end
+
+    subgraph WQ["socket 等待队列"]
+        Q1["节点: private=进程P<br/>func=autoremove_wake_function"]
+        Q2["节点: private=epitem<br/>func=ep_poll_callback"]
+    end
+
+    subgraph EP["epoll 实例"]
+        E1["红黑树<br/>所有注册的 fd"]
+        E2["就绪链表<br/>已就绪的 fd"]
+    end
+
+    N4 --> W1["wake_up 遍历等待队列"]
+    W1 --> Q1
+    W1 --> Q2
+    Q1 --> R1["唤醒进程 P"]
+    Q2 --> R2["加入就绪链表"]
+    R2 --> E2
+    E2 --> R3["唤醒 epoll_wait"]
+    R3 --> R4["应用 read 数据"]
+
+    classDef net fill:#dbeafe,stroke:#60a5fa,stroke-width:2px,color:#1e3a8a
+    classDef wq fill:#ffe4e6,stroke:#fb7185,stroke-width:2px,color:#9f1239
+    classDef ep fill:#ede9fe,stroke:#a78bfa,stroke-width:2px,color:#5b21b6
+    classDef success fill:#dcfce7,stroke:#4ade80,stroke-width:2px,color:#166534
+
+    class N1,N2,N3,N4 net
+    class Q1,Q2,W1 wq
+    class E1,E2,R2 ep
+    class R1,R3,R4 success
+      </pre>
+    </div>
+
+    <div class="notes">
+      <div class="note amber"><b>wake_up 是枢纽</b>：它遍历等待队列，挨个调用节点的 func。</div>
+      <div class="note rose"><b>回调 = 函数指针</b>：func 字段提前存好的函数，事件来了就被调用。</div>
+      <div class="note purple"><b>epoll 的分工</b>：回调负责把 fd 丢进就绪链表，epoll_wait 负责把事件交给应用。</div>
+      <div class="note green"><b>应用的活</b>：循环调用 epoll_wait，拿到事件后 read/write。</div>
+    </div>
+  </div>
+
+  <!-- ===== 新增 10：用户态 vs 内核态 ===== -->
+  <div class="card">
+    <h2 class="mem"><span class="idx">10</span>用户态 vs 内核态：数据到底在哪？</h2>
+    <p class="desc">理解数据分布，是理解 select/poll 和 epoll 差异的基础。用户态和内核态是两块独立内存，不能直接共享，必须靠 copy_from_user / copy_to_user 拷贝。</p>
+
+    <div class="split">
+      <div class="col user">
+        <h4>🧑 用户态（你的程序）</h4>
+        <ul>
+          <li><b>fd 编号</b>：3、4、5 这样的整数</li>
+          <li><b>fd 集合</b>：select 的 fd_set、poll 的 pollfd[]</li>
+          <li><b>epoll 的 epfd</b>：epoll 实例的 fd 编号</li>
+          <li><b>epoll_event ev</b>：注册时传的事件信息</li>
+          <li><b>events[] 输出数组</b>：epoll_wait 的结果写在这里</li>
+        </ul>
+      </div>
+      <div class="col kernel">
+        <h4>⚙️ 内核态（内核自己）</h4>
+        <ul>
+          <li><b>进程 fd 表</b>：fd → struct file 的映射</li>
+          <li><b>struct file / struct socket / struct sock</b></li>
+          <li><b>接收缓冲区 / 发送缓冲区</b></li>
+          <li><b>socket 等待队列</b>：挂等待者节点</li>
+          <li><b>TCP 哈希表</b>：四元组 → struct sock</li>
+          <li><b>eventpoll</b>：红黑树 + 就绪链表</li>
+          <li><b>epitem</b>：每个注册的 fd 对应一个</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="desc" style="margin:26px 0 0;">fd 与内核对象的关系：</p>
+    <div class="wq-box">
+<span class="title">用户态</span>                    <span class="title">内核态</span>
+<span class="blue">fd = 3</span>  ──────────────►  进程 fd 表
+                              └── 3 → <span class="purple">struct file</span>
+                                       → <span class="purple">struct socket</span>
+                                         → <span class="purple">struct sock</span>
+                                              ├── <span class="green">接收缓冲区</span>
+                                              ├── <span class="green">发送缓冲区</span>
+                                              └── <span class="amber">等待队列</span>
+                                                   ├── 进程 P
+                                                   └── epitem
+    </div>
+
+    <div class="notes">
+      <div class="note cyan"><b>fd 编号</b>：用户态变量，只是门牌号。</div>
+      <div class="note purple"><b>fd 表</b>：内核里，每个进程一份。</div>
+      <div class="note green"><b>真正对象</b>：struct socket / struct sock 在内核态。</div>
+      <div class="note amber"><b>等待队列</b>：挂在 struct sock 上，不在 fd 上。</div>
+    </div>
+  </div>
+
+  <!-- ===== 新增 11：fd / socket / 四元组 ===== -->
+  <div class="card">
+    <h2 class="net"><span class="idx">11</span>网卡收数据时，怎么找到 socket？</h2>
+    <p class="desc">这是最容易搞混的地方：网卡收数据时，内核<b>根本不知道 fd</b>，它只知道<b>四元组</b>。fd 是进程视角，四元组是网络栈视角，两者都指向同一个 struct sock。</p>
+
+    <div class="diagram">
+      <pre class="mermaid">
+flowchart TD
+    A["网卡收到以太网帧"] --> B["DMA 写入内核内存<br/>触发硬中断"]
+    B --> C["软中断 NET_RX_SOFTIRQ"]
+    C --> D["链路层：解析以太网头"]
+    D --> E["IP 层：解析 IP 头<br/>拿到源IP、目的IP"]
+    E --> F["TCP 层：解析 TCP 头<br/>拿到源端口、目的端口"]
+    F --> G["得到四元组<br/>(源IP, 源端口, 目的IP, 目的端口)"]
+    G --> H["用四元组查 TCP 哈希表"]
+    H --> I{"找到 struct sock ？"}
+    I -- 是 --> J["数据放入接收缓冲区"]
+    J --> K["调用 sk_data_ready<br/>= sock_def_readable"]
+    K --> L["wake_up 该 sock 的等待队列"]
+    I -- 否 --> M["丢弃 / 发送 RST"]
+
+    classDef start fill:#dbeafe,stroke:#60a5fa,stroke-width:2px,color:#1e3a8a
+    classDef event fill:#ede9fe,stroke:#a78bfa,stroke-width:2px,color:#5b21b6
+    classDef decision fill:#fef3c7,stroke:#fbbf24,stroke-width:2px,color:#92400e
+    classDef success fill:#dcfce7,stroke:#4ade80,stroke-width:2px,color:#166534
+    classDef process fill:#f1f5f9,stroke:#cbd5e1,stroke-width:2px,color:#334155
+
+    class A,B start
+    class C,D,E,F,G process
+    class H decision
+    class I decision
+    class J,K,L success
+    class M process
+      </pre>
+    </div>
+
+    <p class="desc" style="margin:26px 0 0;">两个视角，同一个 struct sock：</p>
+    <div class="wq-box">
+<span class="title">进程视角（用户态）</span>
+<span class="blue">fd = 3</span>
+  ↓ 通过进程 fd 表
+<span class="purple">struct file</span> → <span class="purple">struct socket</span> → <span class="purple">struct sock</span>
+                                              ▲
+                                              │  同一个对象
+                                              ▼
+<span class="title">网络栈视角（内核态）</span>
+<span class="cyan">四元组</span> = (源IP, 源端口, 目的IP, 目的端口)
+  ↓ 查 TCP 哈希表
+<span class="purple">struct sock</span>
+    </div>
+
+    <table>
+      <thead>
+        <tr><th>视角</th><th>标识</th><th>用途</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>进程</td><td>fd 编号</td><td>进程引用 socket</td></tr>
+        <tr><td>网络栈</td><td>四元组</td><td>定位数据属于哪个连接</td></tr>
+        <tr><td>两者交汇</td><td>struct sock</td><td>真正的连接对象</td></tr>
+      </tbody>
+    </table>
+
+    <div class="notes">
+      <div class="note rose"><b>关键</b>：网卡收数据不通过 fd 找 socket，而是通过四元组查 TCP 哈希表。</div>
+      <div class="note purple"><b>TCP 哈希表</b>：内核全局维护，所有 TCP 连接都注册在里面。</div>
+      <div class="note green"><b>找到 sock 后</b>：数据放入接收缓冲区，再 wake_up 它的等待队列。</div>
+      <div class="note amber"><b>等待队列</b>：挂的是之前 select/poll/epoll 挂上去的进程或回调。</div>
+    </div>
+  </div>
+
+  <!-- ===== 新增 12：select/poll 完整生命周期 ===== -->
+  <div class="card">
+    <h2 class="wq"><span class="idx">12</span>select/poll 一次调用的完整生命周期</h2>
+    <p class="desc">这是最容易搞反时序的地方。记住：<b>先调用、再等待、最后被唤醒</b>，不是“数据来了再调用”。</p>
+
+    <div class="diagram">
+      <pre class="mermaid">
+flowchart TD
+    P1["阶段1：用户态准备 fd 集合<br/>FD_SET(3) / FD_SET(4) / FD_SET(7)"] --> P2["阶段2：调用 select/poll<br/>copy_from_user 把 fd 集合复制进内核"]
+    P2 --> P3["阶段3：内核遍历每个 fd<br/>检查 socket 缓冲区"]
+    P3 --> P4{"有就绪 fd ？"}
+    P4 -- 有 --> P5["copy_to_user 写回结果<br/>select/poll 返回"]
+    P4 -- 没有 --> P6["把进程挂到<br/>这些 socket 的等待队列上"]
+    P6 --> P7["进程睡眠"]
+    P7 --> P8["阶段4：网卡数据到达<br/>四元组查 TCP 哈希表"]
+    P8 --> P9["找到 struct sock<br/>数据放入接收缓冲区"]
+    P9 --> P10["wake_up 该 socket 等待队列<br/>调用 autoremove_wake_function"]
+    P10 --> P11["进程被唤醒<br/>但不知道是哪个 fd"]
+    P11 --> P12["阶段5：重新遍历全部 fd<br/>找出就绪的"]
+    P12 --> P13["copy_to_user 写回结果"]
+    P13 --> P14["阶段6：清理<br/>移除等待队列节点<br/>释放临时 fd 副本"]
+    P14 --> P15["select/poll 返回<br/>用户处理就绪 fd"]
+
+    classDef start fill:#dbeafe,stroke:#60a5fa,stroke-width:2px,color:#1e3a8a
+    classDef event fill:#ede9fe,stroke:#a78bfa,stroke-width:2px,color:#5b21b6
+    classDef decision fill:#fef3c7,stroke:#fbbf24,stroke-width:2px,color:#92400e
+    classDef success fill:#dcfce7,stroke:#4ade80,stroke-width:2px,color:#166534
+    classDef process fill:#f1f5f9,stroke:#cbd5e1,stroke-width:2px,color:#334155
+
+    class P1,P2 start
+    class P8,P9,P10,P11 event
+    class P4 decision
+    class P5,P15 success
+    class P3,P6,P7,P12,P13,P14 process
+      </pre>
+    </div>
+
+    <table>
+      <thead>
+        <tr><th>阶段</th><th>发生了什么</th><th>fd 集合临时副本</th><th>等待队列节点</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>调用前</td><td>用户态准备 fd 集合</td><td>—</td><td>—</td></tr>
+        <tr><td>进入内核</td><td>copy_from_user 复制</td><td>✅ 存在</td><td>—</td></tr>
+        <tr><td>没有就绪</td><td>进程睡眠</td><td>✅ 存在</td><td>✅ 挂上</td></tr>
+        <tr><td>事件到来</td><td>wake_up 唤醒进程</td><td>✅ 存在</td><td>✅ 还在</td></tr>
+        <tr><td>醒来遍历</td><td>重新检查全部 fd</td><td>✅ 存在</td><td>✅ 还在</td></tr>
+        <tr><td>返回前</td><td>清理</td><td>❌ 释放</td><td>❌ 移除</td></tr>
+        <tr><td>返回后</td><td>用户处理</td><td>❌ 没了</td><td>❌ 没了</td></tr>
+      </tbody>
+    </table>
+
+    <div class="notes">
+      <div class="note rose"><b>fd 本身不丢</b>：只要不 close，fd 表和 struct socket 一直都在。</div>
+      <div class="note amber"><b>临时副本会丢</b>：select/poll 传入的 fd 集合，返回后内核就忘了。</div>
+      <div class="note purple"><b>等待队列节点会移除</b>：返回时把进程从各 socket 等待队列上摘下来。</div>
+      <div class="note cyan"><b>下次还得重来</b>：重新 FD_SET、重新复制、重新遍历、重新挂。</div>
+    </div>
+  </div>
+
+  <!-- ===== 新增 13：为什么 select/poll 必须遍历 ===== -->
+  <div class="card">
+    <h2 class="faq"><span class="idx">13</span>为什么 select/poll 必须遍历？</h2>
+    <p class="desc">三个根本原因，缺一不可。</p>
+
+    <div class="diagram">
+      <pre class="mermaid">
+flowchart TD
+    R1["原因1：无跨调用状态<br/>内核不记得上次的 fd 和结果<br/>每次调用从头来"] --> X["必须遍历"]
+    R2["原因2：唤醒不带来源<br/>等待队列只叫醒进程<br/>不告诉它是哪个 fd"] --> X
+    R3["原因3：没有就绪链表<br/>没有地方记录谁就绪了<br/>只能挨个问"] --> X
+
+    classDef reason fill:#ffe4e6,stroke:#fb7185,stroke-width:2px,color:#9f1239
+    classDef result fill:#fef3c7,stroke:#fbbf24,stroke-width:2px,color:#92400e
+
+    class R1,R2,R3 reason
+    class X result
+      </pre>
+    </div>
+
+    <div class="notes" style="grid-template-columns:1fr;">
+      <div class="note rose">
+        <b>原因 1：无状态</b><br>
+        select/poll 没有“注册”概念，fd 集合是每次调用临时传入的。调用结束内核就忘了，下次还得重传、重遍历。
+      </div>
+      <div class="note rose">
+        <b>原因 2：唤醒不带来源</b><br>
+        select/poll 挂在 socket 等待队列上的节点，private 是进程，func 只是 autoremove_wake_function。它只把进程设为可运行，<b>不携带是哪个 fd 就绪的信息</b>。进程醒来后只能自己找。
+      </div>
+      <div class="note rose">
+        <b>原因 3：没有就绪链表</b><br>
+        epoll 有专门的就绪链表记录“谁就绪了”，回调直接写进去。select/poll 没有这个东西，事件发生时没人帮忙记录，只能靠进程醒来后遍历。
+      </div>
+    </div>
+
+    <p class="desc" style="margin:26px 0 0;">用生活比喻：</p>
+    <div class="split">
+      <div class="col user">
+        <h4>📞 select/poll</h4>
+        <ul>
+          <li>你在一栋楼里等快递，100 个房间门口都贴了你的电话</li>
+          <li>哪个房间有快递就打电话叫你</li>
+          <li>但对方只说“有你的快递”，<b>不说哪个房间</b></li>
+          <li>你只能一间一间敲门问：“是我的吗？”</li>
+        </ul>
+      </div>
+      <div class="col kernel">
+        <h4>🔔 epoll</h4>
+        <ul>
+          <li>你给每个房间装了门铃，门铃连着“待处理篮子”</li>
+          <li>哪个房间有快递，门铃一响自动把房间号写进篮子</li>
+          <li>你醒来后直接看篮子</li>
+          <li>不用敲门，不用遍历</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 新增 14：红黑树 vs 就绪链表 ===== -->
+  <div class="card">
+    <h2 class="tree"><span class="idx">14</span>红黑树 vs 就绪链表：各自干什么？</h2>
+    <p class="desc">很多人以为“事件发生时去红黑树查找 fd”，这是错的。红黑树管理注册关系，就绪链表记录就绪状态，回调直接通过 private 拿到 epitem，根本不查红黑树。</p>
+
+    <table>
+      <thead>
+        <tr><th>操作</th><th>红黑树</th><th>就绪链表</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>epoll_ctl ADD</td><td>插入 epitem</td><td>—</td></tr>
+        <tr><td>epoll_ctl DEL</td><td>移除 epitem</td><td>—</td></tr>
+        <tr><td>事件发生</td><td><b>不查</b></td><td>回调把 epitem 加入链表</td></tr>
+        <tr><td>epoll_wait</td><td><b>不查</b></td><td>直接读链表，取走事件</td></tr>
+      </tbody>
+    </table>
+
+    <div class="notes">
+      <div class="note green"><b>红黑树</b>：管理“我关心哪些 fd”，只在 epoll_ctl 时用。</div>
+      <div class="note purple"><b>就绪链表</b>：记录“哪些 fd 已经就绪”，事件发生时由回调写入。</div>
+      <div class="note rose"><b>关键</b>：回调不需要查红黑树，它通过 private 直接拿到 epitem。</div>
+      <div class="note amber"><b>epoll_wait</b>：直接读就绪链表，O(就绪数)，不遍历全部 fd。</div>
+    </div>
+
+    <p class="desc" style="margin:26px 0 0;">事件发生时的真实路径：</p>
+    <div class="wq-box">
+<span class="title">事件发生</span>
+  ↓
+<span class="green">wake_up 遍历 socket 等待队列</span>
+  ↓
+调用 <span class="rose">ep_poll_callback</span>
+  ↓
+回调通过 <span class="blue">private</span> 直接拿到 <span class="purple">epitem</span>   <span class="gray">← 不查红黑树！</span>
+  ↓
+把 epitem 加入 <span class="amber">epfd 的就绪链表</span>
+  ↓
+唤醒 epoll_wait 进程
+  ↓
+epoll_wait 直接读就绪链表，返回事件
+    </div>
+  </div>
+
+  <!-- ===== 新增 15：常见误区 ===== -->
+  <div class="card">
+    <h2 class="faq"><span class="idx">15</span>常见误区纠正</h2>
+    <p class="desc">这些是最容易搞混的地方，单独列出来对照。</p>
+
+    <div class="notes" style="grid-template-columns:1fr;">
+      <div class="note rose">
+        <b>❌ 误区 1：事件发生时才把回调挂到等待队列</b><br>
+        ✅ 正确：<code class="inline">epoll_ctl</code> 注册时，回调 <code class="inline">ep_poll_callback</code> 就已经挂到 socket 的等待队列上了。事件发生时只是 wake_up 调用这个已经挂好的回调。
+      </div>
+      <div class="note rose">
+        <b>❌ 误区 2：回调把自己加入等待队列</b><br>
+        ✅ 正确：回调做的是把 fd 加入 epoll 实例的「就绪链表」，不是加入等待队列。等待队列是「谁在等」，就绪链表是「谁已经好了」。
+      </div>
+      <div class="note rose">
+        <b>❌ 误区 3：epoll_wait 是异步通知，不用循环</b><br>
+        ✅ 正确：<code class="inline">epoll_wait</code> 是同步阻塞等待，必须循环调用。内核内部的回调只是把你唤醒，取事件还得你主动调 <code class="inline">epoll_wait</code>。
+      </div>
+      <div class="note rose">
+        <b>❌ 误区 4：fd 是 socket 本身</b><br>
+        ✅ 正确：fd 是进程访问 socket 的编号（句柄），只在当前进程内有意义。内核里 fd → struct file → struct socket → struct sock，才是真正的对象。
+      </div>
+      <div class="note rose">
+        <b>❌ 误区 5：网卡收数据时通过 fd 找 socket</b><br>
+        ✅ 正确：网卡收数据时内核用「四元组」查 TCP 哈希表找到 struct sock，跟 fd 无关。fd 是进程视角，四元组是网络栈视角。
+      </div>
+      <div class="note rose">
+        <b>❌ 误区 6：等待队列挂在 fd 上</b><br>
+        ✅ 正确：等待队列挂在 <code class="inline">struct sock</code> 上，不在 fd 上。fd 只是一个编号，本身没有等待队列。
+      </div>
+      <div class="note rose">
+        <b>❌ 误区 7：select/poll 返回后，fd 集合还在内核</b><br>
+        ✅ 正确：select/poll 的 fd 集合是临时副本，返回后就释放了。等待队列上的节点也会被移除。下次调用还得重新传、重新挂。
+      </div>
+      <div class="note rose">
+        <b>❌ 误区 8：epoll 事件发生时去红黑树查找</b><br>
+        ✅ 正确：回调通过 private 直接拿到 epitem，不查红黑树。红黑树只在 epoll_ctl 注册/删除时用。
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 新增 16：代码串起来 ===== -->
+  <div class="card">
+    <h2 class="epoll"><span class="idx">16</span>代码串起来看</h2>
+    <p class="desc">从创建 epoll 到事件循环，完整代码结构。</p>
+
+    <pre class="code"><span class="c">// 1. 创建 epoll 实例，返回 epfd（它本身也是一个 fd）</span>
+<span class="k">int</span> epfd = <span class="f">epoll_create1</span>(<span class="s">0</span>);        <span class="c">// 比如 epfd = 5</span>
+
+<span class="c">// 2. 创建 socket，返回 sockfd</span>
+<span class="k">int</span> sockfd = <span class="f">socket</span>(AF_INET, SOCK_STREAM, <span class="s">0</span>);  <span class="c">// 比如 sockfd = 3</span>
+
+<span class="c">// 3. 把 sockfd 注册到 epfd，关心「可读」事件</span>
+<span class="c">//    此时内核会：sockfd 加入红黑树 + 向 sockfd 等待队列注册 ep_poll_callback</span>
+<span class="k">struct</span> epoll_event ev;
+ev.events = EPOLLIN;
+ev.data.fd = sockfd;
+<span class="f">epoll_ctl</span>(epfd, EPOLL_CTL_ADD, sockfd, &ev);
+
+<span class="c">// 4. 事件循环：epoll_wait 是同步阻塞等待，必须循环调用</span>
+<span class="k">struct</span> epoll_event events[<span class="s">10</span>];
+<span class="k">while</span> (<span class="s">1</span>) {
+    <span class="c">// 有就绪事件 → 返回 n > 0；超时 → 返回 0；出错 → 返回 -1</span>
+    <span class="k">int</span> n = <span class="f">epoll_wait</span>(epfd, events, <span class="s">10</span>, -<span class="s">1</span>);
+
+    <span class="k">for</span> (<span class="k">int</span> i = <span class="s">0</span>; i &lt; n; i++) {
+        <span class="k">int</span> fd = events[i].data.fd;
+        <span class="f">read</span>(fd, buf, <span class="k">sizeof</span>(buf));   <span class="c">// 处理就绪 fd</span>
+    }
+}</pre>
+
+    <div class="notes">
+      <div class="note green"><b>epfd</b>：epoll 实例的 fd，代表内核里的 eventpoll 对象。</div>
+      <div class="note purple"><b>sockfd</b>：被监听的 socket fd。</div>
+      <div class="note amber"><b>epoll_ctl</b>：把 sockfd 登记到 epfd，同时挂好回调。</div>
+      <div class="note rose"><b>epoll_wait</b>：循环调用，主动去取就绪事件。</div>
+    </div>
+  </div>
+
+  <!-- ===== 对比表 ===== -->
+  <div class="card">
+    <h2><span class="idx">17</span>对比总结</h2>
+    <p class="desc">一张表看清 select/poll 与 epoll 的差异。</p>
+    <table>
+      <thead>
+        <tr><th>维度</th><th>select / poll</th><th>epoll</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>fd 管理方式</td><td>select 用位图，poll 用数组</td><td>红黑树</td></tr>
+        <tr><td>每次是否传全部 fd</td><td>是</td><td>否，提前 epoll_ctl 注册</td></tr>
+        <tr><td>内核是否遍历全部 fd</td><td>是，O(n)</td><td>否，只处理就绪链表</td></tr>
+        <tr><td>谁睡在 socket 等待队列</td><td>进程自己</td><td>回调函数 ep_poll_callback</td></tr>
+        <tr><td>进程睡在哪</td><td>多个 socket 的等待队列</td><td>eventpoll 的等待队列</td></tr>
+        <tr><td>唤醒后找就绪 fd</td><td>重新遍历全部 fd</td><td>直接读就绪链表</td></tr>
+        <tr><td>回调注册时机</td><td>无回调</td><td>epoll_ctl 时挂到 socket 等待队列</td></tr>
+        <tr><td>fd 集合生命周期</td><td>临时副本，返回即释放</td><td>长期存在红黑树</td></tr>
+        <tr><td>等待队列节点生命周期</td><td>返回时移除</td><td>长期存在，直到 epoll_ctl DEL</td></tr>
+        <tr><td>红黑树用途</td><td>无</td><td>管理注册关系，不用于事件查找</td></tr>
+        <tr><td>网卡找 socket 的方式</td><td>四元组查 TCP 哈希表</td><td>四元组查 TCP 哈希表</td></tr>
+        <tr><td>fd 数量上限</td><td>select 约 1024</td><td>受系统 fd 限制，无固定上限</td></tr>
+        <tr><td>epoll_wait 是否需要循环</td><td>select/poll 也需循环</td><td>需要，同步阻塞等待</td></tr>
+        <tr><td>适用场景</td><td>连接少、逻辑简单</td><td>高并发、海量连接</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 金句 -->
+  <div class="quote">
+    <span class="big">一句话记忆</span>
+    <em>fd</em>：进程访问 socket 的编号；<em>四元组</em>：网络栈定位连接的 key；两者指向同一个 struct sock。<br>
+    <em>select / poll</em>：你亲自站在每个 socket 门口等，谁有动静叫醒你，你再挨个问是谁。<br>
+    <em>epoll</em>：你给每个 socket 装了门铃（回调），门铃一响就把 fd 丢进篮子（就绪链表），你只看篮子。<br>
+    <em>等待队列</em>：挂在 socket 上的通知名单，每个节点写着「通知谁 + 怎么通知」。<br>
+    <em>回调</em>：提前存在等待队列节点里的函数指针，wake_up 时挨个被调用。<br>
+    <em>红黑树</em>：管理注册关系，事件发生时<b>不查</b>，回调通过 private 直接拿到 epitem。<br>
+    <em>临时副本</em>：select/poll 的 fd 集合返回即释放；epoll 的注册关系长期存在红黑树。<br>
+    <em>epoll_wait</em>：同步阻塞，必须循环调用，不是异步通知。
+  </div>
+
+  <footer>I/O 多路复用 · 监听流程 + 等待队列 + 回调机制 + 用户态/内核态数据分布 · 图解</footer>
+
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    securityLevel: 'loose',
+    theme: 'base',
+    themeVariables: {
+      fontFamily: '"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif',
+      fontSize: '14.5px',
+      primaryColor: '#f1f5f9',
+      primaryTextColor: '#1e293b',
+      primaryBorderColor: '#cbd5e1',
+      lineColor: '#94a3b8',
+      edgeLabelBackground: '#ffffff',
+      tertiaryColor: '#ffffff'
+    },
+    flowchart: {
+      curve: 'basis',
+      nodeSpacing: 42,
+      rankSpacing: 52,
+      padding: 14,
+      useMaxWidth: true,
+      htmlLabels: true
+    }
+  });
+</script>
+</body>
+</html>

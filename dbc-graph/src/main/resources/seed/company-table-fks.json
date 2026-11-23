@@ -1,0 +1,3101 @@
+{
+  "source": "demo-company/metadata/table-relations.md",
+  "tableCount": 163,
+  "fkCount": 253,
+  "tables": [
+    {
+      "name": "adm_meeting_booking",
+      "core": false,
+      "domain": "adm"
+    },
+    {
+      "name": "adm_meeting_room",
+      "core": false,
+      "domain": "adm"
+    },
+    {
+      "name": "adm_supply",
+      "core": false,
+      "domain": "adm"
+    },
+    {
+      "name": "adm_supply_request",
+      "core": false,
+      "domain": "adm"
+    },
+    {
+      "name": "adm_vehicle",
+      "core": false,
+      "domain": "adm"
+    },
+    {
+      "name": "adm_vehicle_trip",
+      "core": false,
+      "domain": "adm"
+    },
+    {
+      "name": "adm_visitor",
+      "core": false,
+      "domain": "adm"
+    },
+    {
+      "name": "att_daily_record",
+      "core": true,
+      "domain": "att"
+    },
+    {
+      "name": "att_device",
+      "core": false,
+      "domain": "att"
+    },
+    {
+      "name": "att_leave",
+      "core": true,
+      "domain": "att"
+    },
+    {
+      "name": "att_leave_balance",
+      "core": false,
+      "domain": "att"
+    },
+    {
+      "name": "att_leave_type",
+      "core": true,
+      "domain": "att"
+    },
+    {
+      "name": "att_makeup_card",
+      "core": false,
+      "domain": "att"
+    },
+    {
+      "name": "att_monthly_summary",
+      "core": false,
+      "domain": "att"
+    },
+    {
+      "name": "att_overtime",
+      "core": true,
+      "domain": "att"
+    },
+    {
+      "name": "att_punch",
+      "core": false,
+      "domain": "att"
+    },
+    {
+      "name": "att_remote_work",
+      "core": false,
+      "domain": "att"
+    },
+    {
+      "name": "att_shift",
+      "core": false,
+      "domain": "att"
+    },
+    {
+      "name": "att_shift_assign",
+      "core": false,
+      "domain": "att"
+    },
+    {
+      "name": "att_timesheet",
+      "core": true,
+      "domain": "att"
+    },
+    {
+      "name": "att_travel",
+      "core": false,
+      "domain": "att"
+    },
+    {
+      "name": "crm_activity",
+      "core": false,
+      "domain": "crm"
+    },
+    {
+      "name": "crm_complaint",
+      "core": false,
+      "domain": "crm"
+    },
+    {
+      "name": "crm_contact",
+      "core": false,
+      "domain": "crm"
+    },
+    {
+      "name": "crm_customer",
+      "core": true,
+      "domain": "crm"
+    },
+    {
+      "name": "crm_lead",
+      "core": false,
+      "domain": "crm"
+    },
+    {
+      "name": "crm_opportunity",
+      "core": false,
+      "domain": "crm"
+    },
+    {
+      "name": "crm_sla",
+      "core": false,
+      "domain": "crm"
+    },
+    {
+      "name": "crm_visit",
+      "core": false,
+      "domain": "crm"
+    },
+    {
+      "name": "fin_activity_budget",
+      "core": true,
+      "domain": "fin"
+    },
+    {
+      "name": "fin_activity_expense",
+      "core": true,
+      "domain": "fin"
+    },
+    {
+      "name": "fin_asset_depr",
+      "core": false,
+      "domain": "fin"
+    },
+    {
+      "name": "fin_bank_account",
+      "core": false,
+      "domain": "fin"
+    },
+    {
+      "name": "fin_bank_txn",
+      "core": false,
+      "domain": "fin"
+    },
+    {
+      "name": "fin_budget_line",
+      "core": false,
+      "domain": "fin"
+    },
+    {
+      "name": "fin_budget_year",
+      "core": false,
+      "domain": "fin"
+    },
+    {
+      "name": "fin_cost_allocation",
+      "core": false,
+      "domain": "fin"
+    },
+    {
+      "name": "fin_fixed_asset",
+      "core": false,
+      "domain": "fin"
+    },
+    {
+      "name": "fin_gl_account",
+      "core": false,
+      "domain": "fin"
+    },
+    {
+      "name": "fin_invoice",
+      "core": false,
+      "domain": "fin"
+    },
+    {
+      "name": "fin_journal",
+      "core": false,
+      "domain": "fin"
+    },
+    {
+      "name": "fin_journal_line",
+      "core": false,
+      "domain": "fin"
+    },
+    {
+      "name": "fin_loan",
+      "core": false,
+      "domain": "fin"
+    },
+    {
+      "name": "fin_loan_repay",
+      "core": false,
+      "domain": "fin"
+    },
+    {
+      "name": "fin_payment",
+      "core": false,
+      "domain": "fin"
+    },
+    {
+      "name": "fin_petty_cash",
+      "core": false,
+      "domain": "fin"
+    },
+    {
+      "name": "fin_petty_cash_txn",
+      "core": false,
+      "domain": "fin"
+    },
+    {
+      "name": "fin_receipt",
+      "core": false,
+      "domain": "fin"
+    },
+    {
+      "name": "fin_reimburse",
+      "core": true,
+      "domain": "fin"
+    },
+    {
+      "name": "fin_reimburse_item",
+      "core": true,
+      "domain": "fin"
+    },
+    {
+      "name": "fin_salary_period",
+      "core": true,
+      "domain": "fin"
+    },
+    {
+      "name": "fin_salary_slip",
+      "core": true,
+      "domain": "fin"
+    },
+    {
+      "name": "fin_vendor",
+      "core": false,
+      "domain": "fin"
+    },
+    {
+      "name": "hr_award",
+      "core": false,
+      "domain": "hr"
+    },
+    {
+      "name": "hr_bank_account",
+      "core": false,
+      "domain": "hr"
+    },
+    {
+      "name": "hr_candidate",
+      "core": false,
+      "domain": "hr"
+    },
+    {
+      "name": "hr_certificate",
+      "core": false,
+      "domain": "hr"
+    },
+    {
+      "name": "hr_contract",
+      "core": false,
+      "domain": "hr"
+    },
+    {
+      "name": "hr_education",
+      "core": false,
+      "domain": "hr"
+    },
+    {
+      "name": "hr_emergency_contact",
+      "core": false,
+      "domain": "hr"
+    },
+    {
+      "name": "hr_employee",
+      "core": true,
+      "domain": "hr"
+    },
+    {
+      "name": "hr_family_member",
+      "core": false,
+      "domain": "hr"
+    },
+    {
+      "name": "hr_headcount_plan",
+      "core": false,
+      "domain": "hr"
+    },
+    {
+      "name": "hr_interview",
+      "core": false,
+      "domain": "hr"
+    },
+    {
+      "name": "hr_job_level",
+      "core": true,
+      "domain": "hr"
+    },
+    {
+      "name": "hr_offer",
+      "core": false,
+      "domain": "hr"
+    },
+    {
+      "name": "hr_onboarding",
+      "core": false,
+      "domain": "hr"
+    },
+    {
+      "name": "hr_performance_cycle",
+      "core": false,
+      "domain": "hr"
+    },
+    {
+      "name": "hr_performance_goal",
+      "core": false,
+      "domain": "hr"
+    },
+    {
+      "name": "hr_performance_review",
+      "core": false,
+      "domain": "hr"
+    },
+    {
+      "name": "hr_probation",
+      "core": false,
+      "domain": "hr"
+    },
+    {
+      "name": "hr_promotion",
+      "core": false,
+      "domain": "hr"
+    },
+    {
+      "name": "hr_recruit_req",
+      "core": false,
+      "domain": "hr"
+    },
+    {
+      "name": "hr_resignation",
+      "core": false,
+      "domain": "hr"
+    },
+    {
+      "name": "hr_training_course",
+      "core": false,
+      "domain": "hr"
+    },
+    {
+      "name": "hr_training_enroll",
+      "core": false,
+      "domain": "hr"
+    },
+    {
+      "name": "hr_training_session",
+      "core": false,
+      "domain": "hr"
+    },
+    {
+      "name": "hr_transfer",
+      "core": false,
+      "domain": "hr"
+    },
+    {
+      "name": "hr_work_history",
+      "core": false,
+      "domain": "hr"
+    },
+    {
+      "name": "itm_access_request",
+      "core": false,
+      "domain": "itm"
+    },
+    {
+      "name": "itm_account",
+      "core": false,
+      "domain": "itm"
+    },
+    {
+      "name": "itm_asset",
+      "core": false,
+      "domain": "itm"
+    },
+    {
+      "name": "itm_asset_assign",
+      "core": false,
+      "domain": "itm"
+    },
+    {
+      "name": "itm_change",
+      "core": false,
+      "domain": "itm"
+    },
+    {
+      "name": "itm_deploy",
+      "core": false,
+      "domain": "itm"
+    },
+    {
+      "name": "itm_incident",
+      "core": false,
+      "domain": "itm"
+    },
+    {
+      "name": "itm_system",
+      "core": false,
+      "domain": "itm"
+    },
+    {
+      "name": "itm_ticket",
+      "core": false,
+      "domain": "itm"
+    },
+    {
+      "name": "itm_ticket_comment",
+      "core": false,
+      "domain": "itm"
+    },
+    {
+      "name": "kb_article",
+      "core": false,
+      "domain": "kb"
+    },
+    {
+      "name": "kb_article_tag",
+      "core": false,
+      "domain": "kb"
+    },
+    {
+      "name": "kb_article_tag_rel",
+      "core": false,
+      "domain": "kb"
+    },
+    {
+      "name": "legal_compliance_check",
+      "core": false,
+      "domain": "legal"
+    },
+    {
+      "name": "legal_contract",
+      "core": false,
+      "domain": "legal"
+    },
+    {
+      "name": "legal_contract_clause",
+      "core": false,
+      "domain": "legal"
+    },
+    {
+      "name": "legal_dispute",
+      "core": false,
+      "domain": "legal"
+    },
+    {
+      "name": "mkt_campaign",
+      "core": false,
+      "domain": "mkt"
+    },
+    {
+      "name": "mkt_campaign_lead",
+      "core": false,
+      "domain": "mkt"
+    },
+    {
+      "name": "mkt_content",
+      "core": false,
+      "domain": "mkt"
+    },
+    {
+      "name": "mkt_event_reg",
+      "core": false,
+      "domain": "mkt"
+    },
+    {
+      "name": "ops_backup_job",
+      "core": false,
+      "domain": "ops"
+    },
+    {
+      "name": "ops_duty_roster",
+      "core": false,
+      "domain": "ops"
+    },
+    {
+      "name": "ops_monitor_alert",
+      "core": false,
+      "domain": "ops"
+    },
+    {
+      "name": "ops_runbook",
+      "core": false,
+      "domain": "ops"
+    },
+    {
+      "name": "org_announcement",
+      "core": false,
+      "domain": "org"
+    },
+    {
+      "name": "org_biz_unit",
+      "core": false,
+      "domain": "org"
+    },
+    {
+      "name": "org_company",
+      "core": false,
+      "domain": "org"
+    },
+    {
+      "name": "org_cost_center",
+      "core": false,
+      "domain": "org"
+    },
+    {
+      "name": "org_department",
+      "core": true,
+      "domain": "org"
+    },
+    {
+      "name": "org_dept_change",
+      "core": false,
+      "domain": "org"
+    },
+    {
+      "name": "org_dept_closure",
+      "core": false,
+      "domain": "org"
+    },
+    {
+      "name": "org_office",
+      "core": false,
+      "domain": "org"
+    },
+    {
+      "name": "org_position",
+      "core": false,
+      "domain": "org"
+    },
+    {
+      "name": "org_seal",
+      "core": false,
+      "domain": "org"
+    },
+    {
+      "name": "prd_feature",
+      "core": false,
+      "domain": "prd"
+    },
+    {
+      "name": "prd_license",
+      "core": false,
+      "domain": "prd"
+    },
+    {
+      "name": "prd_product",
+      "core": true,
+      "domain": "prd"
+    },
+    {
+      "name": "prd_product_cost",
+      "core": true,
+      "domain": "prd"
+    },
+    {
+      "name": "prd_product_line",
+      "core": false,
+      "domain": "prd"
+    },
+    {
+      "name": "prd_product_version",
+      "core": false,
+      "domain": "prd"
+    },
+    {
+      "name": "prd_roadmap",
+      "core": false,
+      "domain": "prd"
+    },
+    {
+      "name": "prj_acceptance",
+      "core": false,
+      "domain": "prj"
+    },
+    {
+      "name": "prj_change_request",
+      "core": false,
+      "domain": "prj"
+    },
+    {
+      "name": "prj_document",
+      "core": false,
+      "domain": "prj"
+    },
+    {
+      "name": "prj_issue",
+      "core": false,
+      "domain": "prj"
+    },
+    {
+      "name": "prj_milestone",
+      "core": false,
+      "domain": "prj"
+    },
+    {
+      "name": "prj_project",
+      "core": true,
+      "domain": "prj"
+    },
+    {
+      "name": "prj_project_member",
+      "core": true,
+      "domain": "prj"
+    },
+    {
+      "name": "prj_project_revenue",
+      "core": true,
+      "domain": "prj"
+    },
+    {
+      "name": "prj_risk",
+      "core": false,
+      "domain": "prj"
+    },
+    {
+      "name": "prj_stakeholder",
+      "core": false,
+      "domain": "prj"
+    },
+    {
+      "name": "prj_task",
+      "core": false,
+      "domain": "prj"
+    },
+    {
+      "name": "prj_warranty",
+      "core": false,
+      "domain": "prj"
+    },
+    {
+      "name": "prj_weekly_report",
+      "core": false,
+      "domain": "prj"
+    },
+    {
+      "name": "qa_defect",
+      "core": false,
+      "domain": "qa"
+    },
+    {
+      "name": "qa_release_gate",
+      "core": false,
+      "domain": "qa"
+    },
+    {
+      "name": "qa_test_case",
+      "core": false,
+      "domain": "qa"
+    },
+    {
+      "name": "qa_test_plan",
+      "core": false,
+      "domain": "qa"
+    },
+    {
+      "name": "sal_commission",
+      "core": false,
+      "domain": "sal"
+    },
+    {
+      "name": "sal_commission_rule",
+      "core": false,
+      "domain": "sal"
+    },
+    {
+      "name": "sal_contract",
+      "core": false,
+      "domain": "sal"
+    },
+    {
+      "name": "sal_contract_milestone",
+      "core": false,
+      "domain": "sal"
+    },
+    {
+      "name": "sal_delivery",
+      "core": false,
+      "domain": "sal"
+    },
+    {
+      "name": "sal_delivery_item",
+      "core": false,
+      "domain": "sal"
+    },
+    {
+      "name": "sal_price_list",
+      "core": false,
+      "domain": "sal"
+    },
+    {
+      "name": "sal_price_list_item",
+      "core": false,
+      "domain": "sal"
+    },
+    {
+      "name": "sal_quote",
+      "core": false,
+      "domain": "sal"
+    },
+    {
+      "name": "sal_quote_item",
+      "core": false,
+      "domain": "sal"
+    },
+    {
+      "name": "sal_return",
+      "core": false,
+      "domain": "sal"
+    },
+    {
+      "name": "sal_sales_order",
+      "core": true,
+      "domain": "sal"
+    },
+    {
+      "name": "sal_sales_order_item",
+      "core": true,
+      "domain": "sal"
+    },
+    {
+      "name": "sal_target",
+      "core": false,
+      "domain": "sal"
+    },
+    {
+      "name": "scm_inventory",
+      "core": false,
+      "domain": "scm"
+    },
+    {
+      "name": "scm_inventory_txn",
+      "core": false,
+      "domain": "scm"
+    },
+    {
+      "name": "scm_purchase_order",
+      "core": false,
+      "domain": "scm"
+    },
+    {
+      "name": "scm_purchase_order_item",
+      "core": false,
+      "domain": "scm"
+    },
+    {
+      "name": "scm_purchase_req",
+      "core": false,
+      "domain": "scm"
+    },
+    {
+      "name": "scm_purchase_req_item",
+      "core": false,
+      "domain": "scm"
+    },
+    {
+      "name": "scm_receipt",
+      "core": false,
+      "domain": "scm"
+    },
+    {
+      "name": "scm_vendor_eval",
+      "core": false,
+      "domain": "scm"
+    },
+    {
+      "name": "scm_warehouse",
+      "core": false,
+      "domain": "scm"
+    },
+    {
+      "name": "sec_audit_log",
+      "core": false,
+      "domain": "sec"
+    },
+    {
+      "name": "sec_vulnerability",
+      "core": false,
+      "domain": "sec"
+    }
+  ],
+  "fks": [
+    {
+      "child": "att_daily_record",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "att_leave",
+      "childCol": "approved_by",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "att_leave",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "att_leave",
+      "childCol": "leave_type_id",
+      "parent": "att_leave_type",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "att_overtime",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "att_overtime",
+      "childCol": "project_id",
+      "parent": "prj_project",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "att_timesheet",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "att_timesheet",
+      "childCol": "project_id",
+      "parent": "prj_project",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "crm_customer",
+      "childCol": "owner_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "fin_activity_budget",
+      "childCol": "dept_id",
+      "parent": "org_department",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "fin_activity_budget",
+      "childCol": "owner_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "fin_activity_expense",
+      "childCol": "budget_id",
+      "parent": "fin_activity_budget",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "fin_reimburse",
+      "childCol": "dept_id",
+      "parent": "org_department",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "fin_reimburse",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "fin_reimburse",
+      "childCol": "project_id",
+      "parent": "prj_project",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "fin_reimburse_item",
+      "childCol": "claim_id",
+      "parent": "fin_reimburse",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "fin_salary_slip",
+      "childCol": "dept_id",
+      "parent": "org_department",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "fin_salary_slip",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "fin_salary_slip",
+      "childCol": "period_id",
+      "parent": "fin_salary_period",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "hr_employee",
+      "childCol": "dept_id",
+      "parent": "org_department",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "hr_employee",
+      "childCol": "job_level_id",
+      "parent": "hr_job_level",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "org_department",
+      "childCol": "parent_id",
+      "parent": "org_department",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "prd_product_cost",
+      "childCol": "product_id",
+      "parent": "prd_product",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "prj_project",
+      "childCol": "customer_id",
+      "parent": "crm_customer",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "prj_project",
+      "childCol": "dept_id",
+      "parent": "org_department",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "prj_project",
+      "childCol": "pm_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "prj_project_member",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "prj_project_member",
+      "childCol": "project_id",
+      "parent": "prj_project",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "prj_project_revenue",
+      "childCol": "project_id",
+      "parent": "prj_project",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "sal_sales_order",
+      "childCol": "customer_id",
+      "parent": "crm_customer",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "sal_sales_order",
+      "childCol": "dept_id",
+      "parent": "org_department",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "sal_sales_order",
+      "childCol": "owner_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "sal_sales_order_item",
+      "childCol": "order_id",
+      "parent": "sal_sales_order",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "sal_sales_order_item",
+      "childCol": "product_id",
+      "parent": "prd_product",
+      "parentCol": "id",
+      "description": "",
+      "coreChild": true,
+      "coreParent": true
+    },
+    {
+      "child": "adm_meeting_booking",
+      "childCol": "organizer_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "会议室预订",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "adm_meeting_booking",
+      "childCol": "room_id",
+      "parent": "adm_meeting_room",
+      "parentCol": "id",
+      "description": "会议室预订",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "adm_meeting_room",
+      "childCol": "office_id",
+      "parent": "org_office",
+      "parentCol": "id",
+      "description": "会议室",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "adm_supply_request",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "办公用品领用",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "adm_supply_request",
+      "childCol": "supply_id",
+      "parent": "adm_supply",
+      "parentCol": "id",
+      "description": "办公用品领用",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "adm_vehicle_trip",
+      "childCol": "driver_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "用车记录",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "adm_vehicle_trip",
+      "childCol": "vehicle_id",
+      "parent": "adm_vehicle",
+      "parentCol": "id",
+      "description": "用车记录",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "adm_visitor",
+      "childCol": "host_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "访客登记",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "adm_visitor",
+      "childCol": "office_id",
+      "parent": "org_office",
+      "parentCol": "id",
+      "description": "访客登记",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "att_device",
+      "childCol": "office_id",
+      "parent": "org_office",
+      "parentCol": "id",
+      "description": "考勤设备",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "att_leave_balance",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "假期余额",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "att_leave_balance",
+      "childCol": "leave_type_id",
+      "parent": "att_leave_type",
+      "parentCol": "id",
+      "description": "假期余额",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "att_makeup_card",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "补卡申请",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "att_monthly_summary",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "月考勤汇总",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "att_punch",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "打卡流水",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "att_punch",
+      "childCol": "office_id",
+      "parent": "org_office",
+      "parentCol": "id",
+      "description": "打卡流水",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "att_remote_work",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "居家办公申请",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "att_shift_assign",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "班次排班",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "att_shift_assign",
+      "childCol": "shift_id",
+      "parent": "att_shift",
+      "parentCol": "id",
+      "description": "班次排班",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "att_travel",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "出差申请",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "att_travel",
+      "childCol": "project_id",
+      "parent": "prj_project",
+      "parentCol": "id",
+      "description": "出差申请",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "crm_activity",
+      "childCol": "customer_id",
+      "parent": "crm_customer",
+      "parentCol": "id",
+      "description": "客户跟进活动",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "crm_activity",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "客户跟进活动",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "crm_activity",
+      "childCol": "opp_id",
+      "parent": "crm_opportunity",
+      "parentCol": "id",
+      "description": "客户跟进活动",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "crm_complaint",
+      "childCol": "customer_id",
+      "parent": "crm_customer",
+      "parentCol": "id",
+      "description": "客户投诉",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "crm_complaint",
+      "childCol": "handler_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "客户投诉",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "crm_complaint",
+      "childCol": "project_id",
+      "parent": "prj_project",
+      "parentCol": "id",
+      "description": "客户投诉",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "crm_contact",
+      "childCol": "customer_id",
+      "parent": "crm_customer",
+      "parentCol": "id",
+      "description": "客户联系人",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "crm_lead",
+      "childCol": "customer_id",
+      "parent": "crm_customer",
+      "parentCol": "id",
+      "description": "销售线索",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "crm_lead",
+      "childCol": "owner_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "销售线索",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "crm_opportunity",
+      "childCol": "customer_id",
+      "parent": "crm_customer",
+      "parentCol": "id",
+      "description": "商机",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "crm_opportunity",
+      "childCol": "owner_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "商机",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "crm_sla",
+      "childCol": "customer_id",
+      "parent": "crm_customer",
+      "parentCol": "id",
+      "description": "客户服务等级协议",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "crm_visit",
+      "childCol": "customer_id",
+      "parent": "crm_customer",
+      "parentCol": "id",
+      "description": "客户拜访",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "crm_visit",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "客户拜访",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "fin_asset_depr",
+      "childCol": "asset_id",
+      "parent": "fin_fixed_asset",
+      "parentCol": "id",
+      "description": "资产折旧明细",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "fin_bank_account",
+      "childCol": "company_id",
+      "parent": "org_company",
+      "parentCol": "id",
+      "description": "公司银行账户",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "fin_bank_txn",
+      "childCol": "acct_id",
+      "parent": "fin_bank_account",
+      "parentCol": "id",
+      "description": "银行流水",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "fin_budget_line",
+      "childCol": "budget_id",
+      "parent": "fin_budget_year",
+      "parentCol": "id",
+      "description": "预算明细行",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "fin_budget_year",
+      "childCol": "dept_id",
+      "parent": "org_department",
+      "parentCol": "id",
+      "description": "年度预算",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "fin_cost_allocation",
+      "childCol": "from_dept_id",
+      "parent": "org_department",
+      "parentCol": "id",
+      "description": "费用分摊",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "fin_cost_allocation",
+      "childCol": "to_dept_id",
+      "parent": "org_department",
+      "parentCol": "id",
+      "description": "费用分摊",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "fin_fixed_asset",
+      "childCol": "custodian_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "固定资产",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "fin_fixed_asset",
+      "childCol": "dept_id",
+      "parent": "org_department",
+      "parentCol": "id",
+      "description": "固定资产",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "fin_invoice",
+      "childCol": "customer_id",
+      "parent": "crm_customer",
+      "parentCol": "id",
+      "description": "进销项发票",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "fin_invoice",
+      "childCol": "vendor_id",
+      "parent": "fin_vendor",
+      "parentCol": "id",
+      "description": "进销项发票",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "fin_journal",
+      "childCol": "created_by",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "会计凭证头",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "fin_journal_line",
+      "childCol": "acct_id",
+      "parent": "fin_gl_account",
+      "parentCol": "id",
+      "description": "会计凭证分录",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "fin_journal_line",
+      "childCol": "journal_id",
+      "parent": "fin_journal",
+      "parentCol": "id",
+      "description": "会计凭证分录",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "fin_loan",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "对公借款",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "fin_loan_repay",
+      "childCol": "loan_id",
+      "parent": "fin_loan",
+      "parentCol": "id",
+      "description": "借款核销",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "fin_loan_repay",
+      "childCol": "reimburse_id",
+      "parent": "fin_reimburse",
+      "parentCol": "id",
+      "description": "借款核销",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "fin_payment",
+      "childCol": "applicant_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "付款单",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "fin_payment",
+      "childCol": "vendor_id",
+      "parent": "fin_vendor",
+      "parentCol": "id",
+      "description": "付款单",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "fin_petty_cash",
+      "childCol": "dept_id",
+      "parent": "org_department",
+      "parentCol": "id",
+      "description": "备用金账户",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "fin_petty_cash",
+      "childCol": "keeper_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "备用金账户",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "fin_petty_cash_txn",
+      "childCol": "petty_id",
+      "parent": "fin_petty_cash",
+      "parentCol": "id",
+      "description": "备用金收支",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "fin_receipt",
+      "childCol": "customer_id",
+      "parent": "crm_customer",
+      "parentCol": "id",
+      "description": "收款单",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "fin_receipt",
+      "childCol": "project_id",
+      "parent": "prj_project",
+      "parentCol": "id",
+      "description": "收款单",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "hr_award",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "奖惩记录",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "hr_bank_account",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "员工薪酬账户",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "hr_certificate",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "员工证书资质",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "hr_contract",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "劳动合同",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "hr_contract",
+      "childCol": "sign_company_id",
+      "parent": "org_company",
+      "parentCol": "id",
+      "description": "劳动合同",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "hr_education",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "教育经历",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "hr_emergency_contact",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "紧急联系人",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "hr_family_member",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "员工家属信息",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "hr_headcount_plan",
+      "childCol": "dept_id",
+      "parent": "org_department",
+      "parentCol": "id",
+      "description": "编制计划",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "hr_interview",
+      "childCol": "candidate_id",
+      "parent": "hr_candidate",
+      "parentCol": "id",
+      "description": "面试记录",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "hr_interview",
+      "childCol": "interviewer_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "面试记录",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "hr_interview",
+      "childCol": "req_id",
+      "parent": "hr_recruit_req",
+      "parentCol": "id",
+      "description": "面试记录",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "hr_offer",
+      "childCol": "candidate_id",
+      "parent": "hr_candidate",
+      "parentCol": "id",
+      "description": "录用 Offer",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "hr_offer",
+      "childCol": "req_id",
+      "parent": "hr_recruit_req",
+      "parentCol": "id",
+      "description": "录用 Offer",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "hr_onboarding",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "入职办理单",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "hr_performance_goal",
+      "childCol": "cycle_id",
+      "parent": "hr_performance_cycle",
+      "parentCol": "id",
+      "description": "绩效目标",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "hr_performance_goal",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "绩效目标",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "hr_performance_review",
+      "childCol": "cycle_id",
+      "parent": "hr_performance_cycle",
+      "parentCol": "id",
+      "description": "绩效评估结果",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "hr_performance_review",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "绩效评估结果",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "hr_performance_review",
+      "childCol": "reviewer_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "绩效评估结果",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "hr_probation",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "试用期考核",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "hr_probation",
+      "childCol": "mentor_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "试用期考核",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "hr_promotion",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "晋升记录",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "hr_promotion",
+      "childCol": "from_level_id",
+      "parent": "hr_job_level",
+      "parentCol": "id",
+      "description": "晋升记录",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "hr_promotion",
+      "childCol": "to_level_id",
+      "parent": "hr_job_level",
+      "parentCol": "id",
+      "description": "晋升记录",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "hr_recruit_req",
+      "childCol": "dept_id",
+      "parent": "org_department",
+      "parentCol": "id",
+      "description": "招聘需求",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "hr_recruit_req",
+      "childCol": "job_level_id",
+      "parent": "hr_job_level",
+      "parentCol": "id",
+      "description": "招聘需求",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "hr_recruit_req",
+      "childCol": "owner_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "招聘需求",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "hr_resignation",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "离职办理",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "hr_training_enroll",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "培训报名",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "hr_training_enroll",
+      "childCol": "session_id",
+      "parent": "hr_training_session",
+      "parentCol": "id",
+      "description": "培训报名",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "hr_training_session",
+      "childCol": "course_id",
+      "parent": "hr_training_course",
+      "parentCol": "id",
+      "description": "培训场次",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "hr_transfer",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "人事调动",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "hr_transfer",
+      "childCol": "from_dept_id",
+      "parent": "org_department",
+      "parentCol": "id",
+      "description": "人事调动",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "hr_transfer",
+      "childCol": "to_dept_id",
+      "parent": "org_department",
+      "parentCol": "id",
+      "description": "人事调动",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "hr_work_history",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "入职前工作经历",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "itm_access_request",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "权限申请",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "itm_access_request",
+      "childCol": "system_id",
+      "parent": "itm_system",
+      "parentCol": "id",
+      "description": "权限申请",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "itm_account",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "系统账号",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "itm_account",
+      "childCol": "system_id",
+      "parent": "itm_system",
+      "parentCol": "id",
+      "description": "系统账号",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "itm_asset",
+      "childCol": "assignee_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "IT 资产",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "itm_asset",
+      "childCol": "office_id",
+      "parent": "org_office",
+      "parentCol": "id",
+      "description": "IT 资产",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "itm_asset_assign",
+      "childCol": "asset_id",
+      "parent": "itm_asset",
+      "parentCol": "id",
+      "description": "IT 资产领用归还",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "itm_asset_assign",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "IT 资产领用归还",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "itm_change",
+      "childCol": "applicant_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "变更单",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "itm_change",
+      "childCol": "system_id",
+      "parent": "itm_system",
+      "parentCol": "id",
+      "description": "变更单",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "itm_deploy",
+      "childCol": "operator_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "发布部署记录",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "itm_deploy",
+      "childCol": "system_id",
+      "parent": "itm_system",
+      "parentCol": "id",
+      "description": "发布部署记录",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "itm_incident",
+      "childCol": "commander_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "生产故障",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "itm_incident",
+      "childCol": "system_id",
+      "parent": "itm_system",
+      "parentCol": "id",
+      "description": "生产故障",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "itm_system",
+      "childCol": "owner_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "业务系统台账",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "itm_ticket",
+      "childCol": "assignee_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "IT 服务工单",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "itm_ticket",
+      "childCol": "requester_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "IT 服务工单",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "itm_ticket_comment",
+      "childCol": "author_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "工单评论",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "itm_ticket_comment",
+      "childCol": "ticket_id",
+      "parent": "itm_ticket",
+      "parentCol": "id",
+      "description": "工单评论",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "kb_article",
+      "childCol": "author_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "内部知识文章",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "kb_article_tag_rel",
+      "childCol": "article_id",
+      "parent": "kb_article",
+      "parentCol": "id",
+      "description": "文章标签关系",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "kb_article_tag_rel",
+      "childCol": "tag_id",
+      "parent": "kb_article_tag",
+      "parentCol": "id",
+      "description": "文章标签关系",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "kb_article_tag_rel",
+      "childCol": "tagged_by",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "文章标签关系",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "legal_compliance_check",
+      "childCol": "owner_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "合规检查",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "legal_contract",
+      "childCol": "customer_id",
+      "parent": "crm_customer",
+      "parentCol": "id",
+      "description": "法务合同台账",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "legal_contract",
+      "childCol": "owner_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "法务合同台账",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "legal_contract",
+      "childCol": "vendor_id",
+      "parent": "fin_vendor",
+      "parentCol": "id",
+      "description": "法务合同台账",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "legal_contract_clause",
+      "childCol": "contract_id",
+      "parent": "legal_contract",
+      "parentCol": "id",
+      "description": "合同关键条款",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "legal_dispute",
+      "childCol": "contract_id",
+      "parent": "legal_contract",
+      "parentCol": "id",
+      "description": "诉讼/争议案件",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "mkt_campaign",
+      "childCol": "owner_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "市场活动",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "mkt_campaign_lead",
+      "childCol": "camp_id",
+      "parent": "mkt_campaign",
+      "parentCol": "id",
+      "description": "活动获客线索",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "mkt_campaign_lead",
+      "childCol": "lead_id",
+      "parent": "crm_lead",
+      "parentCol": "id",
+      "description": "活动获客线索",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "mkt_content",
+      "childCol": "author_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "内容素材",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "mkt_event_reg",
+      "childCol": "camp_id",
+      "parent": "mkt_campaign",
+      "parentCol": "id",
+      "description": "活动报名",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "ops_backup_job",
+      "childCol": "system_id",
+      "parent": "itm_system",
+      "parentCol": "id",
+      "description": "备份任务",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "ops_duty_roster",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "值班排班",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "ops_duty_roster",
+      "childCol": "system_id",
+      "parent": "itm_system",
+      "parentCol": "id",
+      "description": "值班排班",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "ops_monitor_alert",
+      "childCol": "acked_by",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "监控告警",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "ops_monitor_alert",
+      "childCol": "system_id",
+      "parent": "itm_system",
+      "parentCol": "id",
+      "description": "监控告警",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "ops_runbook",
+      "childCol": "owner_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "运维手册",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "ops_runbook",
+      "childCol": "system_id",
+      "parent": "itm_system",
+      "parentCol": "id",
+      "description": "运维手册",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "org_announcement",
+      "childCol": "publisher_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "内部公告",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "org_biz_unit",
+      "childCol": "leader_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "业务单元",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "org_cost_center",
+      "childCol": "dept_id",
+      "parent": "org_department",
+      "parentCol": "id",
+      "description": "成本中心",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "org_cost_center",
+      "childCol": "owner_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "成本中心",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "org_dept_change",
+      "childCol": "dept_id",
+      "parent": "org_department",
+      "parentCol": "id",
+      "description": "部门变更记录",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "org_dept_change",
+      "childCol": "operator_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "部门变更记录",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "org_dept_closure",
+      "childCol": "ancestor_id",
+      "parent": "org_department",
+      "parentCol": "id",
+      "description": "部门闭包表（祖先-后代）",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "org_dept_closure",
+      "childCol": "descendant_id",
+      "parent": "org_department",
+      "parentCol": "id",
+      "description": "部门闭包表（祖先-后代）",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "org_office",
+      "childCol": "company_id",
+      "parent": "org_company",
+      "parentCol": "id",
+      "description": "办公职场",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "org_position",
+      "childCol": "dept_id",
+      "parent": "org_department",
+      "parentCol": "id",
+      "description": "岗位编制",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "org_position",
+      "childCol": "job_level_id",
+      "parent": "hr_job_level",
+      "parentCol": "id",
+      "description": "岗位编制",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "org_seal",
+      "childCol": "company_id",
+      "parent": "org_company",
+      "parentCol": "id",
+      "description": "公司印章台账",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "org_seal",
+      "childCol": "keeper_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "公司印章台账",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "prd_feature",
+      "childCol": "product_id",
+      "parent": "prd_product",
+      "parentCol": "id",
+      "description": "产品功能点",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "prd_license",
+      "childCol": "customer_id",
+      "parent": "crm_customer",
+      "parentCol": "id",
+      "description": "产品授权许可",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "prd_license",
+      "childCol": "product_id",
+      "parent": "prd_product",
+      "parentCol": "id",
+      "description": "产品授权许可",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "prd_product_line",
+      "childCol": "owner_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "产品线",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "prd_product_version",
+      "childCol": "product_id",
+      "parent": "prd_product",
+      "parentCol": "id",
+      "description": "产品版本",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "prd_roadmap",
+      "childCol": "product_id",
+      "parent": "prd_product",
+      "parentCol": "id",
+      "description": "产品路线图项",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "prj_acceptance",
+      "childCol": "project_id",
+      "parent": "prj_project",
+      "parentCol": "id",
+      "description": "项目验收",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "prj_change_request",
+      "childCol": "project_id",
+      "parent": "prj_project",
+      "parentCol": "id",
+      "description": "项目变更申请",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "prj_change_request",
+      "childCol": "requester_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "项目变更申请",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "prj_document",
+      "childCol": "project_id",
+      "parent": "prj_project",
+      "parentCol": "id",
+      "description": "项目文档索引",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "prj_document",
+      "childCol": "uploader_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "项目文档索引",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "prj_issue",
+      "childCol": "assignee_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "项目问题单",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "prj_issue",
+      "childCol": "project_id",
+      "parent": "prj_project",
+      "parentCol": "id",
+      "description": "项目问题单",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "prj_issue",
+      "childCol": "reporter_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "项目问题单",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "prj_milestone",
+      "childCol": "project_id",
+      "parent": "prj_project",
+      "parentCol": "id",
+      "description": "项目里程碑",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "prj_risk",
+      "childCol": "owner_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "项目风险",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "prj_risk",
+      "childCol": "project_id",
+      "parent": "prj_project",
+      "parentCol": "id",
+      "description": "项目风险",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "prj_stakeholder",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "项目干系人",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "prj_stakeholder",
+      "childCol": "project_id",
+      "parent": "prj_project",
+      "parentCol": "id",
+      "description": "项目干系人",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "prj_task",
+      "childCol": "assignee_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "项目任务",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "prj_task",
+      "childCol": "project_id",
+      "parent": "prj_project",
+      "parentCol": "id",
+      "description": "项目任务",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "prj_warranty",
+      "childCol": "project_id",
+      "parent": "prj_project",
+      "parentCol": "id",
+      "description": "项目质保",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "prj_weekly_report",
+      "childCol": "author_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "项目周报",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "prj_weekly_report",
+      "childCol": "project_id",
+      "parent": "prj_project",
+      "parentCol": "id",
+      "description": "项目周报",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "qa_defect",
+      "childCol": "assignee_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "缺陷",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "qa_defect",
+      "childCol": "product_id",
+      "parent": "prd_product",
+      "parentCol": "id",
+      "description": "缺陷",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "qa_defect",
+      "childCol": "project_id",
+      "parent": "prj_project",
+      "parentCol": "id",
+      "description": "缺陷",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "qa_defect",
+      "childCol": "reporter_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "缺陷",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "qa_release_gate",
+      "childCol": "checked_by",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "发布门禁检查",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "qa_release_gate",
+      "childCol": "system_id",
+      "parent": "itm_system",
+      "parentCol": "id",
+      "description": "发布门禁检查",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "qa_test_case",
+      "childCol": "plan_id",
+      "parent": "qa_test_plan",
+      "parentCol": "id",
+      "description": "测试用例",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "qa_test_plan",
+      "childCol": "owner_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "测试计划",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "qa_test_plan",
+      "childCol": "product_id",
+      "parent": "prd_product",
+      "parentCol": "id",
+      "description": "测试计划",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "qa_test_plan",
+      "childCol": "project_id",
+      "parent": "prj_project",
+      "parentCol": "id",
+      "description": "测试计划",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "sal_commission",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "销售提成明细",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "sal_commission",
+      "childCol": "order_id",
+      "parent": "sal_sales_order",
+      "parentCol": "id",
+      "description": "销售提成明细",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "sal_commission_rule",
+      "childCol": "product_id",
+      "parent": "prd_product",
+      "parentCol": "id",
+      "description": "销售提成规则",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "sal_contract",
+      "childCol": "customer_id",
+      "parent": "crm_customer",
+      "parentCol": "id",
+      "description": "销售合同",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "sal_contract",
+      "childCol": "order_id",
+      "parent": "sal_sales_order",
+      "parentCol": "id",
+      "description": "销售合同",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "sal_contract",
+      "childCol": "owner_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "销售合同",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "sal_contract_milestone",
+      "childCol": "contract_id",
+      "parent": "sal_contract",
+      "parentCol": "id",
+      "description": "合同里程碑收款",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "sal_delivery",
+      "childCol": "order_id",
+      "parent": "sal_sales_order",
+      "parentCol": "id",
+      "description": "发货/交付单",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "sal_delivery_item",
+      "childCol": "delivery_id",
+      "parent": "sal_delivery",
+      "parentCol": "id",
+      "description": "交付明细",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "sal_delivery_item",
+      "childCol": "product_id",
+      "parent": "prd_product",
+      "parentCol": "id",
+      "description": "交付明细",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "sal_price_list_item",
+      "childCol": "plist_id",
+      "parent": "sal_price_list",
+      "parentCol": "id",
+      "description": "价格表明细",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "sal_price_list_item",
+      "childCol": "product_id",
+      "parent": "prd_product",
+      "parentCol": "id",
+      "description": "价格表明细",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "sal_quote",
+      "childCol": "customer_id",
+      "parent": "crm_customer",
+      "parentCol": "id",
+      "description": "销售报价单",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "sal_quote",
+      "childCol": "owner_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "销售报价单",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "sal_quote_item",
+      "childCol": "product_id",
+      "parent": "prd_product",
+      "parentCol": "id",
+      "description": "报价明细",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "sal_quote_item",
+      "childCol": "quote_id",
+      "parent": "sal_quote",
+      "parentCol": "id",
+      "description": "报价明细",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "sal_return",
+      "childCol": "order_id",
+      "parent": "sal_sales_order",
+      "parentCol": "id",
+      "description": "退货单",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "sal_target",
+      "childCol": "dept_id",
+      "parent": "org_department",
+      "parentCol": "id",
+      "description": "销售目标",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "sal_target",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "销售目标",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "scm_inventory",
+      "childCol": "warehouse_id",
+      "parent": "scm_warehouse",
+      "parentCol": "id",
+      "description": "库存台账",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "scm_inventory_txn",
+      "childCol": "warehouse_id",
+      "parent": "scm_warehouse",
+      "parentCol": "id",
+      "description": "库存流水",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "scm_purchase_order",
+      "childCol": "buyer_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "采购订单",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "scm_purchase_order",
+      "childCol": "req_id",
+      "parent": "scm_purchase_req",
+      "parentCol": "id",
+      "description": "采购订单",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "scm_purchase_order",
+      "childCol": "vendor_id",
+      "parent": "fin_vendor",
+      "parentCol": "id",
+      "description": "采购订单",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "scm_purchase_order_item",
+      "childCol": "po_id",
+      "parent": "scm_purchase_order",
+      "parentCol": "id",
+      "description": "采购订单明细",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "scm_purchase_req",
+      "childCol": "applicant_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "采购申请",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "scm_purchase_req",
+      "childCol": "dept_id",
+      "parent": "org_department",
+      "parentCol": "id",
+      "description": "采购申请",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "scm_purchase_req_item",
+      "childCol": "req_id",
+      "parent": "scm_purchase_req",
+      "parentCol": "id",
+      "description": "采购申请明细",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "scm_receipt",
+      "childCol": "po_id",
+      "parent": "scm_purchase_order",
+      "parentCol": "id",
+      "description": "采购入库单",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "scm_receipt",
+      "childCol": "warehouse_id",
+      "parent": "scm_warehouse",
+      "parentCol": "id",
+      "description": "采购入库单",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "scm_vendor_eval",
+      "childCol": "evaluator_emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "供应商评价",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "scm_vendor_eval",
+      "childCol": "vendor_id",
+      "parent": "fin_vendor",
+      "parentCol": "id",
+      "description": "供应商评价",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "scm_warehouse",
+      "childCol": "office_id",
+      "parent": "org_office",
+      "parentCol": "id",
+      "description": "仓库",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "sec_audit_log",
+      "childCol": "emp_id",
+      "parent": "hr_employee",
+      "parentCol": "id",
+      "description": "安全审计日志",
+      "coreChild": false,
+      "coreParent": true
+    },
+    {
+      "child": "sec_audit_log",
+      "childCol": "system_id",
+      "parent": "itm_system",
+      "parentCol": "id",
+      "description": "安全审计日志",
+      "coreChild": false,
+      "coreParent": false
+    },
+    {
+      "child": "sec_vulnerability",
+      "childCol": "system_id",
+      "parent": "itm_system",
+      "parentCol": "id",
+      "description": "漏洞台账",
+      "coreChild": false,
+      "coreParent": false
+    }
+  ]
+}

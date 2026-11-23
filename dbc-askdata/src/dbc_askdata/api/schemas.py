@@ -94,6 +94,17 @@ class WorkflowSaveRequest(BaseModel):
     description: str | None = None
     nodes_json: dict[str, Any] = Field(..., alias="nodesJson")
     draft_id: int | None = Field(default=None, alias="draftId")
+    session_id: int | None = Field(default=None, alias="sessionId")
+
+    model_config = {"populate_by_name": True}
+
+
+class RunFeedbackRequest(BaseModel):
+    """画布：有用 / 无用 / 保存记忆。"""
+
+    action: str = Field(..., description="useful | useless | memory")
+    session_id: int | None = Field(default=None, alias="sessionId")
+    question: str | None = None
 
     model_config = {"populate_by_name": True}
 
@@ -101,6 +112,17 @@ class WorkflowSaveRequest(BaseModel):
 class RunStartRequest(BaseModel):
     workflow_id: int = Field(..., alias="workflowId")
     session_id: int | None = Field(default=None, alias="sessionId")
+
+    model_config = {"populate_by_name": True}
+
+
+class ConfirmSqlCorrectRequest(BaseModel):
+    """执行成功后用户确认 SQL 正确：写入样本 + 问句知识草稿。"""
+
+    run_id: int = Field(..., alias="runId")
+    session_id: int = Field(..., alias="sessionId")
+    question: str | None = Field(default=None, description="用户原问句；空则取会话最近一条 user")
+    hitl_resolution: dict[str, Any] | None = Field(default=None, alias="hitlResolution")
 
     model_config = {"populate_by_name": True}
 

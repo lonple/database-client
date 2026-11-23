@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DBC · 智能问数 · 测评空间</title>
+  <link rel="stylesheet" href="common.css" />
+  <style>
+    .ad-bar {
+      display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+      padding: 10px 16px; background: #fff; border-bottom: 1px solid var(--border);
+    }
+    .ad-bar .spacer { flex: 1; }
+    .ad-body { flex: 1; display: flex; min-height: 0; }
+    .ad-side {
+      width: 280px; background: #fafafa; border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; flex-shrink: 0;
+    }
+    .ad-side-hd {
+      padding: 12px 14px; border-bottom: 1px solid var(--border);
+      font-weight: 500; background: #fff;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .ad-tree { flex: 1; overflow: auto; padding: 8px 0; font-size: 13px; }
+    .proj-item {
+      margin: 2px 6px; padding: 10px 12px; border-radius: 6px; cursor: pointer;
+      border: 1px solid transparent;
+    }
+    .proj-item:hover { background: #00000008; }
+    .proj-item.active { background: #e6f4ff; border-color: #91caff; }
+    .proj-item .t { font-weight: 600; }
+    .proj-item .d { margin-top: 4px; font-size: 12px; color: var(--text-secondary); line-height: 1.4; }
+    .proj-item .meta { margin-top: 6px; font-size: 11px; color: var(--text-secondary); }
+    .ad-main { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg); }
+    .ad-panel-hd {
+      padding: 10px 16px; background: #fff; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+    }
+    .ad-panel-hd h3 { margin: 0; font-size: 15px; }
+    .ad-panel-hd .sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+    .toolbar {
+      padding: 10px 16px; background: #fff; border-bottom: 1px solid var(--border);
+      display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    }
+    .case-body { flex: 1; overflow: auto; padding: 12px 16px; }
+    table.cases { width: 100%; border-collapse: collapse; background: #fff; font-size: 13px; }
+    table.cases th, table.cases td {
+      border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top;
+    }
+    table.cases th { background: #fafafa; font-weight: 600; }
+    .tag-board { background: #e6f4ff; color: #1677ff; }
+    .tag-hitl { background: #fffbe6; color: #ad6800; }
+    .tag-refuse { background: #fff2f0; color: #cf1322; }
+    .tag-tpl { background: #f5f5f5; color: #595959; }
+    .tag-custom { background: #f6ffed; color: #389e0d; }
+    .modal-mask {
+      display: none; position: fixed; inset: 0; background: #00000059; z-index: 50;
+      align-items: center; justify-content: center;
+    }
+    .modal-mask.show { display: flex; }
+    .modal { background: #fff; border-radius: 8px; width: min(560px, 94vw); max-height: 90vh; overflow: auto; }
+    .modal-hd {
+      padding: 12px 16px; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center; font-weight: 600;
+    }
+    .modal-bd { padding: 16px; }
+    .modal-ft { padding: 12px 16px; border-top: 1px solid var(--border); text-align: right; }
+    .field { margin-bottom: 12px; }
+    .field label { display: block; margin-bottom: 4px; font-size: 13px; }
+    .req { color: #cf1322; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="logo">DBC</div>
+      <nav class="nav-l1-group" aria-label="一级菜单">
+        <a class="nav-l1-item" href="index.html">首页</a>
+        <a class="nav-l1-item" href="SQL工作台.html">SQL 工作台</a>
+        <a class="nav-l1-item active" href="智能问数.html">智能问数</a>
+        <a class="nav-l1-item" href="工作空间.html">资产管理</a>
+        <a class="nav-l1-item" href="用户管理.html">用户中心</a>
+      </nav>
+      <div class="header-right">
+        <span>alice</span>
+        <a class="btn" href="登录.html">退出</a>
+      </div>
+    </header>
+
+    <div class="ad-bar">
+      <label>工作空间</label>
+      <select class="select" style="width:220px" onchange="if(this.value==='') location.href='智能问数.html'">
+        <option selected>订单项目-研发</option>
+        <option>报表只读空间</option>
+        <option value="">切换 / 重选…</option>
+      </select>
+      <span class="tag" style="margin-left:4px">测评空间</span>
+      <a class="btn" href="智能问数-工作台.html" style="margin-left:8px">切到问数工作台</a>
+      <div class="spacer"></div>
+      <a class="btn btn-primary" href="智能问数-测评任务.html">测评任务管理</a>
+    </div>
+
+    <div class="ad-body">
+      <aside class="ad-side">
+        <div class="ad-side-hd">
+          <span>测评工程</span>
+          <button type="button" class="btn btn-primary" style="height:28px;padding:0 10px;font-size:12px" id="btnNew">新建</button>
+        </div>
+        <div class="ad-tree" id="projList">
+          <div class="proj-item active" data-id="p1">
+            <div class="t">company 运维回归</div>
+            <div class="d">引用模板「IT 公司运维问数 v1」</div>
+            <div class="meta">来源 pg-company · work pg-ask-work</div>
+          </div>
+          <div class="proj-item" data-id="p2">
+            <div class="t">财务对账专项</div>
+            <div class="d">引用模板 + 自定义 12 条</div>
+            <div class="meta">来源 pg-company · work pg-ask-work</div>
+          </div>
+        </div>
+      </aside>
+
+      <section class="ad-main">
+        <div class="ad-panel-hd">
+          <div>
+            <h3 id="title">company 运维回归 · 用例</h3>
+            <div class="sub">模板引用即时生效 · 勾选后可创建测评任务 · 治理类含看板 50% / 补全 30% / 不补全 20%</div>
+          </div>
+          <button type="button" class="btn btn-link danger" id="btnDelProj">删除工程</button>
+        </div>
+        <div class="toolbar">
+          <select class="select" style="width:180px" id="fltCat">
+            <option value="">全部分类</option>
+            <option>单表条件</option>
+            <option>多表关联条件</option>
+            <option>多表治理条件</option>
+            <option>单表统计</option>
+            <option>多表关联统计</option>
+            <option>多表治理统计</option>
+          </select>
+          <select class="select" style="width:160px">
+            <option value="">全部来源</option>
+            <option>模板引用</option>
+            <option>工程自定义</option>
+          </select>
+          <button type="button" class="btn" id="btnCustom">新建自定义用例</button>
+          <div style="flex:1"></div>
+          <span style="font-size:12px;color:var(--text-secondary)">已选 <strong id="selN">0</strong> 条</span>
+          <button type="button" class="btn btn-primary" id="btnTask" disabled>创建测评任务</button>
+        </div>
+        <div class="case-body">
+          <table class="cases">
+            <thead>
+              <tr>
+                <th style="width:36px"><input type="checkbox" id="chkAll" /></th>
+                <th style="width:140px">case_key</th>
+                <th>问题</th>
+                <th style="width:100px">分类</th>
+                <th style="width:110px">治理子类</th>
+                <th style="width:90px">验证</th>
+                <th style="width:72px">来源</th>
+              </tr>
+            </thead>
+            <tbody id="caseTb">
+              <tr>
+                <td><input type="checkbox" class="ck" /></td>
+                <td>TPL_SF_001</td>
+                <td>查询工号 E240012 的在职状态与所属部门名称</td>
+                <td>单表条件</td>
+                <td>—</td>
+                <td>key_set</td>
+                <td><span class="tag tag-tpl">模板</span></td>
+              </tr>
+              <tr>
+                <td><input type="checkbox" class="ck" /></td>
+                <td>TPL_MJ_014</td>
+                <td>列出项目 PRJ2024003 的成员姓名与角色</td>
+                <td>多表关联条件</td>
+                <td>—</td>
+                <td>order_by</td>
+                <td><span class="tag tag-tpl">模板</span></td>
+              </tr>
+              <tr>
+                <td><input type="checkbox" class="ck" /></td>
+                <td>TPL_GOV_B_003</td>
+                <td>按部门统计 2025 年已报销且已付款的金额合计（看板口径）</td>
+                <td>多表治理统计</td>
+                <td><span class="tag tag-board">看板 50%</span></td>
+                <td>order_by</td>
+                <td><span class="tag tag-tpl">模板</span></td>
+              </tr>
+              <tr>
+                <td><input type="checkbox" class="ck" /></td>
+                <td>TPL_GOV_H_011</td>
+                <td>帮我看下「活跃」客户上季度贡献（语义不足，需补「活跃」定义）</td>
+                <td>多表治理统计</td>
+                <td><span class="tag tag-hitl">中断补全</span></td>
+                <td>key_set</td>
+                <td><span class="tag tag-tpl">模板</span></td>
+              </tr>
+              <tr>
+                <td><input type="checkbox" class="ck" /></td>
+                <td>TPL_GOV_R_007</td>
+                <td>统计异常订单金额（未说明何为异常，且不补全）</td>
+                <td>多表治理条件</td>
+                <td><span class="tag tag-refuse">中断不补全</span></td>
+                <td>empty_or_refuse</td>
+                <td><span class="tag tag-tpl">模板</span></td>
+              </tr>
+              <tr>
+                <td><input type="checkbox" class="ck" /></td>
+                <td>PJ_FIN_002</td>
+                <td>报销单 RB20250300012 头表金额与明细合计是否一致</td>
+                <td>多表关联条件</td>
+                <td>—</td>
+                <td>scalar</td>
+                <td><span class="tag tag-custom">自定义</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- 新建测评工程 -->
+  <div class="modal-mask" id="modalProj">
+    <div class="modal">
+      <div class="modal-hd">
+        <span>新建测评工程</span>
+        <button type="button" class="btn" data-close="modalProj">关闭</button>
+      </div>
+      <div class="modal-bd">
+        <div class="field">
+          <label>工程名称 <span class="req">*</span></label>
+          <input class="input" id="epName" placeholder="例如：company 运维回归" />
+        </div>
+        <div class="field">
+          <label>测评模板 <span class="req">*</span></label>
+          <select class="select" id="epTpl">
+            <option value="">请选择（引用，非复制）</option>
+            <option value="t1">IT 公司运维问数 v1</option>
+            <option value="t2">财务对账子集 v1</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>备注</label>
+          <textarea class="textarea" placeholder="可选"></textarea>
+        </div>
+        <div class="field">
+          <label>数据来源连接 <span class="req">*</span></label>
+          <select class="select">
+            <option value="">请选择</option>
+            <option>pg-company · POSTGRESQL · schema company</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>工作连接 <span class="req">*</span></label>
+          <select class="select">
+            <option value="">请选择（临时表与结果落库）</option>
+            <option>pg-ask-work · POSTGRESQL</option>
+          </select>
+          <p class="note" style="margin:8px 0 0">与问数工程相同：来源用于探测/查询，工作连接落临时表与结果。</p>
+        </div>
+      </div>
+      <div class="modal-ft">
+        <button type="button" class="btn" data-close="modalProj">取消</button>
+        <button type="button" class="btn btn-primary" id="btnSaveProj">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 自定义用例 -->
+  <div class="modal-mask" id="modalCase">
+    <div class="modal" style="width:min(640px,94vw)">
+      <div class="modal-hd">
+        <span>新建自定义测评用例</span>
+        <button type="button" class="btn" data-close="modalCase">关闭</button>
+      </div>
+      <div class="modal-bd">
+        <div class="field">
+          <label>case_key <span class="req">*</span></label>
+          <input class="input" placeholder="工程内唯一，如 PJ_HR_001" />
+        </div>
+        <div class="field">
+          <label>问题 <span class="req">*</span></label>
+          <textarea class="textarea" style="height:64px" placeholder="自然语言问题"></textarea>
+        </div>
+        <div class="field">
+          <label>期望 SQL</label>
+          <textarea class="textarea" style="height:88px;font-family:ui-monospace,monospace" placeholder="金标 SQL；中断不补全类可留空"></textarea>
+        </div>
+        <div class="field" style="display:flex;gap:12px">
+          <div style="flex:1">
+            <label>分类 <span class="req">*</span></label>
+            <select class="select">
+              <option>单表条件</option>
+              <option>多表关联条件</option>
+              <option>多表治理条件</option>
+              <option>单表统计</option>
+              <option>多表关联统计</option>
+              <option>多表治理统计</option>
+            </select>
+          </div>
+          <div style="flex:1">
+            <label>治理子类</label>
+            <select class="select" id="govSub">
+              <option value="">（非治理类）</option>
+              <option value="BOARD">复杂治理（看板）</option>
+              <option value="HITL">中断补全</option>
+              <option value="REFUSE">中断不补全</option>
+            </select>
+          </div>
+        </div>
+        <div class="field" style="display:flex;gap:12px">
+          <div style="flex:1">
+            <label>验证逻辑 <span class="req">*</span></label>
+            <select class="select" id="cmpMode">
+              <option value="key_set">key_set（指定主键集合）</option>
+              <option value="order_by">order_by（指定排序逐行）</option>
+              <option value="scalar">scalar</option>
+              <option value="empty_or_refuse">empty_or_refuse</option>
+            </select>
+          </div>
+          <div style="flex:1">
+            <label>比对键 / 排序列</label>
+            <input class="input" placeholder="如 emp_no 或 dept_name,amount" />
+          </div>
+        </div>
+        <div class="field" id="hitlBox" style="display:none">
+          <label>HITL 补充话术（按轮次，写死）</label>
+          <textarea class="textarea" style="height:72px" placeholder="每行一轮，例如：&#10;活跃=近 90 天有成交的客户&#10;只要华东区域"></textarea>
+        </div>
+      </div>
+      <div class="modal-ft">
+        <button type="button" class="btn" data-close="modalCase">取消</button>
+        <button type="button" class="btn btn-primary">保存用例</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 创建任务 -->
+  <div class="modal-mask" id="modalTask">
+    <div class="modal">
+      <div class="modal-hd">
+        <span>创建测评任务</span>
+        <button type="button" class="btn" data-close="modalTask">关闭</button>
+      </div>
+      <div class="modal-bd">
+        <p style="margin:0 0 12px;font-size:13px;color:var(--text-secondary)">将把当前勾选的 <strong id="taskN">0</strong> 条用例快照写入任务；之后改用例不影响本任务历史。</p>
+        <div class="field">
+          <label>任务名称</label>
+          <input class="input" value="回归-2026-10-02-下午" />
+        </div>
+      </div>
+      <div class="modal-ft">
+        <button type="button" class="btn" data-close="modalTask">取消</button>
+        <a class="btn btn-primary" href="智能问数-测评任务详情.html">创建并开始</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function syncSel() {
+      const n = document.querySelectorAll('.ck:checked').length
+      document.getElementById('selN').textContent = n
+      document.getElementById('taskN').textContent = n
+      document.getElementById('btnTask').disabled = n === 0
+    }
+    document.querySelectorAll('.ck').forEach(c => c.addEventListener('change', syncSel))
+    document.getElementById('chkAll').addEventListener('change', function () {
+      document.querySelectorAll('.ck').forEach(c => { c.checked = this.checked })
+      syncSel()
+    })
+    document.querySelectorAll('.proj-item').forEach(el => {
+      el.addEventListener('click', () => {
+        document.querySelectorAll('.proj-item').forEach(x => x.classList.remove('active'))
+        el.classList.add('active')
+        document.getElementById('title').textContent = el.querySelector('.t').textContent + ' · 用例'
+      })
+    })
+    document.getElementById('btnNew').onclick = () => document.getElementById('modalProj').classList.add('show')
+    document.getElementById('btnCustom').onclick = () => document.getElementById('modalCase').classList.add('show')
+    document.getElementById('btnTask').onclick = () => document.getElementById('modalTask').classList.add('show')
+    document.getElementById('btnDelProj').onclick = () => {
+      if (confirm('确定删除当前测评工程？自定义用例将删除；模板用例仅解除引用。')) alert('原型：已删除')
+    }
+    document.getElementById('btnSaveProj').onclick = () => {
+      if (!document.getElementById('epName').value || !document.getElementById('epTpl').value) {
+        alert('请填写名称并选择模板'); return
+      }
+      document.getElementById('modalProj').classList.remove('show')
+      alert('原型：工程已创建（引用模板）')
+    }
+    document.getElementById('govSub').addEventListener('change', function () {
+      document.getElementById('hitlBox').style.display = this.value === 'HITL' ? 'block' : 'none'
+      if (this.value === 'REFUSE') document.getElementById('cmpMode').value = 'empty_or_refuse'
+    })
+    document.querySelectorAll('[data-close]').forEach(btn => {
+      btn.addEventListener('click', () => document.getElementById(btn.getAttribute('data-close')).classList.remove('show'))
+    })
+  </script>
+</body>
+</html>

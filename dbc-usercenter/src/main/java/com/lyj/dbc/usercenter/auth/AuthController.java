@@ -5,6 +5,8 @@ import com.lyj.dbc.usercenter.auth.dto.LoginResponse;
 import com.lyj.dbc.usercenter.auth.vo.DataScopeVO;
 import com.lyj.dbc.usercenter.common.ApiResponse;
 import com.lyj.dbc.usercenter.user.vo.UserVO;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,8 +31,17 @@ public class AuthController {
      * 登录。
      */
     @PostMapping("/login")
-    public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
-        return ApiResponse.ok(authService.login(request));
+    public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest request,
+                                            HttpServletResponse response) {
+        return ApiResponse.ok(authService.login(request, response));
+    }
+
+    /**
+     * 刷新 access（凭 refresh Cookie + CSRF）。
+     */
+    @PostMapping("/refresh")
+    public ApiResponse<LoginResponse> refresh(HttpServletRequest request, HttpServletResponse response) {
+        return ApiResponse.ok(authService.refresh(request, response));
     }
 
     /**
@@ -50,11 +61,11 @@ public class AuthController {
     }
 
     /**
-     * 退出登录（记审计；客户端清 Token）。
+     * 退出登录。
      */
     @PostMapping("/logout")
-    public ApiResponse<Void> logout() {
-        authService.logout();
+    public ApiResponse<Void> logout(HttpServletRequest request, HttpServletResponse response) {
+        authService.logout(request, response);
         return ApiResponse.ok();
     }
 }

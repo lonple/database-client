@@ -9,41 +9,24 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
-import java.util.Date;
-import java.util.stream.Collectors;
 
 /**
- * 用户 JWT 签发与解析；密钥来自 secrets/jwt-secret.txt（与 usercenter 共用）。
+ * 用户 JWT 解析；密钥来自 secrets/jwt-secret.txt（与 usercenter 共用）。
  */
 @Component
 public class JwtService {
 
-    private final JwtProperties properties;
-    private final SecretKey key;
+    public static final String TYP_ACCESS = "access";
 
-    public JwtService(JwtProperties properties, SecretFileStore secretFileStore) {
-        this.properties = properties;
+    private final SecretKey key;
+    private final JwtDenyListService denyListService;
+
+    public JwtService(JwtProperties properties, SecretFileStore secretFileStore,
+                      JwtDenyListService denyListService) {
+        this.denyListService = denyListService;
         String secret = secretFileStore.readOrCreate(SecretFileStore.FILE_JWT, 48);
         properties.setSecret(secret);
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
-    }
-
-    public String createToken(LoginUser user) {
-        Instant now = Instant.now();
-        Instant exp = now.plus(properties.getExpireHours(), ChronoUnit.HOURS);
-        String roleCodes = user.getRoleCodes() == null ? "" :
-                user.getRoleCodes().stream().collect(Collectors.joining(","));
-        return Jwts.builder()
-                .subject(String.valueOf(user.getUserId()))
-                .claim("username", user.getUsername())
-                .claim("roleCodes", roleCodes)
-                .claim("roleCode", roleCodes.contains(",") ? roleCodes.split(",")[0] : roleCodes)
-                .issuedAt(Date.from(now))
-                .expiration(Date.from(exp))
-                .signWith(key)
-                .compact();
     }
 
     public LoginUser parse(String token) {
@@ -52,6 +35,12 @@ public class JwtService {
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
+        if (!TYP_ACCESS.equals(claims.get("typ", String.class))) {
+            throw new IllegalArgumentException("令牌类型不匹配");
+        }
+        if (denyListService.isDenied(claims.getId())) {
+            throw new IllegalArgumentException("令牌已失效");
+        }
         String roleCodes = claims.get("roleCodes", String.class);
         if (roleCodes == null || roleCodes.isBlank()) {
             roleCodes = claims.get("roleCode", String.class);
@@ -61,9 +50,5 @@ public class JwtService {
                 claims.get("username", String.class),
                 roleCodes
         );
-    }
-
-    public long expireSeconds() {
-        return properties.getExpireHours() * 3600;
     }
 }

@@ -1,23 +1,69 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
-from typing import Any, Awaitable, Callable
+from typing import Any, Protocol
 
 from dbc_askdata.clients.sqlwork import SqlworkClient
 from dbc_askdata.config import Settings
 from dbc_askdata.llm.client import LlmClient
+from dbc_askdata.verify.condition_match import accept_sql_literal
 from dbc_askdata.verify.semantic import (
-    check_eq_literals_against_profiles,
     check_eq_projection,
+    ensure_eq_projection_in_select,
+    ensure_group_by_cols_in_select,
+    iter_eq_literal_jobs,
+    rewrite_use_key_literals,
     store_profile,
 )
 from dbc_askdata.verify.service import VerifyResult, explain_check, static_check
 
 log = logging.getLogger(__name__)
 
-ProfileFetcher = Callable[[str, str], Awaitable[dict[str, Any] | None]]
+
+class ProfileFetcher(Protocol):
+    async def __call__(
+        self,
+        table: str,
+        column: str,
+        condition_value: str | None = None,
+    ) -> dict[str, Any] | None: ...
+
+
+async def verify_sql(
+    *,
+    sqlwork: SqlworkClient | None,
+    sql: str,
+    workspace_id: int | None = None,
+    connection_id: int | None = None,
+    database: str | None = None,
+    schema: str | None = None,
+    use_explain: bool = True,
+    column_profiles: dict[str, Any] | None = None,
+    fetch_profile: ProfileFetcher | None = None,
+    explain_sql: str | None = None,
+) -> VerifyResult:
+    """静态 + 语义（等值投影/枚举画像）+ 可选 EXPLAIN；不内联盲修。
+
+    生成图在失败时应把 SQL+错误回传 build（带工具重写），而非本函数内猜改。
+    explain_sql：兼容旧多节点草稿时可将上游占位展开后的 SQL 仅用于 EXPLAIN，草稿仍保留 sql。
+    """
+    # 原地写入，便于调用方跨节点复用已拉取的列画像
+    profiles: dict[str, Any] = column_profiles if column_profiles is not None else {}
+    return await _full_check(
+        (sql or "").strip(),
+        sqlwork=sqlwork,
+        workspace_id=workspace_id,
+        connection_id=connection_id,
+        database=database,
+        schema=schema,
+        use_explain=use_explain,
+        profiles=profiles,
+        fetch_profile=fetch_profile,
+        explain_sql=(explain_sql or "").strip() or None,
+    )
 
 
 async def verify_and_repair(
@@ -35,24 +81,21 @@ async def verify_and_repair(
     column_profiles: dict[str, Any] | None = None,
     fetch_profile: ProfileFetcher | None = None,
 ) -> VerifyResult:
-    """静态 + 语义（等值投影/枚举画像）+ 可选 EXPLAIN；失败则 LLM 修复。"""
+    """静态校验；失败则无工具 LLM 盲修（遗留，生成主路径请用 verify_sql + 回生成）。"""
     profiles: dict[str, Any] = dict(column_profiles or {})
     current = sql.strip()
-    last = await _full_check(
-        current,
+    last = await verify_sql(
         sqlwork=sqlwork,
+        sql=current,
         workspace_id=workspace_id,
         connection_id=connection_id,
         database=database,
         schema=schema,
         use_explain=use_explain,
-        profiles=profiles,
+        column_profiles=profiles,
         fetch_profile=fetch_profile,
     )
     if last.ok:
-        return last
-    if last.needs_hitl and last.code == "EQ_LITERAL_NOT_IN_PROFILE":
-        # 画像已证实码值不对：优先 HITL，不再盲目猜码修复
         return last
 
     for round_i in range(settings.verify_max_repair_rounds):
@@ -61,9 +104,8 @@ async def verify_and_repair(
             f"当前 SQL：\n{current}\n\n"
             f"校验错误：{last.message}\n"
             "修复要求：\n"
-            "1) 若为明细查询（无聚合、无 GROUP BY），最外层 WHERE 的等值（=/IN）过滤列必须出现在 SELECT 投影中；"
-            "范围条件（LIKE/BETWEEN/</>）列不必投影。\n"
-            "2) WHERE 离散码值必须来自列画像 value_counts，禁止用用户口语或臆造值。\n"
+            "1) 按校验错误改正 SQL。WHERE 等值/IN 条件须符合 get_column_profile 的 "
+            "use_literal/use_key/follow_fk 等判定；格式不一致时换列或跟外键，字典列用 key。\n"
             "请输出修复后的单条只读 SELECT/WITH SQL，不要解释，不要 Markdown。"
         )
         try:
@@ -78,27 +120,24 @@ async def verify_and_repair(
                 last = VerifyResult(False, "修复结果为空")
                 continue
             current = repaired
-            last = await _full_check(
-                current,
+            last = await verify_sql(
                 sqlwork=sqlwork,
+                sql=current,
                 workspace_id=workspace_id,
                 connection_id=connection_id,
                 database=database,
                 schema=schema,
                 use_explain=use_explain,
-                profiles=profiles,
+                column_profiles=profiles,
                 fetch_profile=fetch_profile,
             )
             if last.ok:
                 log.info("SQL 修复成功 round=%s", round_i + 1)
                 return last
-            if last.needs_hitl and last.code == "EQ_LITERAL_NOT_IN_PROFILE":
-                return last
         except Exception:
             log.warning("SQL 修复轮次失败 round=%s", round_i + 1, exc_info=True)
             last = VerifyResult(False, f"修复调用失败 round={round_i + 1}")
     return last
-
 
 async def _full_check(
     sql: str,
@@ -111,11 +150,20 @@ async def _full_check(
     use_explain: bool,
     profiles: dict[str, Any],
     fetch_profile: ProfileFetcher | None,
+    explain_sql: str | None = None,
 ) -> VerifyResult:
     last = static_check(sql)
     if not last.ok:
         return last
     current = last.dialect_sql or sql
+
+    # 代码层自动补全投影：明细等值列、GROUP BY 普通列
+    current, auto_eq_cols = ensure_eq_projection_in_select(current)
+    if auto_eq_cols:
+        log.info("verify auto-added eq projection cols=%s", auto_eq_cols)
+    current, auto_group_cols = ensure_group_by_cols_in_select(current)
+    if auto_group_cols:
+        log.info("verify auto-added group by cols=%s", auto_group_cols)
 
     proj = check_eq_projection(current)
     if proj is not None:
@@ -124,62 +172,173 @@ async def _full_check(
             proj.message,
             code=proj.code,
             need_profile=[],
+            auto_added_eq_cols=auto_eq_cols,
+            auto_added_group_cols=auto_group_cols,
         )
 
-    # 先拉缺失画像，再校验字面量
-    lit_issue = check_eq_literals_against_profiles(
-        current, profiles, default_schema=schema
+    # 按 SQL 条件值探测画像；use_key 可代码改写，其余不合规则回灌大模型
+    current, use_key_rewrites, lit_err = await _check_eq_literals_with_probe(
+        current,
+        profiles=profiles,
+        schema=schema,
+        fetch_profile=fetch_profile,
     )
-    if lit_issue is not None and lit_issue.code == "EQ_LITERAL_NEED_PROFILE" and fetch_profile:
-        for item in lit_issue.need_profile:
-            table = (item.get("table") or "").strip()
-            column = (item.get("column") or "").strip()
-            if not column:
-                continue
-            if not table:
-                # 无法定位表则留给 HITL
-                continue
-            try:
-                prof = await fetch_profile(table, column)
-            except Exception:
-                log.warning("自动拉取列画像失败 table=%s column=%s", table, column, exc_info=True)
-                prof = None
-            if isinstance(prof, dict):
-                store_profile(
-                    profiles,
-                    table=table,
-                    column=column,
-                    schema=schema,
-                    profile=prof,
-                )
-        lit_issue = check_eq_literals_against_profiles(
-            current, profiles, default_schema=schema
-        )
-
-    if lit_issue is not None:
-        return VerifyResult(
-            False,
-            lit_issue.message,
-            code=lit_issue.code,
-            needs_hitl=lit_issue.needs_hitl
-            or lit_issue.code == "EQ_LITERAL_NEED_PROFILE",
-            need_profile=lit_issue.need_profile,
-        )
+    if lit_err is not None:
+        lit_err.dialect_sql = current
+        lit_err.auto_added_eq_cols = list(auto_eq_cols)
+        lit_err.auto_added_group_cols = list(auto_group_cols)
+        lit_err.auto_use_key_rewrites = list(use_key_rewrites)
+        return lit_err
+    if use_key_rewrites:
+        log.info("verify auto-rewrote use_key literals=%s", use_key_rewrites)
 
     if use_explain and sqlwork and workspace_id and connection_id:
-        return await explain_check(
+        explained = await explain_check(
             sqlwork,
             workspace_id=workspace_id,
             connection_id=connection_id,
-            sql=current,
+            sql=explain_sql or current,
             database=database,
             schema=schema,
+            keep_dialect_sql=current,
         )
-    return VerifyResult(True, "ok", current)
+        explained.auto_added_eq_cols = list(auto_eq_cols)
+        explained.auto_added_group_cols = list(auto_group_cols)
+        explained.auto_use_key_rewrites = list(use_key_rewrites)
+        return explained
+    return VerifyResult(
+        True,
+        "ok",
+        current,
+        auto_added_eq_cols=auto_eq_cols,
+        auto_added_group_cols=auto_group_cols,
+        auto_use_key_rewrites=use_key_rewrites,
+    )
+
+
+async def _check_eq_literals_with_probe(
+    sql: str,
+    *,
+    profiles: dict[str, Any],
+    schema: str | None,
+    fetch_profile: ProfileFetcher | None,
+) -> tuple[str, list[str], VerifyResult | None]:
+    """对每个 WHERE 全等集合字面量：get_column_profile(condition_value) + accept_sql_literal。
+
+    返回 (sql, use_key改写说明, error)。
+    - use_key 且 SQL 仍是展示值：代码层改成 key 后放行
+    - use_literal / 已是 key：放行
+    - 其余不匹配：error（needs_hitl=False，走 regen）
+    """
+    jobs = iter_eq_literal_jobs(sql)
+    if not jobs:
+        return sql, [], None
+
+    async def _probe(job: dict[str, str]) -> tuple[dict[str, str], dict[str, Any] | None]:
+        table = (job.get("table") or "").strip()
+        column = (job.get("column") or "").strip()
+        literal = (job.get("literal") or "").strip()
+        if not column or not table:
+            return job, None
+        if fetch_profile is None:
+            return job, None
+        try:
+            prof = await fetch_profile(table, column, literal)
+            return job, prof if isinstance(prof, dict) else None
+        except TypeError:
+            # 兼容旧签名 fetch(table, column)
+            try:
+                prof = await fetch_profile(table, column)  # type: ignore[call-arg]
+                return job, prof if isinstance(prof, dict) else None
+            except Exception:
+                log.warning(
+                    "校验拉取列画像失败 table=%s column=%s literal=%s",
+                    table,
+                    column,
+                    literal,
+                    exc_info=True,
+                )
+                return job, None
+        except Exception:
+            log.warning(
+                "校验拉取列画像失败 table=%s column=%s literal=%s",
+                table,
+                column,
+                literal,
+                exc_info=True,
+            )
+            return job, None
+
+    probed = await asyncio.gather(*[_probe(j) for j in jobs])
+    bad: list[str] = []
+    need: list[dict[str, str]] = []
+    rewrites: list[dict[str, str]] = []
+    for job, prof in probed:
+        table = (job.get("table") or "").strip()
+        column = (job.get("column") or "").strip()
+        literal = (job.get("literal") or "").strip()
+        if isinstance(prof, dict):
+            store_profile(
+                profiles,
+                table=table,
+                column=column,
+                schema=schema,
+                profile=prof,
+            )
+        verdict = accept_sql_literal(literal, prof)
+        if verdict.get("ok"):
+            continue
+        action = str(verdict.get("action") or "")
+        key = str(verdict.get("key") or "").strip()
+        if action == "use_key" and verdict.get("rewritable") and key:
+            rewrites.append(
+                {"table": table, "column": column, "from": literal, "to": key}
+            )
+            continue
+        msg = str(verdict.get("message") or "")
+        label = f"{table}.{column}" if table else column
+        bad.append(f"{label}={literal!r}（{action}）: {msg}")
+        if action in ("need_profile",) or prof is None:
+            need.append({"table": table, "column": column})
+
+    current = sql
+    rewrite_labels: list[str] = []
+    if rewrites:
+        current, rewrite_labels = rewrite_use_key_literals(sql, rewrites)
+        if not rewrite_labels:
+            # 判定可改写但 AST 未命中：仍打回，避免静默放过错误字面量
+            for item in rewrites:
+                label = (
+                    f"{item['table']}.{item['column']}"
+                    if item.get("table")
+                    else item["column"]
+                )
+                bad.append(
+                    f"{label}={item['from']!r}（use_key）: 应改为 key={item['to']!r}，"
+                    "自动改写未命中 AST，请手动改正。"
+                )
+
+    if bad:
+        code = "EQ_LITERAL_MISMATCH"
+        if need and len(need) == len(bad):
+            code = "EQ_LITERAL_NEED_PROFILE"
+        return (
+            current,
+            rewrite_labels,
+            VerifyResult(
+                False,
+                "WHERE 条件值未通过列画像/格式匹配，请按指摘改写 SQL：\n"
+                + "\n".join(bad),
+                code=code,
+                needs_hitl=False,
+                need_profile=need,
+            ),
+        )
+    return current, rewrite_labels, None
 
 
 def parse_workflow_draft(text: str) -> dict[str, Any] | None:
-    """从模型输出解析工作流 JSON。"""
+    """从模型输出解析工作流 JSON；归一为单节点 QUERY（多节点/GOVERN 展平内联）。"""
     if not text:
         return None
     raw = text.strip()
@@ -207,6 +366,7 @@ def parse_workflow_draft(text: str) -> dict[str, Any] | None:
         if not isinstance(n, dict):
             continue
         ntype = str(n.get("type") or "QUERY").upper()
+        # 兼容模型偶发 GOVERN/SQL；最终统一展平为 QUERY
         if ntype not in ("QUERY", "GOVERN", "SQL"):
             ntype = "QUERY"
         sql = (n.get("sql") or "").strip()
@@ -218,14 +378,20 @@ def parse_workflow_draft(text: str) -> dict[str, Any] | None:
                 "type": ntype,
                 "title": str(n.get("title") or ntype),
                 "sql": sql,
-                "readonly": bool(n.get("readonly", ntype == "QUERY")),
+                "readonly": True,
             }
         )
     if not cleaned:
         return None
-    cleaned[-1]["type"] = "QUERY"
-    cleaned[-1]["readonly"] = True
-    return {"name": str(data.get("name") or "问数工作流")[:128], "nodes": cleaned}
+    draft = {"name": str(data.get("name") or "问数工作流")[:128], "nodes": cleaned}
+    if len(cleaned) == 1:
+        cleaned[0]["type"] = "QUERY"
+        cleaned[0]["readonly"] = True
+        return draft
+    from dbc_askdata.workflow.runner import draft_as_single_query
+
+    flat = draft_as_single_query(draft)
+    return flat or draft
 
 
 def _extract_sql(text: str) -> str:

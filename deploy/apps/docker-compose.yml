@@ -6,7 +6,7 @@
 # 已知不足 / 非生产：密钥目录明文挂载、口令写在 Compose、无资源限额与多副本策略。
 #
 # 前置：
-#   1) 配置 DBC_DOCKER_WORKSPACE（脚本 -WorkspaceRoot / deploy/dbc-docker.env）
+#   1) 配置 deploy/dbc-docker.env（工作区路径 + askdata LLM 等；gitignored）
 #   2) scripts\init-docker-workspace.ps1
 #   3) docker compose --env-file deploy/dbc-docker.env -f deploy/middleware/docker-compose.yml up -d
 #   4) scripts\build-docker-apps.ps1
@@ -159,6 +159,9 @@ services:
     depends_on:
       - dbc-sqlwork
       - dbc-usercenter
+      - dbc-audit
+      - dbc-knowledge
+      - dbc-graph
     ports:
       - "8009:8009"
     environment:
@@ -166,12 +169,20 @@ services:
       DBC_NACOS_ADDR: nacos:8848
       DBC_ASKDATA_NACOS_REGISTER: "true"
       DBC_ASKDATA_SECRETS_DIR: /app/secrets
+      DBC_ASKDATA_MIGRATIONS_DIR: /app/migrations
+      DBC_ASKDATA_EVAL_CASES_DIR: /app/eval-cases
       DBC_ASKDATA_DATABASE_URL: postgresql+asyncpg://postgres:root@postgres:5432/postgres
       DBC_ASKDATA_SQLWORK_BASE_URL: http://dbc-sqlwork:8007
+      DBC_ASKDATA_USERCENTER_BASE_URL: http://dbc-usercenter:8004
+      DBC_ASKDATA_KNOWLEDGE_BASE_URL: ${DBC_ASKDATA_KNOWLEDGE_BASE_URL:-http://dbc-knowledge:8010}
+      DBC_ASKDATA_GRAPH_BASE_URL: ${DBC_ASKDATA_GRAPH_BASE_URL:-http://dbc-graph:8011}
+      DBC_ASKDATA_GRAPH_CODE: ${DBC_ASKDATA_GRAPH_CODE:-default}
       DBC_ASKDATA_LLM_RESIDENCY: ${DBC_ASKDATA_LLM_RESIDENCY:-cloud}
-      # 对齐 ai-dev-assistant ada.llm（DashScope compatible-mode + qwen-max）
+      DBC_ASKDATA_LLM_PROVIDER: ${DBC_ASKDATA_LLM_PROVIDER:-qwen}
       DBC_ASKDATA_LLM_BASE_URL: ${DBC_ASKDATA_LLM_BASE_URL:-${ADA_LLM_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode}}
-      DBC_ASKDATA_LLM_MODEL: ${DBC_ASKDATA_LLM_MODEL:-${ADA_LLM_CHAT_MODEL:-qwen-max}}
+      # 空则用 providers/<provider>/profile.yaml；可显式覆盖
+      DBC_ASKDATA_LLM_MODEL: ${DBC_ASKDATA_LLM_MODEL:-}
+      DBC_ASKDATA_LLM_MODEL_LIGHT: ${DBC_ASKDATA_LLM_MODEL_LIGHT:-}
       DBC_ASKDATA_LLM_API_KEY: ${DBC_ASKDATA_LLM_API_KEY:-${ADA_LLM_API_KEY:-}}
       DBC_ASKDATA_AUDIT_ENABLED: "true"
       DBC_ASKDATA_AUDIT_MTLS_BASE_URL: https://dbc-audit:8048
@@ -179,6 +190,53 @@ services:
     volumes:
       - ${DBC_DOCKER_WORKSPACE}/secrets:/app/secrets
       - ${DBC_DOCKER_WORKSPACE}/askdata/logs:/app/logs
+      - ${DBC_DOCKER_WORKSPACE}/askdata/eval-cases:/app/eval-cases:ro
+
+  dbc-knowledge:
+    <<: *app-common
+    image: dbc-knowledge:0.1.0
+    container_name: dbc-knowledge
+    build:
+      context: ../../dbc-knowledge
+      dockerfile: Dockerfile
+    depends_on:
+      - dbc-usercenter
+    ports:
+      - "8010:8010"
+    environment:
+      <<: *app-env
+      DBC_DB_URL: jdbc:postgresql://postgres:5432/postgres?currentSchema=knowledge
+      DBC_DB_USER: postgres
+      DBC_DB_PASSWORD: root
+      DBC_MILVUS_URI: http://milvus:19530
+      DBC_GRAPH_BASE_URL: http://dbc-graph:8011
+      DBC_LLM_API_KEY: ${DBC_ASKDATA_LLM_API_KEY:-${ADA_LLM_API_KEY:-}}
+    volumes:
+      - ${DBC_DOCKER_WORKSPACE}/secrets:/app/secrets
+      - ${DBC_DOCKER_WORKSPACE}/knowledge/logs:/app/logs
+
+  dbc-graph:
+    <<: *app-common
+    image: dbc-graph:0.1.0
+    container_name: dbc-graph
+    build:
+      context: ../../dbc-graph
+      dockerfile: Dockerfile
+    depends_on:
+      - dbc-usercenter
+    ports:
+      - "8011:8011"
+    environment:
+      <<: *app-env
+      DBC_DB_URL: jdbc:postgresql://postgres:5432/postgres?currentSchema=graph
+      DBC_DB_USER: postgres
+      DBC_DB_PASSWORD: root
+      DBC_NEO4J_URI: bolt://neo4j:7687
+      DBC_NEO4J_USER: neo4j
+      DBC_NEO4J_PASSWORD: changeme
+    volumes:
+      - ${DBC_DOCKER_WORKSPACE}/secrets:/app/secrets
+      - ${DBC_DOCKER_WORKSPACE}/graph/logs:/app/logs
 
   dbc-gateway:
     <<: *app-common
@@ -193,6 +251,8 @@ services:
       - dbc-sqlwork
       - dbc-audit
       - dbc-askdata
+      - dbc-knowledge
+      - dbc-graph
     ports:
       - "8003:8003"
     environment:
@@ -229,7 +289,8 @@ services:
 # 2) 制作镜像并运行
 #    docker compose --env-file deploy/dbc-docker.env -f deploy/apps/docker-compose.yml up -d --build
 #      → 读各服务 Dockerfile
-#           后端：COPY build/libs/app.jar → eclipse-temurin:21.0.12_8-jre 运行
+#           Java：COPY build/libs/app.jar → eclipse-temurin:21.0.12_8-jre
+#           askdata：pip install . → python:3.12-slim + uvicorn :8009
 #           前端：dbc-front/Dockerfile 多阶段 npm run build → nginx:stable-alpine
 # 3) 中间件不打包业务代码，直接用官方镜像
 #    deploy/middleware/docker-compose.yml

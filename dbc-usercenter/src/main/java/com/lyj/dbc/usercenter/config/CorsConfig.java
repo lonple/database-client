@@ -12,12 +12,17 @@ import java.util.List;
 public class CorsConfig {
 
     @Bean
-    public CorsFilter corsFilter() {
+    public CorsFilter corsFilter(CorsProperties corsProperties) {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowCredentials(true);
-        config.setAllowedOriginPatterns(List.of("*"));
+        List<String> patterns = corsProperties.resolvedOriginPatterns();
+        if (patterns.isEmpty()) {
+            throw new IllegalStateException("dbc.cors.allowed-origin-patterns 不能为空");
+        }
+        config.setAllowedOriginPatterns(patterns);
         config.setAllowedHeaders(List.of("*"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        config.setExposedHeaders(List.of("Set-Cookie"));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return new CorsFilter(source);

@@ -32,6 +32,10 @@ dependencies {
     implementation("org.springframework.cloud:spring-cloud-starter-loadbalancer")
     implementation("com.alibaba.cloud:spring-cloud-starter-alibaba-nacos-discovery")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
+    implementation("org.springframework.boot:spring-boot-starter-data-redis-reactive")
+    implementation("io.jsonwebtoken:jjwt-api:0.12.6")
+    runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
+    runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
 }
 
@@ -41,6 +45,11 @@ tasks.withType<JavaCompile> {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
+    // 与其它服务一致：工作目录为仓库根，读取 secrets/jwt-secret.txt
+    workingDir = project.projectDir.parentFile
 }
 
 tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {

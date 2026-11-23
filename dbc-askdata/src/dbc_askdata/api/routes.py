@@ -1,25 +1,47 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+log = logging.getLogger(__name__)
+
 from dbc_askdata.api.schemas import (
     ApiResponse,
     ChatRequest,
+    ConfirmSqlCorrectRequest,
     HitlResolveRequest,
     ProjectCreateRequest,
     ProjectVO,
+    RunFeedbackRequest,
     RunStartRequest,
     SessionCreateRequest,
     TreeProjectVO,
     TreeWorkflowVO,
     WorkflowSaveRequest,
 )
+from dbc_askdata.feedback.service import (
+    apply_run_feedback,
+    feedback_vo,
+    find_assistant_message_by_draft,
+    get_feedback,
+    mark_message_workflow_saved,
+)
+from dbc_askdata.checkpoint.store import (
+    complete_checkpoint,
+    load_checkpoint_for_hitl,
+    save_interrupted_checkpoint,
+)
 from dbc_askdata.clients.sqlwork import SqlworkClient
 from dbc_askdata.config import Settings, get_settings
+from dbc_askdata.context.session_context import (
+    KEEP_WINDOW,
+    load_chat_recent_turns,
+    load_verified_sample_tables,
+)
 from dbc_askdata.db.models import (
     AskHitl,
     AskLlmSpan,
@@ -28,15 +50,32 @@ from dbc_askdata.db.models import (
     AskSession,
     AskWorkflow,
     AskWorkflowDraft,
+    AskWorkflowRun,
     AskWorkflowRunResult,
 )
+from dbc_askdata.graph.hitl_ui import hitl_ui_for_state
+from dbc_askdata.idempotency.service import begin_idempotent, finish_idempotent, get_cached_response
 from dbc_askdata.db.scope import find_connection, normalize_scope
 from dbc_askdata.db.session import get_session
 from dbc_askdata.graph.generate import run_generate_graph
 from dbc_askdata.llm.client import LlmError
 from dbc_askdata.observability.spans import SpanRecorder
 from dbc_askdata.observability.trace import get_trace_id
+from dbc_askdata.observability.turn import (
+    TURN_STATUS_CANCELLED,
+    TURN_STATUS_ERROR,
+    TURN_STATUS_HITL,
+    TURN_STATUS_OK,
+    begin_turn,
+    clear_turn,
+    find_turn_by_hitl,
+    finish_turn,
+    resume_turn,
+)
 from dbc_askdata.observability.worklog import append_work_log, clear_work_logs, list_work_logs
+from dbc_askdata.quota.context import bind_quota, clear_quota
+from dbc_askdata.quota.service import check_quota_or_raise, get_daily_usage, today_shanghai
+from dbc_askdata.redis.client import get_redis
 from dbc_askdata.security.auth import LoginUser, extract_bearer, require_permission, require_user
 from dbc_askdata.tools.gateway import build_tool_registry
 from dbc_askdata.tools.registry import ToolGateway
@@ -328,7 +367,7 @@ async def clear_session_messages(
     user: LoginUser = Depends(require_permission("askdata.use")),
     session: AsyncSession = Depends(get_session),
 ):
-    """清空会话消息与待确认 HITL；工作日志一并清理。"""
+    """清空会话消息与待确认 HITL；工作日志一并清理（已确认样本保留）。"""
     s = await session.get(AskSession, session_id)
     if s is None or s.owner_user_id != user.user_id:
         raise HTTPException(status_code=404, detail="会话不存在")
@@ -351,13 +390,19 @@ async def clear_session_messages(
 async def get_work_logs(
     session_id: int,
     after: int = 0,
+    turn_id: int | None = None,
+    turnId: int | None = None,
     user: LoginUser = Depends(require_permission("askdata.use")),
     session: AsyncSession = Depends(get_session),
 ):
+    """按 turn 拉取进度日志。turn_id/turnId 缺省时回落该会话最近一轮。"""
     s = await session.get(AskSession, session_id)
     if s is None or s.owner_user_id != user.user_id:
         raise HTTPException(status_code=404, detail="会话不存在")
-    return ApiResponse.ok(await list_work_logs(session_id, after=max(0, after)))
+    tid = turn_id if turn_id is not None else turnId
+    return ApiResponse.ok(
+        await list_work_logs(session_id, turn_id=tid, after=max(0, after))
+    )
 
 
 @router.get("/sessions/{session_id}/llm-spans")
@@ -366,7 +411,7 @@ async def list_session_llm_spans(
     user: LoginUser = Depends(require_permission("askdata.use")),
     session: AsyncSession = Depends(get_session),
 ):
-    """会话归属者可查看本会话 LLM/图/工具 span，作为进程内 work-log 过期后的持久回退。"""
+    """会话归属者可查看本会话 LLM/图/工具 span（运维诊断用；产品侧执行日志以 work-log 为准）。"""
     s = await session.get(AskSession, session_id)
     if s is None or s.owner_user_id != user.user_id:
         raise HTTPException(status_code=404, detail="会话不存在")
@@ -400,6 +445,26 @@ async def list_session_llm_spans(
     )
 
 
+@router.get("/quota/me")
+async def my_quota(
+    user: LoginUser = Depends(require_permission("askdata.use")),
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+):
+    """工作台展示今日额度；测评页勿调用。"""
+    limit = int(settings.daily_token_limit or 0)
+    used = await get_daily_usage(session, user_id=user.user_id) if limit > 0 else 0
+    return ApiResponse.ok(
+        {
+            "usageDate": str(today_shanghai()),
+            "used": used,
+            "limit": limit,
+            "remaining": max(0, limit - used) if limit > 0 else None,
+            "enabled": limit > 0,
+        }
+    )
+
+
 @router.post("/chat")
 async def chat(
     body: ChatRequest,
@@ -408,6 +473,7 @@ async def chat(
     settings: Settings = Depends(get_settings),
     authorization: str | None = Header(default=None),
     trace_id: str = Depends(get_trace_id),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ):
     auth = extract_bearer(authorization)
     s = await session.get(AskSession, body.session_id)
@@ -417,42 +483,109 @@ async def chat(
     if project is None or project.deleted:
         raise HTTPException(status_code=404, detail="工程不存在")
 
+    await check_quota_or_raise(session, settings, user_id=user.user_id, eval_mode=False)
+
+    from dbc_askdata.concurrency.chat_gate import acquire_chat_slot
+
+    idem_key = (idempotency_key or "").strip()
+    if idem_key:
+        cached = await get_cached_response(session, user_id=user.user_id, key=idem_key, route="chat")
+        if cached is not None:
+            return ApiResponse.ok(cached)
+        await begin_idempotent(
+            session,
+            user_id=user.user_id,
+            key=idem_key,
+            route="chat",
+            request_payload={"sessionId": body.session_id, "message": body.message},
+        )
+
     session.add(AskMessage(session_id=s.id, role="user", content=body.message))
     await session.commit()
 
-    await clear_work_logs(s.id)
-    await append_work_log(s.id, f"收到消息：{body.message[:120]}")
+    if app_main.llm_client is None:
+        raise HTTPException(status_code=503, detail="LLM 未就绪")
+
+    turn = await begin_turn(
+        session,
+        root_trace_id=trace_id,
+        question=body.message,
+        workspace_id=project.workspace_id,
+        project_id=project.id,
+        session_id=s.id,
+        user_id=user.user_id,
+    )
+    turn_id = int(turn.id)
+
+    # 按 turn 持久化：新一轮单独桶，不清历史 turn 日志
+    await append_work_log(s.id, f"收到消息：{body.message[:120]}", turn_id=turn_id)
+
+    recent = await load_chat_recent_turns(session, session_id=s.id, max_turns=KEEP_WINDOW)
+    # 近窗不含刚写入的本轮 user（避免与 question 重复）
+    if recent and recent[-1].get("role") == "user" and recent[-1].get("content") == body.message:
+        recent = recent[:-1]
+    verified = await load_verified_sample_tables(
+        session,
+        session_id=s.id,
+        default_schema=project.source_schema,
+        keep=KEEP_WINDOW,
+    )
 
     sqlwork = SqlworkClient(settings, auth, trace_id=trace_id)
     registry = build_tool_registry(settings, sqlwork)
     gateway = ToolGateway(registry)
     spans = SpanRecorder(settings)
-    if app_main.llm_client is None:
-        raise HTTPException(status_code=503, detail="LLM 未就绪")
+    bind_quota(user_id=user.user_id, eval_mode=False)
     try:
-        state = await run_generate_graph(
-            settings=settings,
-            session=session,
-            spans=spans,
-            tool_gateway=gateway,
-            sqlwork=sqlwork,
-            llm=app_main.llm_client,
-            state={
-                "question": body.message,
-                "workspace_id": project.workspace_id,
-                "connection_id": project.source_connection_id,
-                "database": project.source_database or "",
-                "schema": project.source_schema or "",
-                "project_id": project.id,
-                "session_id": s.id,
-                "user_id": user.user_id,
-                "trace_id": trace_id,
-                "authorization": auth,
-            },
-        )
-    except LlmError as ex:
-        await append_work_log(s.id, f"失败：{ex}", level="ERROR")
-        raise _llm_unavailable(ex) from ex
+        async with acquire_chat_slot():
+            try:
+                state = await run_generate_graph(
+                    settings=settings,
+                    session=session,
+                    spans=spans,
+                    tool_gateway=gateway,
+                    sqlwork=sqlwork,
+                    llm=app_main.llm_client,
+                    state={
+                        "question": body.message,
+                        "workspace_id": project.workspace_id,
+                        "connection_id": project.source_connection_id,
+                        "database": project.source_database or "",
+                        "schema": project.source_schema or "",
+                        "project_id": project.id,
+                        "session_id": s.id,
+                        "user_id": user.user_id,
+                        "trace_id": trace_id,
+                        "turn_id": turn_id,
+                        "authorization": auth,
+                        "recent_turns": recent,
+                        "verified_samples": verified,
+                    },
+                )
+            except LlmError as ex:
+                await append_work_log(
+                    s.id, f"失败：{ex}", level="ERROR", turn_id=turn_id
+                )
+                await finish_turn(
+                    session,
+                    turn_id=turn_id,
+                    status=TURN_STATUS_ERROR,
+                    error_message=str(ex),
+                    close=True,
+                )
+                raise _llm_unavailable(ex) from ex
+            except Exception as ex:
+                await finish_turn(
+                    session,
+                    turn_id=turn_id,
+                    status=TURN_STATUS_ERROR,
+                    error_message=str(ex),
+                    close=True,
+                )
+                raise
+    finally:
+        clear_quota()
+        clear_turn()
 
     draft_id = None
     if state.get("draft"):
@@ -469,7 +602,9 @@ async def chat(
         draft_id = draft.id
 
     hitl_id = None
+    hitl_ui = None
     if state.get("needs_hitl"):
+        hitl_ui = hitl_ui_for_state(state)
         hitl = AskHitl(
             session_id=s.id,
             question=state.get("hitl_question") or "请确认",
@@ -478,15 +613,38 @@ async def chat(
                 "question": body.message,
                 "workspaceId": project.workspace_id,
                 "projectId": project.id,
+                "ui": hitl_ui,
+                "interruptedNode": state.get("interrupted_node"),
+                "turnId": turn_id,
             },
         )
         session.add(hitl)
         await session.commit()
         await session.refresh(hitl)
         hitl_id = hitl.id
+        await save_interrupted_checkpoint(
+            session, session_id=s.id, hitl_id=hitl.id, state=dict(state)
+        )
+        await finish_turn(
+            session,
+            turn_id=turn_id,
+            status=TURN_STATUS_HITL,
+            route=state.get("route"),
+            hitl_id=hitl_id,
+            close=False,
+        )
+    else:
+        await finish_turn(
+            session,
+            turn_id=turn_id,
+            status=TURN_STATUS_OK if not state.get("error") else TURN_STATUS_ERROR,
+            route=state.get("route"),
+            error_message=str(state.get("error") or "") or None,
+            close=True,
+        )
 
     reply = state.get("reply") or "已处理"
-    await append_work_log(s.id, "本轮处理完成")
+    await append_work_log(s.id, "本轮处理完成", turn_id=turn_id)
     session.add(
         AskMessage(
             session_id=s.id,
@@ -499,21 +657,37 @@ async def chat(
                 "draft": state.get("draft"),
                 "route": state.get("route"),
                 "traceId": trace_id,
+                "turnId": turn_id,
+                "hitlUi": hitl_ui,
             },
         )
     )
     await session.commit()
-    return ApiResponse.ok(
-        {
-            "reply": reply,
-            "draftId": draft_id,
-            "hitlId": hitl_id,
-            "draft": state.get("draft"),
-            "needsHitl": bool(state.get("needs_hitl")),
-            "route": state.get("route"),
-            "traceId": trace_id,
-        }
-    )
+    resp_data = {
+        "reply": reply,
+        "draftId": draft_id,
+        "hitlId": hitl_id,
+        "draft": state.get("draft"),
+        "needsHitl": bool(state.get("needs_hitl")),
+        "route": state.get("route"),
+        "traceId": trace_id,
+        "turnId": turn_id,
+        "hitlUi": hitl_ui,
+    }
+    if idem_key:
+        await finish_idempotent(
+            session, user_id=user.user_id, key=idem_key, route="chat", response=resp_data
+        )
+    return ApiResponse.ok(resp_data)
+
+
+def _hitl_is_cancel(resolution: dict | None) -> bool:
+    if not isinstance(resolution, dict):
+        return False
+    if resolution.get("cancel") is True:
+        return True
+    action = str(resolution.get("action") or "").strip().lower()
+    return action in ("cancel", "abort", "reject")
 
 
 @router.post("/hitl/resolve")
@@ -524,97 +698,309 @@ async def resolve_hitl(
     settings: Settings = Depends(get_settings),
     authorization: str | None = Header(default=None),
     trace_id: str = Depends(get_trace_id),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ):
     auth = extract_bearer(authorization)
-    hitl = await session.get(AskHitl, body.hitl_id)
-    if hitl is None:
-        raise HTTPException(status_code=404, detail="HITL 不存在")
-    s = await session.get(AskSession, hitl.session_id)
-    if s is None or s.owner_user_id != user.user_id:
-        raise HTTPException(status_code=403, detail="无权限")
-    if hitl.status != "PENDING":
-        raise HTTPException(status_code=400, detail="HITL 已处理")
-    project = await session.get(AskProject, s.project_id)
-    if project is None or project.deleted:
-        raise HTTPException(status_code=404, detail="工程不存在")
+    cancel_req = _hitl_is_cancel(body.resolution)
+    # 取消不消耗 LLM，额度用尽时也应允许取消
+    if not cancel_req:
+        await check_quota_or_raise(session, settings, user_id=user.user_id, eval_mode=False)
 
-    hitl.status = "RESOLVED"
-    hitl.resolution = body.resolution
-    hitl.resolved_at = datetime.now(timezone.utc)
-    await session.commit()
+    idem_key = (idempotency_key or "").strip() or f"hitl-{body.hitl_id}"
+    cached = await get_cached_response(session, user_id=user.user_id, key=idem_key, route="hitl_resolve")
+    if cached is not None:
+        return ApiResponse.ok(cached)
 
-    # 续跑生成图
-    question = (hitl.options or {}).get("question") or hitl.question
-    if app_main.llm_client is None:
-        raise HTTPException(status_code=503, detail="LLM 未就绪")
-    sqlwork = SqlworkClient(settings, auth, trace_id=trace_id)
-    gateway = ToolGateway(build_tool_registry(settings, sqlwork))
-    spans = SpanRecorder(settings)
-    try:
-        state = await run_generate_graph(
-            settings=settings,
-            session=session,
-            spans=spans,
-            tool_gateway=gateway,
-            sqlwork=sqlwork,
-            llm=app_main.llm_client,
-            state={
-                "question": str(question),
-                "workspace_id": project.workspace_id,
-                "connection_id": project.source_connection_id,
-                "database": project.source_database or "",
-                "schema": project.source_schema or "",
-                "project_id": project.id,
-                "session_id": s.id,
-                "user_id": user.user_id,
-                "trace_id": trace_id,
-                "authorization": auth,
-                "hitl_resolution": body.resolution,
-            },
+    redis = get_redis()
+
+    async def _run() -> dict:
+        await begin_idempotent(
+            session,
+            user_id=user.user_id,
+            key=idem_key,
+            route="hitl_resolve",
+            request_payload={"hitlId": body.hitl_id, "resolution": body.resolution},
         )
-    except LlmError as ex:
-        raise _llm_unavailable(ex) from ex
-    draft_id = None
-    if state.get("draft"):
-        draft = AskWorkflowDraft(
-            project_id=project.id,
-            session_id=s.id,
-            name=(state["draft"].get("name") or "草稿")[:128],
-            nodes_json=state["draft"],
-            owner_user_id=user.user_id,
+        hitl = await session.get(AskHitl, body.hitl_id)
+        if hitl is None:
+            raise HTTPException(status_code=404, detail="HITL 不存在")
+        s = await session.get(AskSession, hitl.session_id)
+        if s is None or s.owner_user_id != user.user_id:
+            raise HTTPException(status_code=403, detail="无权限")
+        if hitl.status != "PENDING":
+            raise HTTPException(status_code=400, detail="HITL 已处理")
+        project = await session.get(AskProject, s.project_id)
+        if project is None or project.deleted:
+            raise HTTPException(status_code=404, detail="工程不存在")
+
+        turn_row = await find_turn_by_hitl(
+            session, hitl_options=hitl.options if isinstance(hitl.options, dict) else None, hitl_id=hitl.id
         )
-        session.add(draft)
-        await session.commit()
-        await session.refresh(draft)
-        draft_id = draft.id
-    reply = state.get("reply") or "已根据确认继续生成"
-    session.add(
-        AskMessage(
-            session_id=s.id,
-            role="assistant",
-            content=reply,
-            content_type="markdown",
-            payload={
-                "draftId": draft_id,
-                "hitlId": hitl.id,
-                "draft": state.get("draft"),
-                "resumed": True,
+        turn_id = int(turn_row.id) if turn_row is not None else None
+
+        if cancel_req:
+            resolution = dict(body.resolution or {})
+            resolution["cancel"] = True
+            resolution["action"] = "cancel"
+            hitl.status = "CANCELLED"
+            hitl.resolution = resolution
+            hitl.resolved_at = datetime.now(timezone.utc)
+            await session.commit()
+            await complete_checkpoint(session, hitl_id=hitl.id, status="CANCELLED")
+            await finish_turn(
+                session,
+                turn_id=turn_id,
+                status=TURN_STATUS_CANCELLED,
+                hitl_id=hitl.id,
+                close=True,
+            )
+            reply = "已取消本次确认，本轮生成已终止。如需继续，请重新提问。"
+            await append_work_log(
+                s.id, "用户取消 HITL，终止本轮生成", turn_id=turn_id
+            )
+            session.add(
+                AskMessage(
+                    session_id=s.id,
+                    role="assistant",
+                    content=reply,
+                    content_type="markdown",
+                    payload={
+                        "hitlId": hitl.id,
+                        "cancelled": True,
+                        "traceId": trace_id,
+                        "turnId": turn_id,
+                    },
+                )
+            )
+            await session.commit()
+            resp_data = {
+                "id": hitl.id,
+                "status": hitl.status,
+                "reply": reply,
+                "draftId": None,
+                "draft": None,
+                "needsHitl": False,
+                "hitlId": None,
+                "cancelled": True,
                 "traceId": trace_id,
-            },
+                "turnId": turn_id,
+            }
+            await finish_idempotent(
+                session, user_id=user.user_id, key=idem_key, route="hitl_resolve", response=resp_data
+            )
+            return resp_data
+
+        # 前端分槽未必带回 kind，用 options.ui.kind 补全
+        resolution = dict(body.resolution or {})
+        if not str(resolution.get("kind") or "").strip():
+            ui = (hitl.options or {}).get("ui") if isinstance(hitl.options, dict) else None
+            if isinstance(ui, dict) and ui.get("kind"):
+                resolution["kind"] = ui.get("kind")
+        hitl.status = "RESOLVED"
+        hitl.resolution = resolution
+        hitl.resolved_at = datetime.now(timezone.utc)
+        await session.commit()
+
+        if turn_id is not None:
+            await resume_turn(session, turn_id=turn_id)
+
+        question = (hitl.options or {}).get("question") or hitl.question
+        if app_main.llm_client is None:
+            raise HTTPException(status_code=503, detail="LLM 未就绪")
+
+        cp = await load_checkpoint_for_hitl(session, hitl_id=hitl.id)
+        try:
+            from dbc_askdata.knowledge.hitl_card import save_hitl_card
+
+            await save_hitl_card(
+                session,
+                hitl=hitl,
+                resolution=resolution,
+                connection_id=project.source_connection_id,
+                database=project.source_database,
+                schema=project.source_schema,
+                project_id=project.id,
+                owner_user_id=user.user_id,
+                checkpoint_state=cp.state_json if cp is not None else None,
+            )
+        except Exception:
+            log.warning("HITL 确认卡片写入失败 hitl_id=%s", hitl.id, exc_info=True)
+        recent = await load_chat_recent_turns(session, session_id=s.id, max_turns=KEEP_WINDOW)
+        verified = await load_verified_sample_tables(
+            session,
+            session_id=s.id,
+            default_schema=project.source_schema,
+            keep=KEEP_WINDOW,
         )
-    )
-    await session.commit()
-    return ApiResponse.ok(
-        {
+        state_in: dict = {
+            "question": str(question),
+            "workspace_id": project.workspace_id,
+            "connection_id": project.source_connection_id,
+            "database": project.source_database or "",
+            "schema": project.source_schema or "",
+            "project_id": project.id,
+            "session_id": s.id,
+            "user_id": user.user_id,
+            "trace_id": trace_id,
+            "turn_id": turn_id,
+            "authorization": auth,
+            "hitl_resolution": resolution,
+            "recent_turns": recent,
+            "verified_samples": verified,
+        }
+        if cp is not None and isinstance(cp.state_json, dict):
+            snap = dict(cp.state_json)
+            snap.pop("authorization", None)
+            state_in.update(snap)
+            state_in["hitl_resolution"] = resolution
+            state_in["resume_from"] = cp.resume_from or "build"
+            state_in["trace_id"] = trace_id
+            state_in["turn_id"] = turn_id or state_in.get("turn_id")
+            state_in["authorization"] = auth
+            log.info(
+                "HITL 断点续跑 hitl_id=%s resume_from=%s interrupted=%s",
+                hitl.id,
+                state_in.get("resume_from"),
+                cp.interrupted_node,
+            )
+
+        sqlwork = SqlworkClient(settings, auth, trace_id=trace_id)
+        gateway = ToolGateway(build_tool_registry(settings, sqlwork))
+        spans = SpanRecorder(settings)
+        bind_quota(user_id=user.user_id, eval_mode=False)
+        from dbc_askdata.concurrency.chat_gate import acquire_chat_slot as _acquire_hitl_slot
+
+        try:
+            async with _acquire_hitl_slot():
+                try:
+                    state = await run_generate_graph(
+                        settings=settings,
+                        session=session,
+                        spans=spans,
+                        tool_gateway=gateway,
+                        sqlwork=sqlwork,
+                        llm=app_main.llm_client,
+                        state=state_in,
+                    )
+                except LlmError as ex:
+                    await finish_turn(
+                        session,
+                        turn_id=turn_id,
+                        status=TURN_STATUS_ERROR,
+                        error_message=str(ex),
+                        close=True,
+                    )
+                    raise _llm_unavailable(ex) from ex
+                except Exception as ex:
+                    await finish_turn(
+                        session,
+                        turn_id=turn_id,
+                        status=TURN_STATUS_ERROR,
+                        error_message=str(ex),
+                        close=True,
+                    )
+                    raise
+        finally:
+            clear_quota()
+            clear_turn()
+
+        draft_id = None
+        if state.get("draft"):
+            draft = AskWorkflowDraft(
+                project_id=project.id,
+                session_id=s.id,
+                name=(state["draft"].get("name") or "草稿")[:128],
+                nodes_json=state["draft"],
+                owner_user_id=user.user_id,
+            )
+            session.add(draft)
+            await session.commit()
+            await session.refresh(draft)
+            draft_id = draft.id
+
+        hitl_ui = None
+        next_hitl_id = None
+        if state.get("needs_hitl"):
+            hitl_ui = hitl_ui_for_state(state)
+            new_hitl = AskHitl(
+                session_id=s.id,
+                question=state.get("hitl_question") or "请确认",
+                status="PENDING",
+                options={
+                    "question": question,
+                    "workspaceId": project.workspace_id,
+                    "projectId": project.id,
+                    "ui": hitl_ui,
+                    "interruptedNode": state.get("interrupted_node"),
+                    "turnId": turn_id,
+                },
+            )
+            session.add(new_hitl)
+            await session.commit()
+            await session.refresh(new_hitl)
+            await save_interrupted_checkpoint(
+                session, session_id=s.id, hitl_id=new_hitl.id, state=dict(state)
+            )
+            next_hitl_id = new_hitl.id
+            await finish_turn(
+                session,
+                turn_id=turn_id,
+                status=TURN_STATUS_HITL,
+                route=state.get("route"),
+                hitl_id=next_hitl_id,
+                close=False,
+            )
+        else:
+            await complete_checkpoint(session, hitl_id=hitl.id)
+            await finish_turn(
+                session,
+                turn_id=turn_id,
+                status=TURN_STATUS_OK if not state.get("error") else TURN_STATUS_ERROR,
+                route=state.get("route"),
+                error_message=str(state.get("error") or "") or None,
+                close=True,
+            )
+
+        reply = state.get("reply") or "已根据确认继续生成"
+        session.add(
+            AskMessage(
+                session_id=s.id,
+                role="assistant",
+                content=reply,
+                content_type="markdown",
+                payload={
+                    "draftId": draft_id,
+                    "hitlId": next_hitl_id or hitl.id,
+                    "draft": state.get("draft"),
+                    "resumed": True,
+                    "traceId": trace_id,
+                    "turnId": turn_id,
+                    "hitlUi": hitl_ui,
+                },
+            )
+        )
+        await session.commit()
+        resp_data = {
             "id": hitl.id,
             "status": hitl.status,
             "reply": reply,
             "draftId": draft_id,
             "draft": state.get("draft"),
             "needsHitl": bool(state.get("needs_hitl")),
+            "hitlId": next_hitl_id,
+            "hitlUi": hitl_ui,
             "traceId": trace_id,
+            "turnId": turn_id,
         }
-    )
+        await finish_idempotent(
+            session, user_id=user.user_id, key=idem_key, route="hitl_resolve", response=resp_data
+        )
+        return resp_data
+
+    if redis is None:
+        return ApiResponse.ok(await _run())
+    async with redis.lock("hitl", str(body.hitl_id), ttl_seconds=120, wait_seconds=30):
+        return ApiResponse.ok(await _run())
 
 
 @router.post("/workflows")
@@ -626,6 +1012,36 @@ async def save_workflow(
     project = await session.get(AskProject, body.project_id)
     if project is None or project.deleted or project.owner_user_id != user.user_id:
         raise HTTPException(status_code=404, detail="工程不存在")
+
+    linked_msg = None
+    if body.session_id and body.draft_id:
+        ask_session = await session.get(AskSession, body.session_id)
+        if ask_session is None or ask_session.owner_user_id != user.user_id:
+            raise HTTPException(status_code=404, detail="会话不存在")
+        linked_msg = await find_assistant_message_by_draft(
+            session, session_id=body.session_id, draft_id=int(body.draft_id)
+        )
+        if linked_msg is not None:
+            payload = linked_msg.payload if isinstance(linked_msg.payload, dict) else {}
+            existing_wf_id = payload.get("workflowId") or payload.get("workflow_id")
+            if existing_wf_id and payload.get("saved"):
+                try:
+                    wid = int(existing_wf_id)
+                except (TypeError, ValueError):
+                    wid = None
+                if wid is not None:
+                    existing = await session.get(AskWorkflow, wid)
+                    if existing is not None and not existing.deleted:
+                        return ApiResponse.ok(
+                            {
+                                "id": existing.id,
+                                "name": existing.name,
+                                "projectId": existing.project_id,
+                                "alreadySaved": True,
+                                "messageId": linked_msg.id,
+                            }
+                        )
+
     wf = AskWorkflow(
         project_id=project.id,
         name=body.name.strip(),
@@ -640,6 +1056,10 @@ async def save_workflow(
             await session.delete(draft)
     await session.commit()
     await session.refresh(wf)
+
+    if linked_msg is not None:
+        await mark_message_workflow_saved(session, message=linked_msg, workflow_id=int(wf.id))
+
     if app_main.audit_client:
         await app_main.audit_client.emit_biz(
             action="CREATE",
@@ -649,7 +1069,15 @@ async def save_workflow(
             operator_username=user.username,
             details={"projectId": wf.project_id, "name": wf.name},
         )
-    return ApiResponse.ok({"id": wf.id, "name": wf.name, "projectId": wf.project_id})
+    return ApiResponse.ok(
+        {
+            "id": wf.id,
+            "name": wf.name,
+            "projectId": wf.project_id,
+            "alreadySaved": False,
+            "messageId": linked_msg.id if linked_msg is not None else None,
+        }
+    )
 
 
 @router.get("/workflows/{workflow_id}")
@@ -783,6 +1211,92 @@ async def start_run(
     )
 
 
+@router.post("/runs/confirm-correct")
+async def confirm_sql_correct(
+    body: ConfirmSqlCorrectRequest,
+    user: LoginUser = Depends(require_permission("askdata.use")),
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+    authorization: str | None = Header(default=None),
+    trace_id: str = Depends(get_trace_id),
+):
+    """兼容旧入口：等价于 feedback action=useful（幂等）。"""
+    auth = extract_bearer(authorization)
+    run = await session.get(AskWorkflowRun, body.run_id)
+    if run is None or run.owner_user_id != user.user_id:
+        raise HTTPException(status_code=404, detail="运行不存在")
+    if (run.status or "").upper() != "SUCCESS":
+        raise HTTPException(status_code=400, detail="仅执行成功的运行可确认")
+    wf = await load_workflow(session, run.workflow_id)
+    if wf is None or wf.deleted:
+        raise HTTPException(status_code=404, detail="工作流不存在")
+    sqlwork = SqlworkClient(settings, auth, trace_id=trace_id)
+    try:
+        data = await apply_run_feedback(
+            session,
+            settings=settings,
+            sqlwork=sqlwork,
+            user_id=user.user_id,
+            run_id=run.id,
+            workflow=wf,
+            action="useful",
+            session_id=body.session_id,
+            question=body.question,
+        )
+    except ValueError as ex:
+        raise HTTPException(status_code=400, detail=str(ex)) from ex
+    return ApiResponse.ok(
+        {
+            "sampleId": data.get("sampleId"),
+            "workflowId": wf.id,
+            "runId": run.id,
+            "question": body.question,
+            "knowledge": data.get("knowledge"),
+            "alreadyProcessed": data.get("alreadyProcessed"),
+            "feedback": data.get("feedback"),
+        }
+    )
+
+
+@router.post("/runs/{run_id}/feedback")
+async def submit_run_feedback(
+    run_id: int,
+    body: RunFeedbackRequest,
+    user: LoginUser = Depends(require_permission("askdata.use")),
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+    authorization: str | None = Header(default=None),
+    trace_id: str = Depends(get_trace_id),
+):
+    """画布右下角：有用 / 无用 / 保存记忆（幂等）。"""
+    auth = extract_bearer(authorization)
+    run = await get_run(session, run_id)
+    if run is None or run.owner_user_id != user.user_id:
+        raise HTTPException(status_code=404, detail="运行不存在")
+    if (run.status or "").upper() != "SUCCESS":
+        raise HTTPException(status_code=400, detail="仅执行成功后可反馈")
+    wf = await load_workflow(session, run.workflow_id)
+    if wf is None or wf.deleted:
+        raise HTTPException(status_code=404, detail="工作流不存在")
+    sid = body.session_id if body.session_id is not None else run.session_id
+    sqlwork = SqlworkClient(settings, auth, trace_id=trace_id)
+    try:
+        data = await apply_run_feedback(
+            session,
+            settings=settings,
+            sqlwork=sqlwork,
+            user_id=user.user_id,
+            run_id=run.id,
+            workflow=wf,
+            action=body.action,
+            session_id=sid,
+            question=body.question,
+        )
+    except ValueError as ex:
+        raise HTTPException(status_code=400, detail=str(ex)) from ex
+    return ApiResponse.ok(data)
+
+
 @router.post("/runs/{run_id}/stop")
 async def stop_run(
     run_id: int,
@@ -823,6 +1337,10 @@ async def run_detail(
     result = (
         await session.execute(select(AskWorkflowRunResult).where(AskWorkflowRunResult.run_id == run_id))
     ).scalar_one_or_none()
+    elapsed_ms: int | None = None
+    if run.started_at is not None and run.finished_at is not None:
+        elapsed_ms = max(0, int((run.finished_at - run.started_at).total_seconds() * 1000))
+    fb = await get_feedback(session, run_id=run_id, user_id=user.user_id)
     return ApiResponse.ok(
         {
             "id": run.id,
@@ -830,6 +1348,11 @@ async def run_detail(
             "errorMessage": run.error_message,
             "sessionId": run.session_id,
             "workflowId": run.workflow_id,
+            "startedAt": run.started_at,
+            "finishedAt": run.finished_at,
+            "elapsedMs": elapsed_ms,
+            "feedback": feedback_vo(fb),
+            "feedbackReady": (run.status or "").upper() == "SUCCESS",
             "logs": [
                 {"id": l.id, "level": l.level, "message": l.message, "createdAt": l.created_at}
                 for l in logs

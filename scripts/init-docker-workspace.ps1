@@ -3,7 +3,8 @@
 # =============================================================================
 # Usage (repo root):
 #   powershell -ExecutionPolicy Bypass -File .\scripts\init-docker-workspace.ps1
-#   powershell -ExecutionPolicy Bypass -File .\scripts\init-docker-workspace.ps1 -WorkspaceRoot D:\data\dbc
+#   powershell -ExecutionPolicy Bypass -File .\scripts\init-docker-workspace.ps1 -WorkspaceRoot E:\app\docker\workspace\dbc
+# Creates one folder per container under DBC_DOCKER_WORKSPACE (product dir).
 # =============================================================================
 
 param(
@@ -29,12 +30,14 @@ $dirs = @(
     "usercenter\logs",
     "sqlwork\logs",
     "audit\logs",
+    "askdata\logs",
+    "askdata\eval-cases",
     "gateway\logs",
     "front\html",
     "front\conf"
 )
 
-Write-Host "Creating workspace under $WorkspaceRoot"
+Write-Host "Creating per-container folders under $WorkspaceRoot"
 foreach ($rel in $dirs) {
     $path = Join-Path $WorkspaceRoot $rel
     New-Item -ItemType Directory -Force -Path $path | Out-Null
@@ -55,6 +58,19 @@ if (Test-Path $repoSecrets) {
     }
 } else {
     Write-Host "WARN: repo secrets/ not found. Start usercenter once to generate certs, then re-run."
+}
+
+$evalSrc = Join-Path $RepoRoot "scripts\demo-company\eval\cases"
+$evalDst = Join-Path $WorkspaceRoot "askdata\eval-cases"
+if (Test-Path $evalSrc) {
+    Write-Host "Syncing askdata eval cases -> workspace"
+    New-Item -ItemType Directory -Force -Path $evalDst | Out-Null
+    robocopy $evalSrc $evalDst *.jsonl /XO /NFL /NDL /NJH /NJS | Out-Null
+    if ($LASTEXITCODE -ge 8) {
+        throw "robocopy eval-cases failed, exit=$LASTEXITCODE"
+    }
+} else {
+    Write-Host "WARN: scripts/demo-company/eval/cases not found; askdata container will skip template seed."
 }
 
 $serverP12 = Join-Path $wsSecrets "mtls\server.p12"

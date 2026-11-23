@@ -34,6 +34,14 @@ export default defineConfig({
         target: 'http://127.0.0.1:8003',
         changeOrigin: true,
       },
+      '/dbc-knowledge': {
+        target: 'http://127.0.0.1:8003',
+        changeOrigin: true,
+      },
+      '/dbc-graph': {
+        target: 'http://127.0.0.1:8003',
+        changeOrigin: true,
+      },
     },
   },
 })

@@ -116,16 +116,20 @@
 ```powershell
 cd <repo-root>
 
-# 首次：指定数据目录（任选本机路径）
-.\scripts\docker-deploy.cmd -WorkspaceRoot D:\data\dbc
+# 首次：指定本产品目录（根在 E:\app\docker\workspace）
+.\scripts\docker-deploy.cmd -WorkspaceRoot E:\app\docker\workspace\dbc
 
-# 或首次不传参，按提示输入；回车则默认 %USERPROFILE%\dbc-docker-data
+# 或首次不传参，按提示输入；回车则默认 E:\app\docker\workspace\dbc
 
 # 日常启动（复用已保存路径）
 .\scripts\docker-deploy.cmd
 
-# 改过代码后重建
+# 改过代码后全部重建
 .\scripts\docker-deploy.cmd -Build
+
+# 只重建指定模块（短名：askdata sqlwork front gateway usercenter/uc manage audit）
+.\scripts\docker-deploy.cmd -Build askdata
+.\scripts\docker-deploy.cmd -Build sqlwork front
 
 # 首次或大刷新
 .\scripts\docker-deploy.cmd -Full
@@ -133,6 +137,8 @@ cd <repo-root>
 # 停止
 .\scripts\docker-stop.cmd
 ```
+
+`-Build` 模块短名（也可写 `dbc-askdata` 等全名；`usercenter` 还可写 `uc`）：`askdata` / `sqlwork` / `front` / `gateway` / `usercenter` / `manage` / `audit`。对照表见 [Docker 桌面部署手册](doc/运维/02-Docker桌面部署手册.md) §0。
 
 也可手动复制 `deploy/dbc-docker.env.example` → `deploy/dbc-docker.env`，填写 `DBC_DOCKER_WORKSPACE=`。
 
@@ -163,6 +169,17 @@ cd scripts
 ```
 
 ### 启动顺序
+
+中间件就绪后可一键**先停再启**（默认前台汇总日志；服务名空格分隔，不写则全部）：
+
+```powershell
+.\scripts\local-start.cmd
+.\scripts\local-start.cmd askdata gateway front
+# 后台多窗口：
+.\scripts\local-start.cmd -Background askdata gateway
+```
+
+或手动：
 
 ```powershell
 # 1. 基础设施：PostgreSQL / Redis / ES / Nacos standalone

@@ -28,5 +28,7 @@ public class MetaTablePageVO {
         private String schema;
         private String name;
         private String objectType;
+        /** 表注释，与 sqlwork 对齐；可空 */
+        private String comment;
     }
 }

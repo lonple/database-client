@@ -3,6 +3,8 @@ package com.lyj.dbc.sqlwork.runtime.meta;
 import com.lyj.dbc.sqlwork.api.vo.ColumnVO;
 import com.lyj.dbc.sqlwork.api.vo.ConnectionMaterial;
 import com.lyj.dbc.sqlwork.api.vo.MetaTreeVO;
+import com.lyj.dbc.sqlwork.api.vo.TableColumnsVO;
+import com.lyj.dbc.sqlwork.api.vo.TableDocVO;
 import com.lyj.dbc.sqlwork.api.vo.TablePageVO;
 import com.lyj.dbc.sqlwork.common.BizException;
 import com.lyj.dbc.sqlwork.dialect.DbDialect;
@@ -76,7 +78,8 @@ public class MetaCatalogService {
             DbDialect.TablePage pageResult = dialect.listTables(
                     conn, database, schema, keyword, nameAllowlist, page, size);
             List<TablePageVO.TableItemVO> items = pageResult.items().stream()
-                    .map(t -> new TablePageVO.TableItemVO(t.schema(), t.name(), t.objectType()))
+                    .map(t -> new TablePageVO.TableItemVO(
+                            t.schema(), t.name(), t.objectType(), t.comment()))
                     .toList();
             return TablePageVO.builder()
                     .items(items)
@@ -98,15 +101,7 @@ public class MetaCatalogService {
         DbDialect dialect = dialectRegistry.require(material.getDbType());
         DataSource ds = dataSourceManager.get(material);
         try (Connection conn = ds.getConnection()) {
-            return dialect.listColumns(conn, database, schema, table).stream()
-                    .map(c -> ColumnVO.builder()
-                            .name(c.name())
-                            .dataType(c.dataType())
-                            .nullable(c.nullable())
-                            .comment(c.comment())
-                            .ordinal(c.ordinal())
-                            .build())
-                    .toList();
+            return mapColumns(dialect.listColumns(conn, database, schema, table));
         } catch (SQLException ex) {
             dataSourceManager.evict(material.getConnectionId());
             log.warn("列出列失败 connectionId={} table={}", material.getConnectionId(), table, ex);
@@ -114,7 +109,128 @@ public class MetaCatalogService {
         }
     }
 
-    private static String summarize(SQLException ex) {
+    /**
+     * 同连接复用一次 JDBC Connection，批量拉多表列；单表失败写入 error，不中断整批。
+     */
+    public List<TableColumnsVO> listColumnsBatch(
+            ConnectionMaterial material,
+            String database,
+            String schema,
+            List<String> tables) {
+        if (tables == null || tables.isEmpty()) {
+            return List.of();
+        }
+        DbDialect dialect = dialectRegistry.require(material.getDbType());
+        DataSource ds = dataSourceManager.get(material);
+        List<TableColumnsVO> out = new ArrayList<>();
+        try (Connection conn = ds.getConnection()) {
+            for (String raw : tables) {
+                String table = raw == null ? "" : raw.trim();
+                if (table.isEmpty()) {
+                    continue;
+                }
+                try {
+                    List<ColumnVO> cols = mapColumns(dialect.listColumns(conn, database, schema, table));
+                    out.add(TableColumnsVO.builder()
+                            .table(table)
+                            .schema(schema)
+                            .columns(cols)
+                            .build());
+                } catch (Exception ex) {
+                    log.warn(
+                            "批量列查询单表失败 connectionId={} table={}",
+                            material.getConnectionId(),
+                            table,
+                            ex);
+                    out.add(TableColumnsVO.builder()
+                            .table(table)
+                            .schema(schema)
+                            .columns(List.of())
+                            .error(summarize(ex))
+                            .build());
+                }
+            }
+            return out;
+        } catch (SQLException ex) {
+            dataSourceManager.evict(material.getConnectionId());
+            log.warn("批量列出列失败 connectionId={}", material.getConnectionId(), ex);
+            throw BizException.badRequest("批量列出列失败: " + summarize(ex));
+        }
+    }
+
+
+    private static List<ColumnVO> mapColumns(List<? extends DbDialect.ColumnItem> items) {
+        return items.stream()
+                .map(c -> ColumnVO.builder()
+                        .name(c.name())
+                        .dataType(c.dataType())
+                        .nullable(c.nullable())
+                        .comment(c.comment())
+                        .ordinal(c.ordinal())
+                        .build())
+                .toList();
+    }
+
+    /**
+     * 单表文档：英文表名 + 中文说明 + 字段列表，并生成 Markdown。
+     */
+    public TableDocVO tableDoc(ConnectionMaterial material, String database, String schema, String table) {
+        if (table == null || table.isBlank()) {
+            throw BizException.badRequest("table 不能为空");
+        }
+        String tableName = table.trim();
+        TablePageVO page = listTables(material, database, schema, null, List.of(tableName), 1, 1);
+        TablePageVO.TableItemVO meta = page.getItems().stream()
+                .filter(t -> tableName.equalsIgnoreCase(t.getName()))
+                .findFirst()
+                .orElse(null);
+        if (meta == null) {
+            throw BizException.badRequest("未找到表: " + tableName);
+        }
+        List<ColumnVO> columns = listColumns(material, database, schema, meta.getName());
+        String comment = meta.getComment() == null ? "" : meta.getComment().trim();
+        return TableDocVO.builder()
+                .name(meta.getName())
+                .schema(meta.getSchema())
+                .objectType(meta.getObjectType())
+                .comment(comment.isEmpty() ? null : comment)
+                .columns(columns)
+                .markdown(toMarkdown(meta.getName(), comment, columns))
+                .build();
+    }
+
+    static String toMarkdown(String tableName, String tableComment, List<ColumnVO> columns) {
+        StringBuilder md = new StringBuilder();
+        md.append("# ").append(tableName == null ? "" : tableName).append("\n\n");
+        if (tableComment != null && !tableComment.isBlank()) {
+            md.append(tableComment.trim()).append("\n\n");
+        }
+        md.append("## 字段列表\n\n");
+        md.append("| 字段名 | 字段描述 | 字段类型 | 是否必须 |\n");
+        md.append("| --- | --- | --- | --- |\n");
+        if (columns != null) {
+            for (ColumnVO c : columns) {
+                String desc = c.getComment() == null || c.getComment().isBlank() ? "—" : c.getComment().trim();
+                String type = c.getDataType() == null || c.getDataType().isBlank() ? "—" : c.getDataType();
+                String required = c.isNullable() ? "否" : "是";
+                md.append("| ").append(escapeCell(c.getName()))
+                        .append(" | ").append(escapeCell(desc))
+                        .append(" | ").append(escapeCell(type))
+                        .append(" | ").append(required)
+                        .append(" |\n");
+            }
+        }
+        return md.toString();
+    }
+
+    private static String escapeCell(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        return raw.replace("|", "\\|").replace("\n", " ");
+    }
+
+    private static String summarize(Throwable ex) {
         String msg = ex.getMessage();
         if (msg == null || msg.isBlank()) {
             return ex.getClass().getSimpleName();

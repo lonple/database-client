@@ -1,0 +1,78 @@
+server:
+  port: 8010
+
+spring:
+  application:
+    name: dbc-knowledge
+  data:
+    redis:
+      host: ${DBC_REDIS_HOST:127.0.0.1}
+      port: ${DBC_REDIS_PORT:6379}
+      password: ${DBC_REDIS_PASSWORD:}
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource
+    driver-class-name: org.postgresql.Driver
+    url: ${DBC_DB_URL:jdbc:postgresql://127.0.0.1:5432/postgres?currentSchema=knowledge}
+    username: ${DBC_DB_USER:postgres}
+    password: ${DBC_DB_PASSWORD:root}
+  flyway:
+    enabled: true
+    schemas: knowledge
+    default-schema: knowledge
+    create-schemas: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+  global-config:
+    db-config:
+      id-type: auto
+
+dbc:
+  jwt:
+    expire-hours: 8
+  secrets:
+    dir: ${DBC_SECRETS_DIR:secrets}
+  nacos:
+    server-addr: ${DBC_NACOS_ADDR:127.0.0.1:8000}
+  knowledge:
+    llm:
+      enabled: ${DBC_LLM_ENABLED:true}
+      api-key: ${DBC_LLM_API_KEY:${ADA_LLM_API_KEY:}}
+      base-url: ${DBC_LLM_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode}
+      chat-model: ${DBC_LLM_CHAT_MODEL:qwen-max}
+      slice-model: ${DBC_LLM_SLICE_MODEL:Qwen3b-RagSemanticChunker}
+      embed-enabled: ${DBC_LLM_EMBED_ENABLED:true}
+      embed-base-url: ${DBC_LLM_EMBED_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode}
+      embed-api-key: ${DBC_LLM_EMBED_API_KEY:${DBC_LLM_API_KEY:${ADA_LLM_API_KEY:}}}
+      embed-model: ${DBC_LLM_EMBED_MODEL:text-embedding-v3}
+      embed-dim: ${DBC_LLM_EMBED_DIM:1024}
+      rerank-enabled: ${DBC_LLM_RERANK_ENABLED:true}
+      rerank-model: ${DBC_LLM_RERANK_MODEL:qwen3-rerank}
+      rerank-url: ${DBC_LLM_RERANK_URL:https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank}
+      rerank-api-key: ${DBC_LLM_RERANK_API_KEY:${DBC_LLM_API_KEY:${ADA_LLM_API_KEY:}}}
+    milvus:
+      enabled: ${DBC_MILVUS_ENABLED:true}
+      uri: ${DBC_MILVUS_URI:http://127.0.0.1:19530}
+      token: ${DBC_MILVUS_TOKEN:}
+      collection: ${DBC_MILVUS_COLLECTION:dbc_slice}
+      document-collection: ${DBC_MILVUS_DOCUMENT_COLLECTION:dbc_document}
+      embed-dim: ${DBC_LLM_EMBED_DIM:1024}
+      sync-interval-ms: ${DBC_MILVUS_SYNC_INTERVAL_MS:30000}
+      sync-retry-delay-ms: ${DBC_MILVUS_SYNC_RETRY_DELAY_MS:60000}
+    graph:
+      base-url: ${DBC_GRAPH_BASE_URL:http://127.0.0.1:8011}
+      timeout-ms: ${DBC_GRAPH_TIMEOUT_MS:8000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  level:
+    com.lyj.dbc.knowledge: INFO

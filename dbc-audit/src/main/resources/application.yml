@@ -14,6 +14,11 @@ spring:
     uris: ${DBC_ES_URIS:http://127.0.0.1:9200}
     connection-timeout: 5s
     socket-timeout: 30s
+  data:
+    redis:
+      host: ${DBC_REDIS_HOST:127.0.0.1}
+      port: ${DBC_REDIS_PORT:6379}
+      password: ${DBC_REDIS_PASSWORD:}
 
 dbc:
   jwt:

@@ -81,37 +81,36 @@ public class PostgresDialect implements DbDialect {
             return new TablePage(List.of(), 0);
         }
 
-        StringBuilder where = new StringBuilder("""
-                FROM information_schema.tables
-                WHERE table_catalog = COALESCE(?, current_database())
+        StringBuilder filters = new StringBuilder("""
+                WHERE t.table_catalog = COALESCE(?, current_database())
                 """);
         List<Object> params = new ArrayList<>();
         params.add(blankToNull(database));
 
         if (schema != null && !schema.isBlank()) {
-            where.append(" AND table_schema = ?");
+            filters.append(" AND t.table_schema = ?");
             params.add(schema);
         } else {
-            where.append(" AND table_schema NOT IN ('pg_catalog', 'information_schema')");
+            filters.append(" AND t.table_schema NOT IN ('pg_catalog', 'information_schema')");
         }
         if (keyword != null && !keyword.isBlank()) {
-            where.append(" AND table_name ILIKE ?");
+            filters.append(" AND t.table_name ILIKE ?");
             params.add("%" + keyword.trim() + "%");
         }
         if (names != null) {
-            where.append(" AND table_name IN (");
+            filters.append(" AND t.table_name IN (");
             for (int i = 0; i < names.size(); i++) {
                 if (i > 0) {
-                    where.append(',');
+                    filters.append(',');
                 }
-                where.append('?');
+                filters.append('?');
                 params.add(names.get(i));
             }
-            where.append(')');
+            filters.append(')');
         }
 
         long total;
-        String countSql = "SELECT COUNT(*) " + where;
+        String countSql = "SELECT COUNT(*) FROM information_schema.tables t " + filters;
         try (PreparedStatement ps = connection.prepareStatement(countSql)) {
             bind(ps, params);
             try (ResultSet rs = ps.executeQuery()) {
@@ -121,9 +120,17 @@ public class PostgresDialect implements DbDialect {
         }
 
         String dataSql = """
-                SELECT table_schema, table_name,
-                       CASE WHEN table_type = 'VIEW' THEN 'VIEW' ELSE 'TABLE' END AS object_type
-                """ + where + " ORDER BY table_schema, table_name LIMIT ? OFFSET ?";
+                SELECT t.table_schema, t.table_name,
+                       CASE WHEN t.table_type = 'VIEW' THEN 'VIEW' ELSE 'TABLE' END AS object_type,
+                       d.description AS table_comment
+                FROM information_schema.tables t
+                LEFT JOIN pg_catalog.pg_namespace n ON n.nspname = t.table_schema
+                LEFT JOIN pg_catalog.pg_class cls
+                       ON cls.relnamespace = n.oid AND cls.relname = t.table_name
+                      AND cls.relkind IN ('r', 'p', 'v', 'm', 'f')
+                LEFT JOIN pg_catalog.pg_description d
+                       ON d.objoid = cls.oid AND d.objsubid = 0
+                """ + filters + " ORDER BY t.table_schema, t.table_name LIMIT ? OFFSET ?";
         List<Object> dataParams = new ArrayList<>(params);
         dataParams.add(safeSize);
         dataParams.add(offset);
@@ -133,7 +140,8 @@ public class PostgresDialect implements DbDialect {
             bind(ps, dataParams);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    items.add(new TableItem(rs.getString(1), rs.getString(2), rs.getString(3)));
+                    items.add(new TableItem(
+                            rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4)));
                 }
             }
         }
@@ -147,15 +155,21 @@ public class PostgresDialect implements DbDialect {
             throw new SQLException("table 不能为空");
         }
         String sql = """
-                SELECT column_name, data_type,
-                       (is_nullable = 'YES') AS nullable,
-                       NULL::text AS comment,
-                       ordinal_position
-                FROM information_schema.columns
-                WHERE table_catalog = COALESCE(?, current_database())
-                  AND table_schema = COALESCE(?, current_schema())
-                  AND table_name = ?
-                ORDER BY ordinal_position
+                SELECT c.column_name, c.data_type,
+                       (c.is_nullable = 'YES') AS nullable,
+                       d.description AS comment,
+                       c.ordinal_position
+                FROM information_schema.columns c
+                LEFT JOIN pg_catalog.pg_namespace n ON n.nspname = c.table_schema
+                LEFT JOIN pg_catalog.pg_class cls
+                       ON cls.relnamespace = n.oid AND cls.relname = c.table_name
+                      AND cls.relkind IN ('r', 'p', 'v', 'm', 'f')
+                LEFT JOIN pg_catalog.pg_description d
+                       ON d.objoid = cls.oid AND d.objsubid = c.ordinal_position
+                WHERE c.table_catalog = COALESCE(?, current_database())
+                  AND c.table_schema = COALESCE(?, current_schema())
+                  AND c.table_name = ?
+                ORDER BY c.ordinal_position
                 """;
         List<ColumnItem> items = new ArrayList<>();
         try (PreparedStatement ps = connection.prepareStatement(sql)) {

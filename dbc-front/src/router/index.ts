@@ -40,23 +40,19 @@ router.beforeEach(async (to) => {
   const auth = useAuthStore()
   const domain = useDomainStore()
   if (to.meta.public) {
-    if (auth.token && to.path === '/login') return '/home'
+    if (to.path === '/login') {
+      const ok = await auth.ensureSession()
+      if (ok) return '/home'
+    }
     return true
   }
-  if (!auth.token) {
+  const ok = await auth.ensureSession()
+  if (!ok) {
     return { path: '/login', query: { redirect: to.fullPath } }
   }
-  if (!auth.user) {
-    try {
-      await auth.loadMe()
-    } catch {
-      auth.clear()
-      return { path: '/login', query: { redirect: to.fullPath } }
-    }
-  }
   if (to.meta.superAdmin) {
-    const ok = !!auth.user?.roles?.some((r) => r.code === 'SUPER_ADMIN')
-    if (!ok) return '/home'
+    const isOk = !!auth.user?.roles?.some((r) => r.code === 'SUPER_ADMIN')
+    if (!isOk) return '/home'
   }
   if (domain.isPersonal && to.path.startsWith('/manage/auth/global-policies')) {
     return '/manage/auth/workspaces'
@@ -67,12 +63,12 @@ router.beforeEach(async (to) => {
   const required = typeof to.meta.permission === 'string' ? to.meta.permission : ''
   if (required) {
     const owned = auth.user?.permissions
-    const ok =
+    const permitted =
       hasPermission(owned, required) ||
       (domain.isPersonal &&
         PERSONAL_DOMAIN_MANAGE_PERMS.has(required) &&
         hasPermission(owned, 'usercenter.personal.space.view'))
-    if (!ok) return '/home'
+    if (!permitted) return '/home'
   }
   return true
 })

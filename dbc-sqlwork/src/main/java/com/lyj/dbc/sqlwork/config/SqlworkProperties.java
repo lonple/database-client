@@ -30,8 +30,8 @@ public class SqlworkProperties {
     /** 单批最多语句数 */
     private int executeMaxStatements = 50;
 
-    /** 按连接缓存的 Druid 最大池大小（maxActive） */
-    private int poolMaxSize = 5;
+    /** 按连接缓存的 Druid 最大池大小（maxActive）；默认 40，可用 DBC_SQLWORK_POOL_MAX_SIZE 覆盖 */
+    private int poolMaxSize = 40;
 
     /** 每用户最多工作台会话数 */
     private int sessionMaxPerUser = 10;

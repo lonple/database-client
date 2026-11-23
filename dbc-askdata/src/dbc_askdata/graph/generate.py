@@ -10,28 +10,41 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dbc_askdata.clients.sqlwork import SqlworkClient
 from dbc_askdata.config import Settings
-from dbc_askdata.graph.deep_govern import run_deep_govern
-from dbc_askdata.graph.hitl_prompt import hitl_for_sql_prompt
-from dbc_askdata.graph.sql_review import (
-    REVIEW_SYSTEM,
-    build_review_user_payload,
-    parse_review_verdict,
+from dbc_askdata.context.session_context import (
+    KEEP_WINDOW,
+    build_session_prefix_messages,
+    user_questions_from_turns,
 )
+from dbc_askdata.graph.hitl_prompt import hitl_for_sql_prompt, physical_table_name
+from dbc_askdata.graph.time_context import current_time_context, current_time_system_suffix
 from dbc_askdata.graph.tool_agent import ProgressFn, run_tool_agent
+from dbc_askdata.knowledge.ask_catalog_search import search_ask_catalog
 from dbc_askdata.knowledge.general_knowledge import (
-    format_catalog_directory_knowledge_for_prompt,
     format_db_general_knowledge_for_prompt,
     search_db_general_knowledge,
+    unwrap_general_knowledge_result,
+)
+from dbc_askdata.knowledge.sql_ex_knowledge import (
+    format_sql_ex_knowledge_for_prompt,
+    load_sql_ex_knowledge,
+)
+from dbc_askdata.knowledge.table_intent import (
+    ROLE_TABLE,
+    normalize_entity_role,
+    parse_table_intent_pairs,
+    resolve_table_intent_query,
 )
 from dbc_askdata.llm.client import LlmClient
-from dbc_askdata.observability.spans import SpanRecorder
+from dbc_askdata.observability.llm_exchange import build_llm_rounds_meta
+from dbc_askdata.observability.spans import ScopeTimer, SpanRecorder
 from dbc_askdata.observability.worklog import append_work_log
 from dbc_askdata.tools.registry import ToolGateway
-from dbc_askdata.verify.repair import parse_workflow_draft, verify_and_repair
+from dbc_askdata.verify.repair import parse_workflow_draft, verify_sql
+from dbc_askdata.workflow.runner import expand_node_refs_for_explain
 
 log = logging.getLogger(__name__)
 
-# build / govern 阶段目录已由 gather_context 注入，禁止再查 catalog
+# build 阶段目录已由 gather_context 注入，禁止再查 catalog
 _BUILD_EXCLUDE_TOOLS = {"search_catalog", "list_connections"}
 
 
@@ -45,79 +58,193 @@ class GraphState(TypedDict, total=False):
     session_id: int
     user_id: int
     trace_id: str
+    turn_id: int
     authorization: str
     hitl_resolution: dict[str, Any]
     eval_mode: bool
     catalog: dict[str, Any]
     # gather_context 检索到的库/模式通用知识（一条），供 SQL 生成提示词追加
     db_general_knowledge: dict[str, Any]
-    # search_catalog 旁路命中的「库表目录」切片，供选表消歧
-    catalog_directory_knowledge: dict[str, Any]
-    route: Literal["CHAT", "QUERY", "GOVERN", "HITL"]
+    # SQL_EX 分类已发布原文（不分片），供 SQL 生成参考
+    sql_ex_knowledge: list[dict[str, Any]]
+    # 大模型抽取的中文表意图（供语义找表）
+    table_intent: dict[str, Any]
+    # 轻量意图门闩：CHAT 闲聊短路；DATA 再抽实体/找表/细路由
+    intent_gate: Literal["CHAT", "DATA"]
+    route: Literal["CHAT", "QUERY", "HITL"]
     needs_hitl: bool
     hitl_question: str
+    # HITL 表单类型：TABLE|COLUMN|EQ_LITERAL|SCOPE|REVIEW|…；空则由 hitl_ui 推断
+    hitl_kind: str
     draft: dict[str, Any]
     reply: str
     error: str
     auto_save_ready: bool
     column_profiles: dict[str, Any]
     described_columns: dict[str, list[str]]
+    # 找表结果表名列表；图谱邻接表关系（注入 build）
+    recommended_tables: list[str]
+    table_relations: list[dict[str, Any]]
+    # 遗留字段：不再预 describe，保持空列表以兼容断点
+    pre_described_tables: list[dict[str, Any]]
     review_critique: str
     review_rounds: int
     review_action: str
+    # 机械校验失败 → 带 SQL+错误回生成
+    verify_critique: str
+    verify_rounds: int
+    verify_action: str
+    # 会话上下文：CHAT 近窗 / QUERY 已验证样本表名
+    recent_turns: list[dict[str, str]]
+    verified_samples: list[dict[str, Any]]
+    # 企业级断点续跑
+    resume_from: str
+    interrupted_node: str
+    completed_nodes: list[str]
 
 
-ROUTER_SYSTEM = """你是问数路由。根据用户问题、作用域（库/模式）与可见表目录摘要判断意图，只输出一个 JSON：
-{"route":"CHAT|QUERY|GOVERN|HITL","hitl_question":"可选，仅 HITL 时必填","reason":"..."}
-规则：
-- CHAT：问候、寒暄、感谢、闲聊、与查库无关的普通沟通；直接自然语言回复，禁止 HITL
-- QUERY：明确的单表/简单只读问数需求；目录中已有候选表时，即使题面未写物理表名也可 QUERY
-- GOVERN：需要清洗、多表关联、中间结果落表等治理流程
-- HITL：用户明确要查数/分析数据，但结合目录后仍缺少不可推断的关键信息（如必须用户选定的口径），才交互确认
-禁止把「你好」一类闲聊打成 HITL。禁止因业务口语（如在职、已付款、质保中）而 HITL——应交由后续探测消歧。
-禁止输出其它内容。禁止臆造目录中不存在的表。"""
-
-CHAT_SYSTEM = """你是企业智能问数助手。用户当前是普通沟通（非查数任务）。
-用简洁友好的中文回复；可简要提示：描述想查的指标/表/时间范围后，可生成并执行工作流。
-不要编造已查询到的数据，不要输出 JSON 或 SQL。"""
-
-BUILD_SYSTEM = """你是企业智能问数 SQL 规划器。只能通过目录摘要与 tools 了解元数据，禁止编造表/列。
-可用探测：describe_table、get_column_profile、explain_sql（以 tools 声明为准）。
-- 可见表目录已在上下文 catalog 中，禁止调用 search_catalog
-- 若上下文含 catalog_directory_knowledge：必须先依据其中「表名↔中文业务含义」与用户话术对齐初选物理表，再 describe；
-  禁止凭英文表名猜测或互替含义不同的表
-- 若上下文含 hitl_confirmation：这是用户对人机确认的补充；码值/口径用其原文写条件，仅标识符才当表名
-- 若上下文含 db_general_knowledge：这是当前库/模式的通用业务知识，生成 SQL 时须遵守其中口径、术语与关联约定
-- **强制**：凡 SQL 将引用的每一张源业务表，必须先调用 describe_table 查看列结构（含 knowledge 切片）；
-  选列/过滤/关联字段必须来自 describe 返回的 columns，禁止凭记忆臆造列名
-- describe_table 若返回 knowledge：须用该表业务说明再次核对是否匹配用户问题；
-  明显不符则改选目录中的其它表并重新 describe，禁止在错误表上硬写 SQL
-- 当 WHERE/分组可能依赖状态、类型、性别、码表等离散取值时，**必须先**调用 get_column_profile，
-  使用返回的 value_counts 真实码值写 SQL；禁止用自然语言猜码（例如把 active 写成「在职」或把用户话术直接当条件值）；
-  无法确定码值时不要硬写，应在回复中说明需要人工确认
-- 若不涉及离散码值，不要调用 get_column_profile
-- **明细查询**（无聚合函数、无 GROUP BY）：最外层 WHERE 中等值条件（= / IN）涉及的列，必须同时出现在 SELECT 投影中；
-  范围条件（LIKE、<、>、BETWEEN 等）列不必投影。GOVERN 与 QUERY 节点均遵守。
-- 源表必须用「来源 schema.表名」限定（如 company.hr_employee），禁止未限定表名
-- 若上下文含 review_critique：必须按其中指出的漏过滤/错粒度改正，禁止原样重出
-最终只输出严格 JSON（不要 Markdown）：
-{"name":"工作流名","nodes":[{"id":"n1","type":"QUERY","title":"...","sql":"SELECT ...","readonly":true}]}
-要求：单条 SELECT/WITH；末节点 QUERY；不要 EXPLAIN。"""
+# 提示词已迁至 llm/providers/<provider>/prompts/；此处仅作极端回退
+_FALLBACK_GATE = "你是问数入口。只输出 JSON：{\"gate\":\"CHAT|DATA\",\"entities\":[]}。"
 
 
-def _catalog_table_names(catalog: dict[str, Any] | None, *, limit: int = 40) -> list[str]:
-    items = (catalog or {}).get("items") or []
-    names: list[str] = []
-    for it in items[:limit]:
+def _table_intent_from_pairs(
+    pairs: list[dict[str, str]],
+    *,
+    question: str,
+    source: str,
+) -> dict[str, Any]:
+    entity_pairs = [p for p in pairs if isinstance(p, dict)]
+    table_zh = [
+        str(p.get("entity") or "").strip()
+        for p in entity_pairs
+        if str(p.get("entity") or "").strip()
+        and normalize_entity_role(p.get("role")) == ROLE_TABLE
+    ]
+    zh_list = [
+        str(p.get("entity") or "").strip()
+        for p in entity_pairs
+        if str(p.get("entity") or "").strip()
+    ]
+    en_list = [
+        str(p.get("english") or "").strip()
+        for p in entity_pairs
+        if str(p.get("english") or "").strip()
+    ]
+    first = next(
+        (p for p in entity_pairs if normalize_entity_role(p.get("role")) == ROLE_TABLE),
+        entity_pairs[0] if entity_pairs else {},
+    )
+    q = (question or "").strip()
+    return {
+        "entities": entity_pairs,
+        "entity": str(first.get("entity") or "").strip(),
+        "english": str(first.get("english") or "").strip(),
+        "tables": table_zh or zh_list,
+        "englishHints": en_list,
+        "query": " ".join(table_zh or zh_list) if (table_zh or zh_list) else q,
+        "source": source,
+    }
+
+# 明显闲聊，免调 LLM
+_CHAT_SHORT = frozenset(
+    {"你好", "您好", "在吗", "嗨", "hello", "hi", "谢谢", "感谢", "早上好", "下午好", "晚上好"}
+)
+
+_FALLBACK_CHAT = "你是企业智能问数助手。用中文简短回复，勿编造查询结果。"
+_FALLBACK_BUILD = "你是 SQL 规划器。输出工作流 JSON；列名须来自 described_tables 或 describe_table。"
+
+
+_PREFETCH_TABLE_LIMIT = 2
+
+
+def select_prefetch_tables(
+    catalog: dict[str, Any] | None,
+    hitl_resolution: dict[str, Any] | None = None,
+    *,
+    limit: int = _PREFETCH_TABLE_LIMIT,
+) -> list[str]:
+    """召回顺序里取符合物理表名规则的前 limit 张。人工确认的表名插到最前。"""
+    picked: list[str] = []
+    seen: set[str] = set()
+
+    def _add(raw: Any) -> None:
+        name = physical_table_name(raw)
+        if not name:
+            return
+        key = name.lower()
+        bare = key.split(".")[-1]
+        if key in seen or bare in seen:
+            return
+        seen.add(key)
+        seen.add(bare)
+        picked.append(name)
+
+    hitl = hitl_resolution if isinstance(hitl_resolution, dict) else {}
+    _add(hitl.get("confirmed_table") or hitl.get("table"))
+    for it in (catalog or {}).get("items") or []:
+        if len(picked) >= limit:
+            break
         if not isinstance(it, dict):
             continue
-        name = it.get("name") or it.get("tableName") or it.get("table_name")
-        schema = it.get("schema") or it.get("schemaName") or it.get("tableSchema")
-        if name and schema:
-            names.append(f"{schema}.{name}")
-        elif name:
-            names.append(str(name))
-    return names
+        _add(it.get("name") or it.get("tableName") or it.get("table_name"))
+    return picked[:limit]
+
+
+def route_from_draft(draft: dict[str, Any] | None) -> Literal["QUERY"]:
+    """查数草稿一律 QUERY（多节点 GOVERN 路径已下线；解析阶段已展平为单节点）。"""
+    _ = draft
+    return "QUERY"
+
+
+def _slim_describe_for_prompt(
+    *,
+    table: str,
+    schema: str | None,
+    result: dict[str, Any],
+) -> dict[str, Any]:
+    cols_out: list[dict[str, Any]] = []
+    for c in result.get("columns") or []:
+        if not isinstance(c, dict):
+            continue
+        cols_out.append(
+            {
+                "name": c.get("name") or c.get("columnName"),
+                "dataType": c.get("dataType") or c.get("type"),
+                "nullable": c.get("nullable"),
+                "comment": c.get("comment"),
+            }
+        )
+    kg = result.get("knowledge")
+    kg_slim: Any = None
+    if isinstance(kg, dict):
+        units = []
+        for u in (kg.get("units") or [])[:2]:
+            if isinstance(u, dict):
+                units.append({"title": u.get("title"), "summary": u.get("summary")})
+        kg_slim = {"query": kg.get("query"), "units": units}
+    return {
+        "table": table,
+        "schema": schema,
+        "columns": cols_out,
+        "knowledge": kg_slim,
+    }
+
+
+def _format_draft_sql_log(draft: dict[str, Any] | None, *, title: str = "生成 SQL") -> str | None:
+    """业务工作日志：把草稿各节点 SQL 打成可读多行文本。"""
+    if not draft:
+        return None
+    nodes = [n for n in (draft.get("nodes") or []) if isinstance(n, dict) and (n.get("sql") or "").strip()]
+    if not nodes:
+        return None
+    parts = [f"{title}（{len(nodes)} 节点）「{draft.get('name') or '问数工作流'}」："]
+    for n in nodes:
+        nid = n.get("id") or "?"
+        ntype = n.get("type") or "QUERY"
+        ntitle = n.get("title") or nid
+        sql = (n.get("sql") or "").strip()
+        parts.append(f"-- [{nid}] {ntitle} ({ntype})\n{sql}")
+    return "\n\n".join(parts)
 
 
 async def run_generate_graph(
@@ -131,10 +258,20 @@ async def run_generate_graph(
     state: GraphState,
     on_progress: ProgressFn | None = None,
 ) -> GraphState:
-    """LangGraph：gather_context → router → CHAT|HITL|QUERY|GOVERN → verify → review → present。"""
+    """LangGraph：intent_gate → (CHAT | gather_context → build) → verify → present。"""
+
+    from dbc_askdata.agent_bundle import get_agent_bundle
+    from dbc_askdata.llm.registry import resolve_model_name
+
+    bundle = get_agent_bundle()
+    light_model = resolve_model_name(settings, tier="light")
+    gate_system = bundle.get_prompt("gate_system", fallback=_FALLBACK_GATE)
+    chat_system = bundle.get_prompt("chat_system", fallback=_FALLBACK_CHAT)
+    build_system = bundle.get_prompt("build_system", fallback=_FALLBACK_BUILD)
 
     ctx = {
         "trace_id": state.get("trace_id"),
+        "turn_id": state.get("turn_id"),
         "workspace_id": state.get("workspace_id"),
         "project_id": state.get("project_id"),
         "session_id": state.get("session_id"),
@@ -142,88 +279,435 @@ async def run_generate_graph(
     }
     sid = state.get("session_id")
 
+    def _mark_hitl(s: GraphState, node: str) -> None:
+        s["needs_hitl"] = True
+        s["interrupted_node"] = node
+        # 每次打断清空，避免上一轮 hitl_kind 污染；需要时由本节点重新写入
+        s["hitl_kind"] = ""
+        done = list(s.get("completed_nodes") or [])
+        if node not in done:
+            # completed = 已成功跑过的节点，打断点本身不算完成
+            s["completed_nodes"] = done
+
     async def progress(msg: str) -> None:
-        await append_work_log(sid, msg)
+        log.info("askdata.progress session_id=%s msg=%s", sid, msg)
+        await append_work_log(sid, msg, turn_id=ctx.get("turn_id"))
         if on_progress:
             await on_progress(msg)
 
-    async def gather_context(s: GraphState) -> GraphState:
-        """入口：检索目录 + 库通用知识，写入 state；QUERY/GOVERN 不再重复 search_catalog。"""
-        await progress("正在检索数据目录…")
-        t0 = time.monotonic()
-        try:
-            catalog = await tool_gateway.invoke(
-                "search_catalog",
-                {
-                    "workspace_id": s["workspace_id"],
-                    "connection_id": s["connection_id"],
-                    "database": s.get("database"),
-                    "schema": s.get("schema"),
-                    "keyword": None,
-                    "page": 1,
-                    "size": 30,
-                },
-            )
-            catalog = catalog or {"items": []}
-            # 旁路库表目录切片提出到独立 state，避免与 items 混杂且漏进生成提示词
-            dir_kg = catalog.get("knowledge") if isinstance(catalog, dict) else None
-            if isinstance(dir_kg, dict) and (
-                (dir_kg.get("body") or dir_kg.get("summary") or "").strip()
-            ):
-                s["catalog_directory_knowledge"] = dir_kg
-            else:
-                s.pop("catalog_directory_knowledge", None)
-            if isinstance(catalog, dict):
-                slim = dict(catalog)
-                slim.pop("knowledge", None)
-                s["catalog"] = slim
-            else:
-                s["catalog"] = {"items": []}
-            n = len((s["catalog"] or {}).get("items") or [])
-            await progress(
-                f"目录检索完成，可见表约 {n} 张"
-                + ("；已附带库表目录知识" if s.get("catalog_directory_knowledge") else "")
+    async def intent_gate(s: GraphState) -> GraphState:
+        """轻量门闩：CHAT/DATA +（DATA 时）实体抽取一次完成。HITL 续跑直接 DATA。"""
+        await progress("正在判断意图并抽取实体…")
+        timer = ScopeTimer()
+        if s.get("hitl_resolution"):
+            s["intent_gate"] = "DATA"
+            await progress("意图门闩：DATA（HITL 续跑，跳过闲聊判定）")
+            graph_ms = timer.exclusive_ms()
+            log.info(
+                "intent_gate session_id=%s gate=DATA reason=hitl_resolution latency_ms=%s",
+                sid,
+                graph_ms,
             )
             await spans.record(
                 session,
                 phase="generate",
-                kind="TOOL",
-                name="search_catalog",
+                kind="GRAPH",
+                name="intent_gate",
                 status="OK",
-                latency_ms=int((time.monotonic() - t0) * 1000),
+                latency_ms=graph_ms,
+                payload_meta={"gate": "DATA", "from_hitl": True},
+                **ctx,
+            )
+            return s
+
+        q = (s.get("question") or "").strip()
+        if q in _CHAT_SHORT or q.lower() in _CHAT_SHORT:
+            s["intent_gate"] = "CHAT"
+            s["route"] = "CHAT"
+            s["table_intent"] = _table_intent_from_pairs([], question=q, source="short_greeting")
+            await progress(f"意图门闩：CHAT（短问候启发式）；question={q!r}")
+            log.info(
+                "intent_gate session_id=%s gate=CHAT reason=short_greeting question=%r",
+                sid,
+                q,
+            )
+            await spans.record(
+                session,
+                phase="generate",
+                kind="GRAPH",
+                name="intent_gate",
+                status="OK",
+                latency_ms=timer.exclusive_ms(),
+                payload_meta={"gate": "CHAT", "reason": "short_greeting"},
+                **ctx,
+            )
+            return s
+
+        # 近窗用户问句（routes 已去掉本轮），供追问省略句判定 DATA
+        recent_qs = user_questions_from_turns(s.get("recent_turns"), keep=KEEP_WINDOW)
+        gate_user: dict[str, Any] = {
+            "question": s.get("question"),
+            "database": s.get("database"),
+            "schema": s.get("schema"),
+        }
+        if recent_qs:
+            gate_user["recent_user_questions"] = recent_qs
+        user_payload = json.dumps(gate_user, ensure_ascii=False)
+        gate_messages = [
+            {"role": "system", "content": gate_system},
+            {"role": "user", "content": user_payload},
+        ]
+        resp = await llm.chat_text(
+            system=gate_system, user=user_payload, temperature=0, model=light_model
+        )
+        llm_ms = resp.get("latency_ms")
+        timer.add_child_ms(llm_ms if isinstance(llm_ms, int) else None)
+        gate_model = resp.get("model") or light_model
+        content = (resp.get("message") or {}).get("content") or "{}"
+        reason = ""
+        entity_pairs: list[dict[str, str]] = []
+        try:
+            data = json.loads(content[content.find("{") : content.rfind("}") + 1])
+            gate = str(data.get("gate") or "DATA").upper()
+            reason = str(data.get("reason") or "")
+            entity_pairs = parse_table_intent_pairs(content)
+        except Exception:
+            log.warning("intent_gate JSON 解析失败，降级 DATA content=%r", content[:200], exc_info=True)
+            gate = "DATA"
+            reason = "parse_fallback"
+            entity_pairs = []
+        if gate not in ("CHAT", "DATA"):
+            gate = "DATA"
+        if gate == "CHAT":
+            entity_pairs = []
+        s["intent_gate"] = gate  # type: ignore[assignment]
+        if gate == "CHAT":
+            s["route"] = "CHAT"
+            s["table_intent"] = _table_intent_from_pairs([], question=q, source="gate_chat")
+        else:
+            s["table_intent"] = _table_intent_from_pairs(
+                entity_pairs, question=q, source="gate_llm"
+            )
+        await spans.record(
+            session,
+            phase="generate",
+            kind="LLM",
+            name="intent_gate",
+            model=gate_model,
+            status="OK",
+            latency_ms=llm_ms if isinstance(llm_ms, int) else None,
+            token_in=resp.get("token_in"),
+            token_out=resp.get("token_out"),
+            payload_meta={
+                "role": "intent_gate",
+                "model_tier": "light",
+                "merged_entity_extract": True,
+                "entity_count": len(entity_pairs),
+                "entities": entity_pairs[:12],
+                **build_llm_rounds_meta(
+                    messages=gate_messages,
+                    response=resp.get("message"),
+                    role="intent_gate",
+                ),
+            },
+            **ctx,
+        )
+        entity_hint = ""
+        if entity_pairs:
+            entity_hint = "；实体：" + "、".join(
+                f"{p.get('entity') or '?'}/{(p.get('english') or '-').strip() or '-'}"
+                f"[{normalize_entity_role(p.get('role'))}]"
+                for p in entity_pairs[:6]
+            )
+        await progress(
+            f"意图门闩：{gate}"
+            + (f"；{reason}" if reason else "")
+            + entity_hint
+        )
+        log.info(
+            "intent_gate session_id=%s gate=%s reason=%s entities=%s question=%r",
+            sid,
+            gate,
+            reason,
+            len(entity_pairs),
+            q[:120],
+        )
+        await spans.record(
+            session,
+            phase="generate",
+            kind="GRAPH",
+            name="intent_gate",
+            status="OK",
+            latency_ms=timer.exclusive_ms(),
+            payload_meta={
+                "gate": gate,
+                "reason": reason,
+                "entity_count": len(entity_pairs),
+                "merged_entity_extract": True,
+            },
+            **ctx,
+        )
+        return s
+
+    async def gather_context(s: GraphState) -> GraphState:
+        """查数路径：复用门闩已抽实体（缺省才补抽）→ 找表 + 库通用知识。"""
+        graph_timer = ScopeTimer()
+        q = str(s.get("question") or "")
+        existing = s.get("table_intent") if isinstance(s.get("table_intent"), dict) else {}
+        source = str(existing.get("source") or "")
+        reuse_gate = source in ("gate_llm", "gate_chat", "short_greeting")
+
+        if reuse_gate:
+            entity_pairs = (
+                existing.get("entities") if isinstance(existing.get("entities"), list) else []
+            )
+            entity_pairs = [p for p in entity_pairs if isinstance(p, dict)]
+            await progress(
+                f"复用门闩实体（{len(entity_pairs)} 对），跳过二次抽取…"
+                if entity_pairs
+                else "门闩未抽出实体，将用原句找表…"
+            )
+            log.info(
+                "table_intent reused from gate session_id=%s count=%s source=%s",
+                sid,
+                len(entity_pairs),
+                source,
+            )
+            await spans.record(
+                session,
+                phase="generate",
+                kind="GRAPH",
+                name="table_intent",
+                status="OK",
+                latency_ms=0,
                 payload_meta={
-                    "hit_count": n,
-                    "catalog_directory_hit": bool(s.get("catalog_directory_knowledge")),
-                    "catalog_directory_refId": (s.get("catalog_directory_knowledge") or {}).get(
-                        "refId"
-                    ),
+                    "role": "table_intent",
+                    "skipped_llm": True,
+                    "source": source,
+                    "entities": entity_pairs[:12],
+                    "count": len(entity_pairs),
                 },
                 **ctx,
             )
-        except Exception as ex:
-            log.warning("gather_context 目录检索失败", exc_info=True)
-            s["catalog"] = {"items": []}
-            s.pop("catalog_directory_knowledge", None)
-            s["error"] = str(ex)
-            await progress(f"目录检索失败（将尽量继续）：{ex}")
+        else:
+            await progress("正在抽取业务实体（中文/英文对）…")
+            intent = await resolve_table_intent_query(llm, question=q, model=light_model)
+            intent_ms = intent.get("latency_ms")
+            graph_timer.add_child_ms(intent_ms if isinstance(intent_ms, int) else None)
+            entity_pairs = intent.get("entities") if isinstance(intent.get("entities"), list) else []
+            entity_pairs = [p for p in entity_pairs if isinstance(p, dict)]
+            s["table_intent"] = _table_intent_from_pairs(
+                entity_pairs,
+                question=q,
+                source=str(intent.get("source") or "llm"),
+            )
+            if entity_pairs:
+                pair_txt = "、".join(
+                    f"{p.get('entity') or '?'}/{(p.get('english') or '-').strip() or '-'}"
+                    for p in entity_pairs[:8]
+                )
+                await progress(f"表意图（{len(entity_pairs)} 对）：{pair_txt}")
+                log.info(
+                    "table_intent session_id=%s count=%s pairs=%s",
+                    sid,
+                    len(entity_pairs),
+                    pair_txt,
+                )
+            else:
+                await progress("表意图：（无实体）")
+                log.info("table_intent session_id=%s count=0", sid)
+            intent_rounds = (
+                build_llm_rounds_meta(
+                    messages=intent.get("prompt_messages")
+                    if isinstance(intent.get("prompt_messages"), list)
+                    else None,
+                    response=intent.get("response_message")
+                    if isinstance(intent.get("response_message"), dict)
+                    else None,
+                    role="table_intent",
+                )
+                if intent.get("source") == "llm"
+                else {}
+            )
             await spans.record(
                 session,
                 phase="generate",
-                kind="TOOL",
-                name="search_catalog",
-                status="ERROR",
-                error_message=str(ex),
+                kind="LLM",
+                name="table_intent",
+                model=intent.get("model") or light_model,
+                status="OK",
+                latency_ms=intent_ms if isinstance(intent_ms, int) else None,
+                token_in=intent.get("token_in") if isinstance(intent.get("token_in"), int) else None,
+                token_out=intent.get("token_out")
+                if isinstance(intent.get("token_out"), int)
+                else None,
+                payload_meta={
+                    "role": "table_intent",
+                    "model_tier": "light",
+                    "entities": entity_pairs[:12],
+                    "count": len(entity_pairs),
+                    "source": intent.get("source"),
+                    **intent_rounds,
+                },
                 **ctx,
             )
 
-        # 模式名（或库名）+「库通用知识」→ 只取 1 条 GENERAL 切片，供后续 SQL 提示词追加
-        await progress("正在检索库通用知识…")
-        t1 = time.monotonic()
-        try:
-            kg = await search_db_general_knowledge(
+        import asyncio
+
+        await progress("正在并行检索候选表、库通用知识与 SQL 示例…")
+
+        async def _catalog_job() -> tuple[dict[str, Any], int]:
+            t0 = time.monotonic()
+            result = await search_ask_catalog(
                 settings,
+                connection_id=s["connection_id"],
                 database=s.get("database"),
                 schema=s.get("schema"),
+                question=str(s.get("question") or ""),
+                entity_pairs=entity_pairs,
+                top_k=5,
+            )
+            return result, int((time.monotonic() - t0) * 1000)
+
+        async def _kg_job() -> tuple[dict[str, Any] | None, int]:
+            t0 = time.monotonic()
+            result = await search_db_general_knowledge(
+                settings,
+                connection_id=s.get("connection_id"),
+                database=s.get("database"),
+                schema=s.get("schema"),
+            )
+            return result, int((time.monotonic() - t0) * 1000)
+
+        async def _sql_ex_job() -> tuple[list[dict[str, Any]], int]:
+            t0 = time.monotonic()
+            result = await load_sql_ex_knowledge(settings)
+            return result, int((time.monotonic() - t0) * 1000)
+
+        catalog_res, kg_res, sql_ex_res = await asyncio.gather(
+            _catalog_job(), _kg_job(), _sql_ex_job(), return_exceptions=True
+        )
+
+        if isinstance(catalog_res, BaseException):
+            log.error("gather_context 问数多路找表失败（含重试）", exc_info=catalog_res)
+            s["catalog"] = {"items": [], "tableRelations": []}
+            s["table_relations"] = []
+            s.pop("catalog_directory_knowledge", None)
+            _mark_hitl(s, "gather_context")
+            s["hitl_question"] = (
+                "知识库检索失败，请直接补充要查询的物理表名或指标口径后继续。"
+            )
+            s["reply"] = s["hitl_question"]
+            await progress(f"候选表检索失败，转 HITL：{catalog_res}")
+            await spans.record(
+                session,
+                phase="generate",
+                kind="TOOL",
+                name="search_ask_catalog",
+                status="ERROR",
+                error_message=str(catalog_res),
+                **ctx,
+            )
+        else:
+            catalog, catalog_ms = catalog_res
+            items = catalog.get("items") or []
+            slim_items = []
+            for it in items:
+                if not isinstance(it, dict):
+                    continue
+                name = str(it.get("name") or "").strip()
+                if not name:
+                    continue
+                slim_items.append(
+                    {
+                        "name": name,
+                        "title": str(it.get("title") or name).strip(),
+                        "description": str(it.get("description") or "").strip(),
+                        "bodySummary": str(it.get("bodySummary") or "").strip(),
+                        "score": it.get("score"),
+                        "source": str(it.get("source") or "").strip(),
+                    }
+                )
+            rels = [
+                r
+                for r in (catalog.get("tableRelations") or [])
+                if isinstance(r, dict)
+            ]
+            s["catalog"] = {
+                "items": slim_items,
+                "question": catalog.get("question"),
+                "entities": catalog.get("entities") or [],
+                "entity": catalog.get("entity") or "",
+                "english": catalog.get("english") or "",
+                "entitiesZh": catalog.get("entitiesZh") or [],
+                "entitiesEn": catalog.get("entitiesEn") or [],
+                "documentIds": catalog.get("documentIds") or {},
+                "paths": catalog.get("paths") or {},
+                "tableRelations": rels,
+                "graphId": catalog.get("graphId"),
+            }
+            s["table_relations"] = rels
+            s.pop("catalog_directory_knowledge", None)
+            n = len(slim_items)
+            names = [it["name"] for it in slim_items if it.get("name")]
+            score_bits = [
+                f"{it['name']}={it.get('score')}"
+                for it in slim_items
+                if it.get("name")
+            ]
+            if names:
+                await progress(
+                    f"候选表召回完成，共 {n} 张"
+                    + (f"（关系 {len(rels)} 条）" if rels else "")
+                    + f"：{'、'.join(score_bits)}"
+                )
+            else:
+                await progress("候选表召回完成，共 0 张")
+            await spans.record(
+                session,
+                phase="generate",
+                kind="TOOL",
+                name="search_ask_catalog",
+                status="OK",
+                latency_ms=catalog_ms,
+                payload_meta={
+                    "hit_count": n,
+                    "table_names": names,
+                    "table_scores": [
+                        {
+                            "name": it.get("name"),
+                            "score": it.get("score"),
+                            "source": it.get("source"),
+                        }
+                        for it in slim_items
+                        if it.get("name")
+                    ],
+                    "relation_count": len(rels),
+                    "paths": catalog.get("paths") or {},
+                    "entity_pairs": entity_pairs[:12],
+                    "parallel": True,
+                    "cache": catalog.get("__cache__"),
+                },
+                **ctx,
+            )
+
+        if isinstance(kg_res, BaseException):
+            log.warning("gather_context 库通用知识检索失败", exc_info=kg_res)
+            s.pop("db_general_knowledge", None)
+            await progress(f"库通用知识检索失败（将继续）：{kg_res}")
+            await spans.record(
+                session,
+                phase="generate",
+                kind="TOOL",
+                name="search_db_general_knowledge",
+                status="ERROR",
+                error_message=str(kg_res),
+                **ctx,
+            )
+        else:
+            kg_raw, kg_ms = kg_res
+            kg, cache_status = unwrap_general_knowledge_result(
+                kg_raw if isinstance(kg_raw, dict) else None
             )
             if kg:
                 s["db_general_knowledge"] = kg
@@ -237,118 +721,176 @@ async def run_generate_graph(
                 kind="TOOL",
                 name="search_db_general_knowledge",
                 status="OK",
-                latency_ms=int((time.monotonic() - t1) * 1000),
+                latency_ms=kg_ms,
                 payload_meta={
                     "hit": bool(kg),
-                    "query": (kg or {}).get("query"),
+                    "query": (kg or (kg_raw if isinstance(kg_raw, dict) else {}) or {}).get(
+                        "query"
+                    ),
                     "refId": (kg or {}).get("refId"),
+                    "parallel": True,
+                    "cache": cache_status,
                 },
                 **ctx,
             )
-        except Exception as ex:
-            log.warning("gather_context 库通用知识检索失败", exc_info=True)
-            s.pop("db_general_knowledge", None)
-            await progress(f"库通用知识检索失败（将继续）：{ex}")
+
+        if isinstance(sql_ex_res, BaseException):
+            log.warning("gather_context SQL_EX 知识加载失败", exc_info=sql_ex_res)
+            s.pop("sql_ex_knowledge", None)
+            await progress(f"SQL 示例知识加载失败（将继续）：{sql_ex_res}")
             await spans.record(
                 session,
                 phase="generate",
                 kind="TOOL",
-                name="search_db_general_knowledge",
+                name="load_sql_ex_knowledge",
                 status="ERROR",
-                error_message=str(ex),
+                error_message=str(sql_ex_res),
                 **ctx,
             )
-
-        await spans.record(session, phase="generate", kind="GRAPH", name="gather_context", status="OK", **ctx)
-        return s
-
-    async def router(s: GraphState) -> GraphState:
-        """意图判定：可参考 gather 写入的目录摘要。"""
-        await progress("正在判断意图（闲聊 / 简单查询 / 治理 / 需确认）…")
-        if s.get("hitl_resolution"):
-            route = str((s.get("hitl_resolution") or {}).get("route") or "QUERY").upper()
-            s["route"] = "GOVERN" if route == "GOVERN" else "QUERY"
-            s["needs_hitl"] = False
-            await progress(f"已收到确认，继续按 {s['route']} 生成")
+        else:
+            sql_ex_items, sql_ex_ms = sql_ex_res
+            if sql_ex_items:
+                s["sql_ex_knowledge"] = sql_ex_items
+                titles = "、".join(
+                    str(it.get("title") or "").strip() or "?" for it in sql_ex_items[:5]
+                )
+                await progress(f"SQL 示例已加载 {len(sql_ex_items)} 篇：{titles}")
+            else:
+                s.pop("sql_ex_knowledge", None)
+                await progress("未配置 SQL_EX 示例知识（可在知识库维护）")
             await spans.record(
                 session,
                 phase="generate",
-                kind="GRAPH",
-                name="router",
+                kind="TOOL",
+                name="load_sql_ex_knowledge",
                 status="OK",
-                payload_meta={"from_hitl": True, "route": s["route"]},
+                latency_ms=sql_ex_ms,
+                payload_meta={
+                    "hit_count": len(sql_ex_items or []),
+                    "titles": [it.get("title") for it in (sql_ex_items or [])[:10]],
+                    "parallel": True,
+                },
                 **ctx,
             )
-            return s
-        tables = _catalog_table_names(s.get("catalog"))
-        user_payload = json.dumps(
-            {
-                "question": s.get("question"),
-                "database": s.get("database"),
-                "schema": s.get("schema"),
-                "catalog_tables": tables,
-                "catalog_empty": len(tables) == 0,
-            },
-            ensure_ascii=False,
-        )
-        resp = await llm.chat_text(system=ROUTER_SYSTEM, user=user_payload, temperature=0)
-        await spans.record(
-            session,
-            phase="generate",
-            kind="LLM",
-            name=resp.get("model") or settings.llm_model,
-            status="OK",
-            latency_ms=resp.get("latency_ms"),
-            token_in=resp.get("token_in"),
-            token_out=resp.get("token_out"),
-            **ctx,
-        )
-        content = (resp.get("message") or {}).get("content") or "{}"
-        try:
-            data = json.loads(content[content.find("{") : content.rfind("}") + 1])
-        except Exception:
-            # 解析失败：闲聊倾向走 CHAT，避免误弹 HITL
-            q = (s.get("question") or "").strip()
-            if len(q) <= 8 or q in ("你好", "您好", "在吗", "嗨", "hello", "hi"):
-                data = {"route": "CHAT", "reason": "短问候"}
+
+        parallel_ms: list[int | None] = []
+        if not isinstance(catalog_res, BaseException):
+            parallel_ms.append(catalog_res[1])
+        if not isinstance(kg_res, BaseException):
+            parallel_ms.append(kg_res[1])
+        if not isinstance(sql_ex_res, BaseException):
+            parallel_ms.append(sql_ex_res[1])
+        graph_timer.add_parallel_ms(*parallel_ms)
+
+        if not s.get("needs_hitl"):
+            items = (s.get("catalog") or {}).get("items") or []
+            picked: list[str] = []
+            seen: set[str] = set()
+            hitl = s.get("hitl_resolution") if isinstance(s.get("hitl_resolution"), dict) else {}
+            for raw in (
+                hitl.get("confirmed_table"),
+                hitl.get("table"),
+                *[
+                    it.get("name")
+                    for it in items
+                    if isinstance(it, dict)
+                ],
+            ):
+                name = physical_table_name(raw)
+                if not name:
+                    continue
+                key = name.lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                picked.append(name)
+            s["recommended_tables"] = picked
+            s["pre_described_tables"] = []
+            if not picked:
+                _mark_hitl(s, "gather_context")
+                s["hitl_kind"] = "TABLE"
+                s["hitl_question"] = (
+                    "未找到符合命名规则的物理表，请补充要查询的表名（如 hr_employee）。"
+                )
+                s["reply"] = s["hitl_question"]
+                await progress("表名检查未通过，需要您补充物理表名")
             else:
-                data = {"route": "HITL", "hitl_question": "请补充要查询的表或指标（例如：各部门在职人数）。"}
-        route = str(data.get("route") or "CHAT").upper()
-        if route not in ("CHAT", "QUERY", "GOVERN", "HITL"):
-            route = "CHAT"
-        s["route"] = route  # type: ignore[assignment]
-        if route == "HITL":
-            s["needs_hitl"] = True
-            s["hitl_question"] = str(data.get("hitl_question") or "请确认查询对象（表名/指标/时间范围）。")
-        await progress(f"意图判定：{route}" + (f"；{data.get('reason')}" if data.get("reason") else ""))
+                await progress(
+                    f"表语义匹配完成，共 {len(picked)} 张候选表（不预加载结构，生成时按需 describe）"
+                )
+
+        done = list(s.get("completed_nodes") or [])
+        if "gather_context" not in done and not s.get("needs_hitl"):
+            done.append("gather_context")
+            s["completed_nodes"] = done
         await spans.record(
             session,
             phase="generate",
             kind="GRAPH",
-            name="router",
+            name="gather_context",
             status="OK",
-            payload_meta={"route": route},
+            latency_ms=graph_timer.exclusive_ms(),
             **ctx,
         )
         return s
 
+    def _session_prefix(s: GraphState) -> list[dict[str, Any]]:
+        # 近窗已确认样本带入 QUERY 生成
+        return build_session_prefix_messages(
+            route=s.get("route") or "QUERY",
+            recent_turns=s.get("recent_turns"),
+            verified_samples=s.get("verified_samples"),
+        )
+
     async def chat_reply(s: GraphState) -> GraphState:
         await progress("普通沟通：正在生成回复…")
         s["needs_hitl"] = False
-        resp = await llm.chat_text(
-            system=CHAT_SYSTEM,
-            user=str(s.get("question") or ""),
-            temperature=0.4,
+        prefix = build_session_prefix_messages(
+            route="CHAT",
+            recent_turns=s.get("recent_turns"),
+            verified_samples=None,
         )
+        time_ctx = current_time_context()
+        messages = [
+            {
+                "role": "system",
+                "content": chat_system + "\n" + current_time_system_suffix(),
+            },
+            *prefix,
+            {
+                "role": "user",
+                "content": json.dumps(
+                    {
+                        "question": s.get("question"),
+                        "current_time": time_ctx,
+                    },
+                    ensure_ascii=False,
+                ),
+            },
+        ]
+        resp = await llm.chat(
+            messages=messages,
+            tools=None,
+            tool_choice=None,
+            temperature=0.4,
+            model=light_model,
+        )
+        chat_model = resp.get("model") or light_model
         await spans.record(
             session,
             phase="generate",
             kind="LLM",
-            name=resp.get("model") or settings.llm_model,
+            name="chat_reply",
+            model=chat_model,
             status="OK",
             latency_ms=resp.get("latency_ms"),
             token_in=resp.get("token_in"),
             token_out=resp.get("token_out"),
+            payload_meta=build_llm_rounds_meta(
+                messages=messages,
+                response=resp.get("message"),
+                role="chat_reply",
+            ),
             **ctx,
         )
         s["reply"] = ((resp.get("message") or {}).get("content") or "").strip() or (
@@ -359,90 +901,101 @@ async def run_generate_graph(
         return s
 
     async def hitl_node(s: GraphState) -> GraphState:
-        s["needs_hitl"] = True
+        if not s.get("interrupted_node"):
+            _mark_hitl(s, "hitl")
+        else:
+            s["needs_hitl"] = True
         s["reply"] = s.get("hitl_question") or "需要您确认后继续。"
         await progress("等待您确认关键信息（表名/口径）…")
         await spans.record(session, phase="generate", kind="HITL", name="await_user", status="OK", **ctx)
         return s
 
-    async def govern_plan(s: GraphState) -> GraphState:
-        await progress("复杂治理：正在规划多表清洗与落表步骤…")
-        profiles = dict(s.get("column_profiles") or {})
-        described_cols = dict(s.get("described_columns") or {})
-        draft = await run_deep_govern(
-            settings=settings,
-            llm=llm,
-            gateway=tool_gateway,
-            spans=spans,
-            session=session,
-            question=s.get("question") or "",
-            workspace_id=s["workspace_id"],
-            connection_id=s["connection_id"],
-            database=s.get("database"),
-            schema=s.get("schema"),
-            catalog_hint=s.get("catalog"),
-            db_general_knowledge=s.get("db_general_knowledge"),
-            catalog_directory_knowledge=s.get("catalog_directory_knowledge"),
-            hitl_resolution=s.get("hitl_resolution"),
-            ctx=ctx,
-            on_progress=progress,
-            column_profiles=profiles,
-            described_columns=described_cols,
-            review_critique=s.get("review_critique"),
-        )
-        s["column_profiles"] = profiles
-        s["described_columns"] = described_cols
-        if not draft:
-            s["needs_hitl"] = True
-            s["hitl_question"] = "复杂治理未能自动规划，请补充表关系或简化问题。"
-            s["reply"] = s["hitl_question"]
-            await progress("治理规划失败，需要您补充信息")
-            return s
-        s["draft"] = draft
-        await progress(f"治理草稿已生成，节点数 {len(draft.get('nodes') or [])}")
-        await spans.record(session, phase="generate", kind="GRAPH", name="govern_plan", status="OK", **ctx)
-        return s
 
     async def build_workflow_draft(s: GraphState) -> GraphState:
         if s.get("draft"):
+            s["route"] = route_from_draft(s.get("draft"))
             return s
-        await progress("正在生成 SQL 工作流草稿（涉表须先 describe_table）…")
-        items = (s.get("catalog") or {}).get("items") or []
+        regen = bool(s.get("verify_critique"))
+        items = [
+            it
+            for it in ((s.get("catalog") or {}).get("items") or [])
+            if isinstance(it, dict)
+        ]
+        await progress(
+            "校验失败，带错误重新生成 SQL 草稿…"
+            if regen
+            else (
+                f"正在生成 SQL 草稿（候选表 {len(items)} 张，含字段摘要与关系）…"
+                if items
+                else "正在生成 SQL 工作流草稿…"
+            )
+        )
         profiles = dict(s.get("column_profiles") or {})
         described_cols = dict(s.get("described_columns") or {})
+        catalog_tables = [
+            {
+                "name": it.get("name"),
+                "description": it.get("description") or "",
+                "bodySummary": it.get("bodySummary") or "",
+                "source": it.get("source") or "",
+            }
+            for it in items[:12]
+        ]
+        table_relations = [
+            r
+            for r in (s.get("table_relations") or (s.get("catalog") or {}).get("tableRelations") or [])
+            if isinstance(r, dict)
+        ][:40]
         user_payload: dict[str, Any] = {
             "question": s.get("question"),
-            "catalog": items[:20],
+            "catalog_tables": catalog_tables,
+            "table_relations": table_relations,
             "workspace_id": s["workspace_id"],
             "connection_id": s["connection_id"],
             "database": s.get("database"),
             "schema": s.get("schema"),
             "hint": (
-                "catalog 只含物理表名；若有 catalog_directory_knowledge，须先对照其中中文含义初选表，再 describe。"
-                "describe_table 返回的 knowledge 须再次核对表意是否匹配用户问题，不符则换表重探。"
-                "若有 hitl_confirmation，优先按其 text 写过滤字面量；confirmed_table 仅在其为物理表名时采用。"
-                "写 SQL 前必须对每张涉表调用 describe_table；列名只能来自 describe 结果。"
-                "需要真实码值必须先 get_column_profile。"
-                "明细查询须把最外层等值 WHERE 列投影到 SELECT。"
+                "catalog_tables 已含表名/说明/字段压缩（bodySummary）；table_relations 含 JOIN 提示。"
+                "选表可参考 bodySummary。"
+                "WHERE 中每个 =/!=/IN/NOT IN 字面量条件：先对该表 describe_table（未描述过时），"
+                "再对该列 get_column_profile(condition_value=用户原词或字面量)，按 action 写条件；"
+                "禁止看完 describe 直接写中文/臆造码；禁止占位符。"
+                "时间范围用 current_time 写成真实日期；金额等数值区间比较不调 profile。"
+                "缺某张表的外键邻居再 list_table_relations；两表都已知只缺 JOIN 列再 query_table_relations。"
+                "看完工具结果后只输出单节点 QUERY（优先 JOIN/子查询，尽量不要 WITH AS）；禁止多节点与 GOVERN。"
+                "若有 hitl_confirmation：kind=COLUMN 时按其 column/text 写列名；"
+                "码值按其 text 写过滤字面量；confirmed_table 仅在其为物理表名时采用。"
             ),
         }
+        if s.get("recommended_tables"):
+            user_payload["recommended_tables"] = list(s.get("recommended_tables") or [])[:12]
+        if s.get("eval_mode"):
+            user_payload["eval_alias_rules"] = (
+                "测评模式：最外层 SELECT 中凡 COUNT(...) 投影必须使用别名 cnt（写作 AS cnt）；"
+                "禁止 total/count/人数 等其它别名；ORDER BY 计数列时也用 cnt。"
+            )
         if s.get("review_critique"):
             user_payload["review_critique"] = s.get("review_critique")
+        if s.get("verify_critique"):
+            user_payload["verify_critique"] = s.get("verify_critique")
         hitl_prompt = hitl_for_sql_prompt(s.get("hitl_resolution"))
         if hitl_prompt:
             user_payload["hitl_confirmation"] = hitl_prompt
             if hitl_prompt.get("confirmed_table"):
                 user_payload["confirmed_table"] = hitl_prompt["confirmed_table"]
-        dir_prompt = format_catalog_directory_knowledge_for_prompt(
-            s.get("catalog_directory_knowledge")
-        )
-        if dir_prompt:
-            user_payload["catalog_directory_knowledge"] = dir_prompt
         kg_prompt = format_db_general_knowledge_for_prompt(s.get("db_general_knowledge"))
         if kg_prompt:
             user_payload["db_general_knowledge"] = kg_prompt
+        sql_ex_prompt = format_sql_ex_knowledge_for_prompt(s.get("sql_ex_knowledge"))
+        if sql_ex_prompt:
+            user_payload["sql_ex_knowledge"] = sql_ex_prompt
+        user_payload["current_time"] = current_time_context()
         messages = [
-            {"role": "system", "content": BUILD_SYSTEM},
+            {
+                "role": "system",
+                "content": build_system + "\n" + current_time_system_suffix(),
+            },
+            *_session_prefix(s),
             {
                 "role": "user",
                 "content": json.dumps(user_payload, ensure_ascii=False),
@@ -465,7 +1018,7 @@ async def run_generate_graph(
             on_progress=progress,
             on_final_content=parse_workflow_draft,
             exclude_tools=_BUILD_EXCLUDE_TOOLS,
-            require_describe_tables=True,
+            require_describe_tables=False,
             column_profiles=profiles,
             described_columns=described_cols,
         )
@@ -480,7 +1033,15 @@ async def run_generate_graph(
             )
             return s
         s["draft"] = draft
-        await progress(f"草稿生成完成：{draft.get('name')}（{len(draft.get('nodes') or [])} 节点）")
+        s["route"] = route_from_draft(draft)
+        s["error"] = ""
+        s["verify_action"] = ""
+        await progress(
+            f"草稿生成完成：{draft.get('name')}（{s['route']}，{len(draft.get('nodes') or [])} 节点）"
+        )
+        sql_log = _format_draft_sql_log(draft, title="草稿 SQL")
+        if sql_log:
+            await progress(sql_log)
         await spans.record(session, phase="generate", kind="GRAPH", name="build_workflow_draft", status="OK", **ctx)
         return s
 
@@ -488,19 +1049,31 @@ async def run_generate_graph(
         draft = s.get("draft")
         if not draft:
             return s
-        await progress("正在校验/修复 SQL（投影、画像、EXPLAIN）…")
+        s["verify_action"] = ""
+        await progress("正在校验 SQL（投影、画像、EXPLAIN）…")
         nodes = list(draft.get("nodes") or [])
         fixed = []
         profiles = dict(s.get("column_profiles") or {})
+        # 兼容旧多节点草稿：展开后的 SQL，供下游 EXPLAIN 内联子查询
+        expanded_upstream: dict[str, str] = {}
 
-        async def fetch_profile(table: str, column: str) -> dict[str, Any] | None:
-            await progress(f"校验前拉取列画像：{table}.{column}")
+        async def fetch_profile(
+            table: str,
+            column: str,
+            condition_value: str | None = None,
+        ) -> dict[str, Any] | None:
+            hint = f"校验条件探测：{table}.{column}"
+            if condition_value:
+                hint += f" = {condition_value!r}"
+            await progress(hint)
             args: dict[str, Any] = {
                 "workspace_id": s["workspace_id"],
                 "connection_id": s["connection_id"],
                 "table": table,
                 "column": column,
             }
+            if condition_value:
+                args["condition_value"] = condition_value
             if s.get("database"):
                 args["database"] = s["database"]
             if s.get("schema"):
@@ -509,13 +1082,12 @@ async def run_generate_graph(
 
         for idx, n in enumerate(nodes, start=1):
             sql = n.get("sql") or ""
+            node_id = str(n.get("id") or f"n{idx}")
+            explain_sql = expand_node_refs_for_explain(sql, expanded_upstream)
             await progress(f"校验节点 {idx}/{len(nodes)}：{n.get('title') or n.get('id')}")
-            result = await verify_and_repair(
-                settings=settings,
-                llm=llm,
+            result = await verify_sql(
                 sqlwork=sqlwork,
                 sql=sql,
-                question=s.get("question") or "",
                 workspace_id=s["workspace_id"],
                 connection_id=s["connection_id"],
                 database=s.get("database"),
@@ -523,10 +1095,26 @@ async def run_generate_graph(
                 use_explain=True,
                 column_profiles=profiles,
                 fetch_profile=fetch_profile,
+                explain_sql=explain_sql if explain_sql != sql else None,
             )
+            if result.auto_added_eq_cols:
+                await progress(
+                    "已自动将 WHERE 等值列补入 SELECT："
+                    + "、".join(result.auto_added_eq_cols)
+                )
+            if result.auto_added_group_cols:
+                await progress(
+                    "已自动将 GROUP BY 列补入 SELECT："
+                    + "、".join(result.auto_added_group_cols)
+                )
+            if getattr(result, "auto_use_key_rewrites", None):
+                await progress(
+                    "已自动将字典条件改为 key："
+                    + "、".join(result.auto_use_key_rewrites)
+                )
             if not result.ok:
                 if result.needs_hitl:
-                    s["needs_hitl"] = True
+                    _mark_hitl(s, "verify")
                     s["hitl_question"] = (
                         "过滤条件码值无法自动确认："
                         f"{result.message} "
@@ -546,134 +1134,108 @@ async def run_generate_graph(
                         **ctx,
                     )
                     return s
-                s["error"] = f"节点 {n.get('id')} 校验失败: {result.message}"
-                s["reply"] = s["error"]
+
+                node_title = str(n.get("title") or node_id)
+                critique = (
+                    f"节点 {node_id}（{node_title}）机械校验失败。\n"
+                    f"失败 SQL：\n{sql}\n\n"
+                    f"错误：{result.message}\n"
+                    "请对照 catalog 重新 describe_table（错表/错列须换表重探）；"
+                    "WHERE 的 =/!=/IN/NOT IN 须再调 get_column_profile(condition_value=字面量)，"
+                    "按 use_literal/use_key/follow_fk/retry_same_table 改写条件，"
+                    "禁止原样重出上述失败 SQL。"
+                    "若有 sql_ex_knowledge，须对照其中正确示例改写语法，禁止关键字粘连。"
+                    "只输出单节点 QUERY（优先 JOIN/子查询，尽量不要 WITH AS），禁止多节点 GOVERN。"
+                )
+                rounds = int(s.get("verify_rounds") or 0)
+                max_regen = int(settings.verify_max_regen_rounds)
+                if rounds >= max_regen:
+                    # 技术细节仅进日志/span；对用户给可理解的失败提示
+                    s["error"] = (
+                        f"节点 {node_id} 校验失败（已重写 {rounds} 次仍失败）: {result.message}"
+                    )
+                    s["reply"] = (
+                        "抱歉，当前问题未能生成可用的查询 SQL。"
+                        "可能是查询条件、字段或表关系较复杂，多次自动修正后仍未通过校验。"
+                        "请尝试换一种问法、缩小查询范围，或补充更明确的表名与口径后再试。"
+                    )
+                    s["draft"] = None  # type: ignore[typeddict-item]
+                    s["verify_action"] = ""
+                    s["column_profiles"] = profiles
+                    await progress("未能生成可用 SQL，请换种问法或补充更明确的条件后再试")
+                    log.warning(
+                        "verify 重写耗尽 session_id=%s node=%s msg=%s",
+                        sid,
+                        node_id,
+                        result.message,
+                    )
+                    await spans.record(
+                        session,
+                        phase="generate",
+                        kind="GRAPH",
+                        name="verify",
+                        status="ERROR",
+                        error_message=result.message,
+                        payload_meta={"action": "fail", "rounds": rounds},
+                        **ctx,
+                    )
+                    return s
+
+                s["verify_rounds"] = rounds + 1
+                s["verify_critique"] = critique
+                s["verify_action"] = "regen"
+                s["error"] = ""
                 s["draft"] = None  # type: ignore[typeddict-item]
                 s["column_profiles"] = profiles
-                await progress(f"节点校验失败：{result.message}")
+                await progress(
+                    f"查询草稿未通过校验，正在自动修正（第 {s['verify_rounds']}/{max_regen} 次）…"
+                )
+                log.info(
+                    "verify regen session_id=%s node=%s round=%s/%s msg=%s",
+                    sid,
+                    node_id,
+                    s["verify_rounds"],
+                    max_regen,
+                    result.message[:200],
+                )
                 await spans.record(
                     session,
                     phase="generate",
                     kind="GRAPH",
                     name="verify",
-                    status="ERROR",
+                    status="OK",
                     error_message=result.message,
+                    payload_meta={"action": "regen", "rounds": s["verify_rounds"]},
                     **ctx,
                 )
                 return s
             n = dict(n)
-            n["sql"] = result.dialect_sql or sql
+            kept = result.dialect_sql or sql
+            n["type"] = "QUERY"
+            n["readonly"] = True
+            n["sql"] = kept
             fixed.append(n)
+            # 兼容旧多节点：占位已内联为子查询
+            expanded_upstream[node_id] = expand_node_refs_for_explain(kept, expanded_upstream)
+
         draft = dict(draft)
         draft["nodes"] = fixed
         s["draft"] = draft
+        s["route"] = "QUERY"
         s["column_profiles"] = profiles
+        s["verify_critique"] = ""
+        s["verify_action"] = ""
         await progress("SQL 校验通过")
+        sql_log = _format_draft_sql_log(draft, title="校验后 SQL")
+        if sql_log:
+            await progress(sql_log)
         await spans.record(session, phase="generate", kind="GRAPH", name="verify", status="OK", **ctx)
         return s
 
     async def review_sql(s: GraphState) -> GraphState:
-        if s.get("needs_hitl") or s.get("error") or not s.get("draft"):
-            return s
-        await progress("正在语义评审 SQL 是否覆盖用户话术…")
-        user_payload = json.dumps(build_review_user_payload(s), ensure_ascii=False)
-        try:
-            resp = await llm.chat_text(
-                system=REVIEW_SYSTEM,
-                user=user_payload,
-                temperature=0,
-            )
-        except Exception:
-            log.warning("SQL 语义评审调用失败，按通过处理", exc_info=True)
-            await spans.record(
-                session,
-                phase="generate",
-                kind="GRAPH",
-                name="review_sql",
-                status="ERROR",
-                error_message="LLM 评审调用失败，已放行",
-                **ctx,
-            )
-            s["review_action"] = "pass"
-            return s
-        await spans.record(
-            session,
-            phase="generate",
-            kind="LLM",
-            name=resp.get("model") or settings.llm_model,
-            status="OK",
-            latency_ms=resp.get("latency_ms"),
-            token_in=resp.get("token_in"),
-            token_out=resp.get("token_out"),
-            **ctx,
-        )
-        content = (resp.get("message") or {}).get("content") or ""
-        verdict = parse_review_verdict(content)
-        s["review_action"] = verdict.action
-        if verdict.action == "pass":
-            await progress("语义评审通过")
-            await spans.record(
-                session,
-                phase="generate",
-                kind="GRAPH",
-                name="review_sql",
-                status="OK",
-                payload_meta={"action": "pass"},
-                **ctx,
-            )
-            return s
-        if verdict.action == "hitl":
-            s["needs_hitl"] = True
-            s["hitl_question"] = verdict.hitl_question or verdict.critique
-            s["reply"] = s["hitl_question"]
-            s["draft"] = None  # type: ignore[typeddict-item]
-            await progress("语义评审：需人工确认")
-            await spans.record(
-                session,
-                phase="generate",
-                kind="HITL",
-                name="review_sql",
-                status="OK",
-                error_message=verdict.critique,
-                **ctx,
-            )
-            return s
-        rounds = int(s.get("review_rounds") or 0)
-        if rounds >= settings.sql_review_max_regen:
-            s["needs_hitl"] = True
-            s["review_action"] = "hitl"
-            s["hitl_question"] = (
-                "语义评审仍认为 SQL 未覆盖话术，且已达重写上限。"
-                f"{verdict.critique} 请确认实体或口径。"
-            )
-            s["reply"] = s["hitl_question"]
-            s["draft"] = None  # type: ignore[typeddict-item]
-            await progress("语义评审重写次数已用尽，需人工确认")
-            await spans.record(
-                session,
-                phase="generate",
-                kind="HITL",
-                name="review_sql",
-                status="OK",
-                error_message=verdict.critique,
-                payload_meta={"action": "hitl", "rounds": rounds},
-                **ctx,
-            )
-            return s
-        s["review_rounds"] = rounds + 1
-        s["review_critique"] = verdict.critique
-        s["draft"] = None  # type: ignore[typeddict-item]
-        await progress(f"语义评审未通过，回退重写草稿：{verdict.critique[:80]}")
-        await spans.record(
-            session,
-            phase="generate",
-            kind="GRAPH",
-            name="review_sql",
-            status="OK",
-            payload_meta={"action": "regen", "rounds": s["review_rounds"]},
-            error_message=verdict.critique,
-            **ctx,
-        )
+        # GOVERN 语义评审已下线；旧 checkpoint 落到 review 时直接放行
+        s["review_action"] = "pass"
+        log.info("review_sql skipped (QUERY-only) session_id=%s", sid)
         return s
 
     async def present(s: GraphState) -> GraphState:
@@ -699,6 +1261,9 @@ async def run_generate_graph(
                 f"```sql\n{sql_preview}\n```"
             )
             await progress("测评草稿已就绪，自动保存执行")
+            sql_log = _format_draft_sql_log(draft, title="最终 SQL")
+            if sql_log:
+                await progress(sql_log)
             await spans.record(
                 session, phase="generate", kind="GRAPH", name="present_eval_auto_save", status="OK", **ctx
             )
@@ -708,80 +1273,118 @@ async def run_generate_graph(
             f"请确认保存后执行。\n\n```sql\n{sql_preview}\n```"
         )
         await progress("草稿已就绪，可保存并执行")
+        sql_log = _format_draft_sql_log(draft, title="最终 SQL")
+        if sql_log:
+            await progress(sql_log)
         await spans.record(
             session, phase="generate", kind="GRAPH", name="present_save_and_execute_actions", status="OK", **ctx
         )
         return s
 
-    def after_gather(_s: GraphState) -> str:
-        return "router"
-
-    def after_router(s: GraphState) -> str:
-        route = s.get("route")
-        if route == "CHAT":
+    def after_gate(s: GraphState) -> str:
+        gate = s.get("intent_gate") or "DATA"
+        if gate == "CHAT":
+            log.info("after_gate session_id=%s next=chat", sid)
             return "chat"
-        items = (s.get("catalog") or {}).get("items") or []
-        if route in ("QUERY", "GOVERN") and not items:
-            s["route"] = "HITL"
-            s["needs_hitl"] = True
-            s["hitl_question"] = "当前库/模式下未找到表，请确认来源连接作用域或表名。"
-            s["reply"] = s["hitl_question"]
-            return "hitl"
-        if route == "HITL" or s.get("needs_hitl"):
-            return "hitl"
-        if route == "GOVERN":
-            return "govern"
-        return "build"
+        log.info("after_gate session_id=%s next=gather_context", sid)
+        return "gather"
 
-    def after_govern(s: GraphState) -> str:
+    def after_gather(s: GraphState) -> str:
         if s.get("needs_hitl"):
             return "hitl"
-        return "verify"
+        return "build"
+
+    def after_bootstrap(s: GraphState) -> str:
+        """断点续跑入口：按 resume_from 跳过已完成节点。"""
+        resume = str(s.get("resume_from") or "").strip().lower()
+        if resume in ("build", "build_workflow_draft", "govern", "govern_plan"):
+            return "build"
+        if resume == "verify":
+            return "verify"
+        if resume == "review":
+            return "review"
+        if resume in ("fine_router", "gather", "gather_context"):
+            return "gather"
+        if resume == "hitl":
+            return "hitl"
+        return "intent_gate"
 
     def after_verify(s: GraphState) -> str:
-        if s.get("needs_hitl") or s.get("error") or not s.get("draft"):
+        if s.get("needs_hitl"):
             return "present"
-        return "review"
+        if s.get("verify_action") == "regen":
+            log.info(
+                "after_verify session_id=%s next=build reason=verify_regen rounds=%s route=%s",
+                sid,
+                s.get("verify_rounds"),
+                s.get("route"),
+            )
+            return "build"
+        if s.get("error") or not s.get("draft"):
+            return "present"
+        # QUERY-only：机械校验通过即可，不再走语义 review
+        log.info("after_verify session_id=%s next=present", sid)
+        return "present"
 
     def after_review(s: GraphState) -> str:
         if s.get("needs_hitl"):
             return "hitl"
         if s.get("review_action") == "regen":
-            if s.get("route") == "GOVERN":
-                return "govern"
             return "build"
         return "present"
 
+    async def bootstrap(s: GraphState) -> GraphState:
+        return s
+
     g = StateGraph(GraphState)
+    g.add_node("bootstrap", bootstrap)
+    g.add_node("intent_gate", intent_gate)
     g.add_node("gather_context", gather_context)
-    g.add_node("router", router)
     g.add_node("chat_reply", chat_reply)
     g.add_node("hitl", hitl_node)
-    g.add_node("govern_plan", govern_plan)
     g.add_node("build_workflow_draft", build_workflow_draft)
     g.add_node("verify", verify_nodes)
     g.add_node("review", review_sql)
     g.add_node("present", present)
-    g.set_entry_point("gather_context")
-    g.add_conditional_edges("gather_context", after_gather, {"router": "router"})
+    g.set_entry_point("bootstrap")
     g.add_conditional_edges(
-        "router",
-        after_router,
-        {"chat": "chat_reply", "hitl": "hitl", "govern": "govern_plan", "build": "build_workflow_draft"},
+        "bootstrap",
+        after_bootstrap,
+        {
+            "intent_gate": "intent_gate",
+            "gather": "gather_context",
+            "build": "build_workflow_draft",
+            "verify": "verify",
+            "review": "review",
+            "hitl": "hitl",
+        },
+    )
+    g.add_conditional_edges(
+        "intent_gate",
+        after_gate,
+        {"chat": "chat_reply", "gather": "gather_context"},
+    )
+    g.add_conditional_edges(
+        "gather_context",
+        after_gather,
+        {"build": "build_workflow_draft", "hitl": "hitl"},
     )
     g.add_edge("chat_reply", "present")
     g.add_edge("build_workflow_draft", "verify")
-    g.add_conditional_edges("govern_plan", after_govern, {"hitl": "hitl", "verify": "verify"})
     g.add_edge("hitl", "present")
     g.add_conditional_edges(
         "verify",
         after_verify,
-        {"review": "review", "present": "present"},
+        {
+            "review": "review",
+            "present": "present",
+            "build": "build_workflow_draft",
+        },
     )
     g.add_conditional_edges(
         "review",
         after_review,
-        {"hitl": "hitl", "govern": "govern_plan", "build": "build_workflow_draft", "present": "present"},
+        {"hitl": "hitl", "build": "build_workflow_draft", "present": "present"},
     )
     g.add_edge("present", END)
     app = g.compile()

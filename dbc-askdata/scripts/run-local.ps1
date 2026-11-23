@@ -18,6 +18,36 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Get-HostIpv4ForNacos {
+  # 用默认路由出口地址，避开 127.0.0.1 / APIPA / Docker 虚拟网卡误选
+  try {
+    $udp = New-Object System.Net.Sockets.UdpClient
+    try {
+      $udp.Connect([System.Net.IPAddress]::Parse("8.8.8.8"), 80)
+      $ep = [System.Net.IPEndPoint]$udp.Client.LocalEndPoint
+      $ip = $ep.Address.ToString()
+      if ($ip -and $ip -notmatch "^(127\.|169\.254\.)") {
+        return $ip
+      }
+    } finally {
+      $udp.Close()
+    }
+  } catch {
+    # 无外网路由时再扫网卡
+  }
+  $candidates = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+    Where-Object {
+      $_.IPAddress -notmatch "^(127\.|169\.254\.)" -and
+      $_.PrefixOrigin -ne "WellKnown" -and
+      $_.InterfaceAlias -notmatch "(?i)docker|vethernet|wsl|loopback|bluetooth|virtualbox|vmware|hyper-v"
+    } |
+    Sort-Object -Property PrefixOrigin -Descending)
+  if ($candidates.Count -gt 0) {
+    return $candidates[0].IPAddress
+  }
+  return $null
+}
+
 $AskdataRoot = Split-Path -Parent $PSScriptRoot
 $RepoRoot = Split-Path -Parent $AskdataRoot
 $SecretsDir = Join-Path $RepoRoot "secrets"
@@ -55,6 +85,19 @@ $VenvPython = Join-Path $VenvDir "Scripts\python.exe"
 if (-not (Test-Path -LiteralPath $VenvPython)) {
   throw ("venv broken, missing: {0}" -f $VenvPython)
 }
+# 与创建 venv 的宿主机 Python 共用 Docling / CUDA PyTorch，避免再装一份
+$PyVenvCfg = Join-Path $VenvDir "pyvenv.cfg"
+if (Test-Path -LiteralPath $PyVenvCfg) {
+  $cfg = Get-Content -LiteralPath $PyVenvCfg
+  $cfg = $cfg | ForEach-Object {
+    if ($_ -match '^\s*include-system-site-packages\s*=') {
+      "include-system-site-packages = true"
+    } else {
+      $_
+    }
+  }
+  Set-Content -LiteralPath $PyVenvCfg -Value $cfg -Encoding ascii
+}
 
 if (-not $SkipInstall) {
   Write-Host "==> pip install -e . (use -SkipInstall to skip)" -ForegroundColor Yellow
@@ -82,11 +125,19 @@ $env:DBC_ASKDATA_SQLWORK_BASE_URL = $SqlworkBaseUrl
 if (-not $env:DBC_ASKDATA_USERCENTER_BASE_URL) {
   $env:DBC_ASKDATA_USERCENTER_BASE_URL = "http://127.0.0.1:8004"
 }
-# 默认云端 LLM：对齐 ai-dev-assistant（ada.llm → DashScope compatible-mode + qwen-max）
+# 默认云端 LLM：Provider Profile（qwen / deepseek）；模型与提示词见 llm/providers/<id>/
 # 本地 Ollama 须显式 DBC_ASKDATA_LLM_RESIDENCY=local
 if (-not $env:DBC_ASKDATA_LLM_RESIDENCY) {
   $env:DBC_ASKDATA_LLM_RESIDENCY = "cloud"
 }
+if (-not $env:DBC_ASKDATA_LLM_PROVIDER) {
+  if ($env:ADA_LLM_PROVIDER) {
+    $env:DBC_ASKDATA_LLM_PROVIDER = $env:ADA_LLM_PROVIDER
+  } else {
+    $env:DBC_ASKDATA_LLM_PROVIDER = "qwen"
+  }
+}
+$llmProvider = ($env:DBC_ASKDATA_LLM_PROVIDER).ToLowerInvariant()
 $llmResidency = ($env:DBC_ASKDATA_LLM_RESIDENCY).ToLowerInvariant()
 if ($llmResidency -eq "local") {
   if (-not $env:DBC_ASKDATA_LLM_BASE_URL) {
@@ -96,19 +147,27 @@ if ($llmResidency -eq "local") {
     $env:DBC_ASKDATA_LLM_MODEL = "qwen2.5-coder"
   }
 } else {
-  # 与 ada.llm.base-url / chat-model 默认值一致（可不带 /v1）
+  # base-url：未设时 qwen 用 DashScope；deepseek 交给 profile.default_base_url（或显式 env）
   if (-not $env:DBC_ASKDATA_LLM_BASE_URL) {
     if ($env:ADA_LLM_BASE_URL) {
       $env:DBC_ASKDATA_LLM_BASE_URL = $env:ADA_LLM_BASE_URL
-    } else {
+    } elseif ($llmProvider -eq "qwen") {
       $env:DBC_ASKDATA_LLM_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode"
     }
+    # deepseek：可设 DBC_ASKDATA_LLM_BASE_URL=https://api.deepseek.com；否则用 profile 默认
+    if ($llmProvider -eq "deepseek" -and -not $env:DBC_ASKDATA_LLM_BASE_URL) {
+      $env:DBC_ASKDATA_LLM_BASE_URL = "https://api.deepseek.com"
+    }
   }
-  if (-not $env:DBC_ASKDATA_LLM_MODEL) {
-    if ($env:ADA_LLM_CHAT_MODEL) {
-      $env:DBC_ASKDATA_LLM_MODEL = $env:ADA_LLM_CHAT_MODEL
-    } else {
-      $env:DBC_ASKDATA_LLM_MODEL = "qwen-max"
+  # 模型名：空则用 provider profile；仅在显式/ADA 或 qwen 防 plus 时写入覆盖
+  if ($llmProvider -eq "qwen") {
+    if ($env:DBC_ASKDATA_LLM_MODEL -match '(?i)plus') {
+      Write-Host "==> WARN: 问数禁止 qwen-plus，清除覆盖以使用 profile qwen-max" -ForegroundColor Yellow
+      $env:DBC_ASKDATA_LLM_MODEL = ""
+    }
+    if ($env:DBC_ASKDATA_LLM_MODEL_LIGHT -match '(?i)(plus|turbo)') {
+      Write-Host "==> WARN: 轻量模型禁用 plus/turbo，清除覆盖以使用 profile flash" -ForegroundColor Yellow
+      $env:DBC_ASKDATA_LLM_MODEL_LIGHT = ""
     }
   }
   if (-not $env:DBC_ASKDATA_LLM_API_KEY -and $env:ADA_LLM_API_KEY) {
@@ -127,7 +186,14 @@ if (-not $env:DBC_ASKDATA_NACOS_REGISTER) {
   $env:DBC_ASKDATA_NACOS_REGISTER = "true"
 }
 if (-not $env:DBC_ASKDATA_NACOS_IP) {
-  $env:DBC_ASKDATA_NACOS_IP = "127.0.0.1"
+  $detectedIp = Get-HostIpv4ForNacos
+  if ($detectedIp) {
+    $env:DBC_ASKDATA_NACOS_IP = $detectedIp
+    Write-Host ("==> Nacos register ip (host): {0}" -f $detectedIp) -ForegroundColor Green
+  } else {
+    $env:DBC_ASKDATA_NACOS_IP = "127.0.0.1"
+    Write-Host "==> WARN: 未探测到宿主机网卡 IP，Nacos 仍登记 127.0.0.1（Docker 网关将无法访问）；可设 DBC_ASKDATA_NACOS_IP" -ForegroundColor Yellow
+  }
 }
 # 日志级别（可选）；调试模式与日志级别无关
 if (-not $env:DBC_ASKDATA_LOG_LEVEL) {
@@ -161,8 +227,10 @@ Write-Host ("    DBC_ASKDATA_DATABASE_URL     = {0}" -f $env:DBC_ASKDATA_DATABAS
 Write-Host ("    DBC_ASKDATA_SQLWORK_BASE_URL = {0}" -f $env:DBC_ASKDATA_SQLWORK_BASE_URL)
 Write-Host ("    DBC_ASKDATA_USERCENTER_BASE_URL = {0}" -f $env:DBC_ASKDATA_USERCENTER_BASE_URL)
 Write-Host ("    DBC_ASKDATA_LLM_RESIDENCY    = {0}" -f $env:DBC_ASKDATA_LLM_RESIDENCY)
+Write-Host ("    DBC_ASKDATA_LLM_PROVIDER     = {0}" -f $env:DBC_ASKDATA_LLM_PROVIDER)
 Write-Host ("    DBC_ASKDATA_LLM_BASE_URL     = {0}" -f $env:DBC_ASKDATA_LLM_BASE_URL)
-Write-Host ("    DBC_ASKDATA_LLM_MODEL        = {0}" -f $env:DBC_ASKDATA_LLM_MODEL)
+Write-Host ("    DBC_ASKDATA_LLM_MODEL        = {0}" -f ($(if ($env:DBC_ASKDATA_LLM_MODEL) { $env:DBC_ASKDATA_LLM_MODEL } else { "(profile)" })))
+Write-Host ("    DBC_ASKDATA_LLM_MODEL_LIGHT  = {0}" -f ($(if ($env:DBC_ASKDATA_LLM_MODEL_LIGHT) { $env:DBC_ASKDATA_LLM_MODEL_LIGHT } else { "(profile)" })))
 Write-Host ("    DBC_ASKDATA_AUDIT_ENABLED    = {0}" -f $env:DBC_ASKDATA_AUDIT_ENABLED)
 Write-Host ("    DBC_ASKDATA_AUDIT_MTLS_BASE_URL = {0}" -f $env:DBC_ASKDATA_AUDIT_MTLS_BASE_URL)
 Write-Host ("    DBC_ASKDATA_LOG_LEVEL        = {0}" -f $env:DBC_ASKDATA_LOG_LEVEL)
@@ -198,6 +266,15 @@ if ($listeners.Count -eq 0) {
 }
 
 Write-Host "==> starting uvicorn ..." -ForegroundColor Cyan
+
+# Windows 控制台 UTF-8，避免中文日志乱码
+try {
+  chcp 65001 | Out-Null
+} catch {
+  # ignore
+}
+$env:PYTHONUTF8 = "1"
+$env:PYTHONIOENCODING = "utf-8"
 
 Set-Location $AskdataRoot
 if ($UseDebugger) {

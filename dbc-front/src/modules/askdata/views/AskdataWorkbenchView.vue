@@ -67,6 +67,13 @@
             <a-radio-button value="chat">对话</a-radio-button>
             <a-radio-button value="canvas">画布</a-radio-button>
           </a-radio-group>
+          <span
+            v-if="mode === 'chat' && quotaInfo?.enabled"
+            class="quota-badge"
+            :title="`今日 LLM token 用量（上海自然日）`"
+          >
+            额度 {{ quotaInfo.used }}/{{ quotaInfo.limit }}
+          </span>
           <a-button
             v-if="mode === 'chat' && sessionId"
             :disabled="!messages.length && !workLogs.length"
@@ -89,26 +96,112 @@
       <div v-show="mode === 'chat'" class="chat">
         <div ref="chatBody" class="chat-body">
           <div v-for="(m, i) in messages" :key="i" class="msg" :class="m.role">
-            <div class="bubble">{{ m.content }}</div>
-            <div v-if="m.hitlId && m.showHitl" class="hitl">
-              <h4>需要确认</h4>
-              <p>{{ m.content }}</p>
-              <a-space direction="vertical" style="width: 100%">
-                <a-input
-                  v-model:value="hitlNote"
-                  placeholder="补充真实码值 / 口径（可选；不要填口语缩写）"
-                />
-                <a-button type="primary" size="small" :loading="hitlLoading" @click="onResolveHitl(m.hitlId!)">
-                  确认并继续生成
-                </a-button>
-              </a-space>
+            <div v-if="m.role === 'assistant'" class="msg-meta">
+              <span v-if="m.pending" class="msg-status">{{ m.pendingText || chatStatusText }}</span>
+              <a-button
+                v-if="m.pending || m.hasWorkLog"
+                type="link"
+                size="small"
+                class="log-link"
+                :class="{ dim: !m.pending }"
+                @click="openWorklogDrawer(m)"
+              >
+                执行日志
+              </a-button>
             </div>
-            <div v-if="m.draftId && m.draft" class="save-card">
-              <h4>可保存工作流</h4>
-              <p>{{ m.draft.name || '草稿' }}</p>
-              <a-space>
-                <a-button type="primary" size="small" @click="onSaveDraft(m)">保存到工程</a-button>
-                <a-button size="small" :loading="running" @click="onSaveAndRun(m)">保存并执行</a-button>
+            <div class="bubble" :class="{ pending: m.pending }">
+              <div v-if="m.pending" class="typing" aria-label="生成中">
+                <span /><span /><span />
+              </div>
+              <template v-else>
+                <template v-for="(part, pi) in splitMessageParts(m.content)" :key="pi">
+                  <div v-if="part.type === 'text'" class="msg-text">{{ part.value }}</div>
+                  <div v-else class="sql-block">
+                    <pre class="sql-pre">{{ part.value }}</pre>
+                    <div
+                      v-if="
+                        m.draft &&
+                        (m.draftId || m.saved || m.workflowId) &&
+                        isLastSqlPart(m.content, pi)
+                      "
+                      class="save-row"
+                    >
+                      <a-button
+                        type="link"
+                        size="small"
+                        class="save-link"
+                        :loading="!!m.saving"
+                        :disabled="!!m.saved"
+                        @click="onSaveDraft(m)"
+                      >
+                        {{ m.saved ? '已保存' : '保存' }}
+                      </a-button>
+                    </div>
+                  </div>
+                </template>
+                <div
+                  v-if="
+                    m.draft &&
+                    (m.draftId || m.saved || m.workflowId) &&
+                    !hasSqlFence(m.content)
+                  "
+                  class="save-row under-text"
+                >
+                  <a-button
+                    type="link"
+                    size="small"
+                    class="save-link"
+                    :loading="!!m.saving"
+                    :disabled="!!m.saved"
+                    @click="onSaveDraft(m)"
+                  >
+                    {{ m.saved ? '已保存' : '保存' }}
+                  </a-button>
+                </div>
+              </template>
+            </div>
+            <div v-if="m.hitlId && m.showHitl" class="hitl">
+              <h4>{{ m.hitlUi?.title || '需要确认' }}</h4>
+              <p class="hitl-hint">{{ m.hitlUi?.hint || m.content }}</p>
+              <a-space direction="vertical" style="width: 100%">
+                <template v-if="m.hitlUi?.fields?.length">
+                  <div v-for="f in m.hitlUi.fields" :key="f.key" class="hitl-field">
+                    <div class="hitl-label">{{ f.label }}{{ f.required ? ' *' : '' }}</div>
+                    <a-textarea
+                      v-if="isHitlFreeTextField(m.hitlUi?.kind, f.key)"
+                      v-model:value="hitlFields[f.key]"
+                      :rows="3"
+                      :placeholder="`请填写${f.label}`"
+                    />
+                    <a-input
+                      v-else
+                      v-model:value="hitlFields[f.key]"
+                      :placeholder="`请填写${f.label}`"
+                    />
+                    <a-space v-if="f.candidates?.length" wrap class="hitl-cands">
+                      <a-tag
+                        v-for="c in f.candidates"
+                        :key="c"
+                        class="hitl-cand"
+                        @click="hitlFields[f.key] = c"
+                      >{{ c }}</a-tag>
+                    </a-space>
+                  </div>
+                </template>
+                <a-textarea
+                  v-else
+                  v-model:value="hitlNote"
+                  :rows="3"
+                  placeholder="补充真实码值 / 口径（不要填口语缩写）"
+                />
+                <a-space>
+                  <a-button type="primary" size="small" :loading="hitlLoading" @click="onResolveHitl(m)">
+                    确认并继续生成
+                  </a-button>
+                  <a-button size="small" :disabled="hitlLoading" @click="onCancelHitl(m)">
+                    取消
+                  </a-button>
+                </a-space>
               </a-space>
             </div>
           </div>
@@ -150,6 +243,28 @@
                 </div>
               </template>
             </div>
+          </div>
+          <div v-if="showCanvasFeedback" class="canvas-feedback">
+            <a-tooltip title="记入会话样本并保存记忆（知识草稿需审批通过后生效）">
+              <a-button
+                size="small"
+                type="primary"
+                ghost
+                :loading="feedbackLoading === 'useful'"
+                :class="{ done: runFeedback?.usefulDone }"
+                @click="onCanvasFeedback('useful')"
+              >
+                {{ runFeedback?.usefulDone ? '已标记有用' : '有用' }}
+              </a-button>
+            </a-tooltip>
+            <a-button
+              size="small"
+              :loading="feedbackLoading === 'useless'"
+              :class="{ done: runFeedback?.uselessDone }"
+              @click="onCanvasFeedback('useless')"
+            >
+              {{ runFeedback?.uselessDone ? '已标记无用' : '无用' }}
+            </a-button>
           </div>
         </div>
         <div class="console" :style="{ height: consoleHeight + 'px' }">
@@ -216,27 +331,36 @@
       </div>
     </main>
 
-    <aside
-      class="ad-worklog"
-      :class="{ busy: chatting || hitlLoading || running }"
-      :style="{ width: worklogWidth + 'px' }"
+    <a-drawer
+      :open="worklogDrawerOpen"
+      title="业务工作日志"
+      placement="right"
+      :width="420"
+      :destroy-on-close="false"
+      @update:open="onWorklogDrawerOpenChange"
     >
-      <div class="worklog-resizer" @mousedown="onWorklogResizeStart" title="拖动调整宽度" />
-      <div class="worklog-hd">
-        <span>业务工作日志</span>
+      <div class="worklog-drawer-hd">
+        <span v-if="activeWorklogTurnId" class="turn">轮次 #{{ activeWorklogTurnId }}</span>
         <span v-if="chatting || hitlLoading" class="live">处理中</span>
         <span v-else-if="running" class="live">执行中</span>
+        <span v-else class="idle">空闲</span>
       </div>
-      <div ref="worklogBody" class="worklog-body">
+      <div ref="worklogBody" class="worklog-drawer-body">
         <div v-if="!workLogs.length" class="worklog-empty">
-          {{ sessionId ? '发送问题后，这里会实时显示系统在做什么' : '请先选择工程' }}
+          {{
+            !sessionId
+              ? '请先选择工程'
+              : activeWorklogTurnId
+                ? '本轮暂无日志（若刚结束可稍后重开，将从库加载）'
+                : '发送问题后，这里会实时显示系统在做什么'
+          }}
         </div>
         <div v-for="(item, i) in workLogs" :key="i" class="worklog-line" :class="item.level.toLowerCase()">
           <span class="t">{{ formatLogTime(item.at) }}</span>
           <span class="m">{{ item.message }}</span>
         </div>
       </div>
-    </aside>
+    </a-drawer>
 
     <a-modal
       v-model:open="createOpen"
@@ -286,14 +410,47 @@ import ConnectionScopePicker, {
 import { isPgStyle } from '@/modules/auth/utils/objectGrant'
 import { listWorkspaceConnections, type ConnectionSummary } from '@/modules/sqlwork/api/sqlwork'
 
+type HitlUiField = {
+  key: string
+  label: string
+  required?: boolean
+  candidates?: string[]
+}
+type HitlUi = {
+  kind?: string
+  title?: string
+  hint?: string
+  fields?: HitlUiField[]
+}
+
+/** SCOPE/REVIEW 等开放确认用多行；COLUMN/TABLE 等单值用单行 */
+function isHitlFreeTextField(kind: string | undefined, fieldKey: string): boolean {
+  const k = (kind || '').toUpperCase()
+  if (k === 'SCOPE' || k === 'REVIEW' || k === 'KNOWLEDGE_DOWN') {
+    return fieldKey === 'text' || fieldKey === 'note'
+  }
+  return fieldKey === 'text' || fieldKey === 'literal' || fieldKey === 'note'
+}
+
 type UiMessage = {
   role: string
   content: string
   draftId?: number | null
   hitlId?: number | null
   showHitl?: boolean
+  hitlUi?: HitlUi | null
   draft?: askApi.ChatResponse['draft']
+  saved?: boolean
+  workflowId?: number | null
+  saving?: boolean
+  messageId?: number | null
+  pending?: boolean
+  pendingText?: string
+  hasWorkLog?: boolean
+  turnId?: number | null
 }
+
+type MsgPart = { type: 'text' | 'sql'; value: string }
 
 const simpleImage = Empty.PRESENTED_IMAGE_SIMPLE
 const route = useRoute()
@@ -309,6 +466,8 @@ const treeLoading = ref(false)
 const activeProjectId = ref<number | null>(null)
 const activeWorkflowId = ref<number | null>(null)
 const sessionId = ref<number | null>(null)
+/** 最近一次用户问句（确认 SQL 正确时带入） */
+const lastQuestion = ref('')
 const mode = ref<'chat' | 'canvas'>('chat')
 const input = ref('')
 const chatting = ref(false)
@@ -317,6 +476,10 @@ const messages = ref<UiMessage[]>([])
 const execLogs = ref<Array<{ message: string; ok: boolean; runId?: number }>>([])
 const workLogs = ref<Array<{ at: string; level: string; message: string }>>([])
 const workLogCursor = ref(0)
+/** 当前抽屉正在查看的 turn；轮询/拉取均按此隔离 */
+const activeWorklogTurnId = ref<number | null>(null)
+/** 发送/HITL 进行中：跟随最新进行中 turn，勿锁死历史轮次 */
+const followLiveWorklog = ref(false)
 const canvasNodes = ref<Array<{ id: string; type: string; title?: string; sql?: string; status?: string }>>([])
 const connections = ref<ConnectionSummary[]>([])
 const createOpen = ref(false)
@@ -328,13 +491,21 @@ const createForm = reactive({
   work: {} as ConnectionScopeValue,
 })
 const hitlNote = ref('')
+const hitlFields = reactive<Record<string, string>>({})
 const hitlLoading = ref(false)
+const quotaInfo = ref<{ used: number; limit: number; remaining: number | null; enabled: boolean } | null>(null)
 const currentRunId = ref<number | null>(null)
 const consoleTab = ref<'logs' | 'result' | 'detail'>('logs')
 const consoleHeight = ref(220)
-const worklogWidth = ref(280)
+const worklogDrawerOpen = ref(false)
 const selectedNodeId = ref<string | null>(null)
 const lastRunStatus = ref<string | null>(null)
+const runFeedback = ref<askApi.RunFeedbackState | null>(null)
+const feedbackLoading = ref<'useful' | 'useless' | null>(null)
+const showCanvasFeedback = computed(
+  () => mode.value === 'canvas' && lastRunStatus.value === 'SUCCESS' && !!currentRunId.value,
+)
+const chatStatusText = ref('处理中…')
 const resultColumns = ref<Array<{ title: string; dataIndex: string; key: string }>>([])
 const resultRows = ref<Record<string, unknown>[]>([])
 const resultRowCount = ref<number | null>(null)
@@ -384,7 +555,7 @@ function formatLogTime(at: string) {
 
 function nodeKindLabel(n: { type?: string; id: string }) {
   const t = (n.type || '').toUpperCase()
-  if (t === 'GOVERN') return 'GOVERN · 清洗落表'
+  if (t === 'GOVERN') return 'GOVERN · 历史中间表'
   if (t === 'QUERY') return 'QUERY · 查询'
   if (t === 'SQL') return 'SQL'
   return t || '节点'
@@ -392,7 +563,7 @@ function nodeKindLabel(n: { type?: string; id: string }) {
 
 function nodePurpose(n: { type?: string; title?: string; id: string }) {
   const t = (n.type || '').toUpperCase()
-  if (t === 'GOVERN') return '产出中间数据集（写入工作连接临时表）'
+  if (t === 'GOVERN') return '历史草稿中间数据集（新生成仅单节点 QUERY）'
   if (t === 'QUERY') return '产出最终结果集'
   if (t === 'SQL') return 'SQL 数据变换'
   return n.title || '数据节点'
@@ -539,28 +710,93 @@ function resetWorkLogs() {
   workLogCursor.value = 0
 }
 
+function bindWorklogTurn(turnId: number | null | undefined) {
+  const next = turnId != null && turnId > 0 ? turnId : null
+  if (activeWorklogTurnId.value !== next) {
+    activeWorklogTurnId.value = next
+    resetWorkLogs()
+  }
+}
+
+let workLogPulling = false
+let workLogPullAgain = false
+
 async function pullWorkLogs() {
   if (!sessionId.value) return
-  try {
-    const resp = await askApi.fetchWorkLogs(sessionId.value, workLogCursor.value)
-    const data = resp.data
-    if (!data) return
-    const items = data.items || []
-    if (items.length) {
-      workLogs.value.push(...items)
-      await nextTick()
-      if (worklogBody.value) worklogBody.value.scrollTop = worklogBody.value.scrollHeight
-    }
-    if (typeof data.next === 'number') workLogCursor.value = data.next
-  } catch {
-    /* 轮询失败不打断主流程 */
+  // 合并并发：interval 与 await 同时触发时只跑一轮，结束后若有排队再补拉一次
+  if (workLogPulling) {
+    workLogPullAgain = true
+    return
   }
+  workLogPulling = true
+  try {
+    do {
+      workLogPullAgain = false
+      try {
+        const after = workLogCursor.value
+        // turnId 为空：后端优先 RUNNING/HITL，避免锁死上一轮已结束 turn
+        const resp = await askApi.fetchWorkLogs(
+          sessionId.value!,
+          after,
+          activeWorklogTurnId.value,
+        )
+        const data = resp.data
+        if (!data) continue
+        const remoteTurn = data.turnId
+        if (remoteTurn != null && remoteTurn > 0) {
+          if (activeWorklogTurnId.value == null) {
+            activeWorklogTurnId.value = remoteTurn
+          } else if (
+            followLiveWorklog.value &&
+            remoteTurn !== activeWorklogTurnId.value &&
+            remoteTurn > activeWorklogTurnId.value
+          ) {
+            // 新一轮已创建：切到新 turn，从头追加
+            activeWorklogTurnId.value = remoteTurn
+            resetWorkLogs()
+            workLogPullAgain = true
+            continue
+          }
+        }
+        const items = data.items || []
+        if (items.length) {
+          workLogs.value.push(...items)
+          updateChatStatusFromWorkLogs()
+          await nextTick()
+          if (worklogBody.value) worklogBody.value.scrollTop = worklogBody.value.scrollHeight
+        }
+        if (typeof data.next === 'number') workLogCursor.value = data.next
+      } catch {
+        /* 轮询失败不打断主流程 */
+      }
+    } while (workLogPullAgain)
+  } finally {
+    workLogPulling = false
+  }
+}
+
+function taskInFlight() {
+  return chatting.value || hitlLoading.value || running.value
+}
+
+function shouldPollWorkLogs() {
+  // 抽屉打开且任务已结束：只拉一次，不轮询
+  return taskInFlight()
+}
+
+function maybeStopWorkLogPoll() {
+  if (!shouldPollWorkLogs()) stopWorkLogPoll()
 }
 
 function startWorkLogPoll() {
   stopWorkLogPoll()
   void pullWorkLogs()
+  if (!shouldPollWorkLogs()) return
   workLogTimer = setInterval(() => {
+    if (!shouldPollWorkLogs()) {
+      stopWorkLogPoll()
+      return
+    }
     void pullWorkLogs()
   }, 800)
 }
@@ -571,15 +807,99 @@ function mapRestoredMessages(
 ): UiMessage[] {
   return (rows || []).map((m) => {
     const hitlId = m.payload?.hitlId ?? null
+    const saved = !!(m.payload?.saved || m.payload?.workflowId)
     return {
       role: m.role,
       content: m.content,
+      messageId: m.id,
       draftId: m.payload?.draftId ?? null,
       hitlId,
       showHitl: !!(hitlId && pendingHitlId && hitlId === pendingHitlId),
       draft: m.payload?.draft,
+      hitlUi: (m.payload as any)?.hitlUi || null,
+      saved,
+      workflowId: m.payload?.workflowId ?? null,
+      hasWorkLog: !!(m.payload?.turnId || m.payload?.hitlId),
+      turnId: m.payload?.turnId ?? null,
     }
   })
+}
+
+function openWorklogDrawer(msg?: UiMessage) {
+  if (msg?.turnId && !msg.pending) {
+    // 回看历史某一轮
+    followLiveWorklog.value = false
+    bindWorklogTurn(msg.turnId)
+  } else if (msg?.pending || (taskInFlight() && !msg?.turnId)) {
+    // 进行中：清空旧 turn，跟后端 RUNNING/HITL
+    followLiveWorklog.value = true
+    activeWorklogTurnId.value = null
+    resetWorkLogs()
+  } else if (msg && !msg.pending) {
+    message.warning('该消息没有关联轮次，暂无法查看执行日志')
+    return
+  }
+  worklogDrawerOpen.value = true
+  if (followLiveWorklog.value || taskInFlight()) startWorkLogPoll()
+  else void pullWorkLogs()
+}
+
+function onWorklogDrawerOpenChange(open: boolean) {
+  worklogDrawerOpen.value = open
+  if (!open) {
+    maybeStopWorkLogPoll()
+    return
+  }
+  if (!activeWorklogTurnId.value) return
+  if (taskInFlight()) startWorkLogPoll()
+  else void pullWorkLogs()
+}
+
+function hasSqlFence(content: string) {
+  return /```(?:sql)?\s*\n[\s\S]*?```/i.test(content || '')
+}
+
+function splitMessageParts(content: string): MsgPart[] {
+  const src = content || ''
+  if (!src.trim()) return [{ type: 'text', value: '' }]
+  const parts: MsgPart[] = []
+  const re = /```(?:sql)?\s*\n?([\s\S]*?)```/gi
+  let last = 0
+  let m: RegExpExecArray | null
+  while ((m = re.exec(src))) {
+    if (m.index > last) {
+      const text = src.slice(last, m.index).trim()
+      if (text) parts.push({ type: 'text', value: text })
+    }
+    parts.push({ type: 'sql', value: (m[1] || '').replace(/\n$/, '') })
+    last = m.index + m[0].length
+  }
+  if (last < src.length) {
+    const text = src.slice(last).trim()
+    if (text) parts.push({ type: 'text', value: text })
+  }
+  return parts.length ? parts : [{ type: 'text', value: src }]
+}
+
+function isLastSqlPart(content: string, partIndex: number) {
+  const parts = splitMessageParts(content)
+  for (let i = parts.length - 1; i >= 0; i--) {
+    if (parts[i].type === 'sql') return i === partIndex
+  }
+  return false
+}
+
+function updateChatStatusFromWorkLogs() {
+  const pending = [...messages.value].reverse().find((m) => m.pending)
+  if (!pending) return
+  const text = workLogs.value.map((l) => l.message || '').join('\n')
+  if (/意图门闩：CHAT|gate=CHAT|CHAT（/.test(text)) {
+    chatStatusText.value = '思考中'
+    pending.pendingText = '思考中'
+  } else if (/意图门闩：DATA|gate=DATA|候选表|正在生成|细路由|治理/.test(text)) {
+    chatStatusText.value = '问数处理中'
+    pending.pendingText = '问数处理中'
+  }
 }
 
 async function selectProject(p: askApi.TreeProject) {
@@ -594,7 +914,7 @@ async function selectProject(p: askApi.TreeProject) {
     const data = resp.data
     sessionId.value = data?.id || null
     messages.value = mapRestoredMessages(data?.messages || [], data?.pendingHitlId)
-    startWorkLogPoll()
+    stopWorkLogPoll()
     await nextTick()
     if (chatBody.value) chatBody.value.scrollTop = chatBody.value.scrollHeight
   } catch (e: any) {
@@ -608,13 +928,16 @@ async function openWorkflow(p: askApi.TreeProject, workflowId: number) {
   activeProjectId.value = p.id
   activeWorkflowId.value = workflowId
   mode.value = 'canvas'
+  lastRunStatus.value = null
+  runFeedback.value = null
+  currentRunId.value = null
   if (!sessionId.value || activeProjectId.value !== p.id) {
     try {
       const resp = await askApi.openSession(p.id, `${p.name} 会话`)
       sessionId.value = resp.data?.id || null
       messages.value = mapRestoredMessages(resp.data?.messages || [], resp.data?.pendingHitlId)
       resetWorkLogs()
-      startWorkLogPoll()
+      stopWorkLogPoll()
     } catch (e: any) {
       message.error(e?.message || '打开会话失败')
     }
@@ -646,9 +969,22 @@ function onComposerKeydown(e: KeyboardEvent) {
 async function onSend() {
   if (!sessionId.value || !input.value.trim() || chatting.value) return
   const text = input.value.trim()
+  lastQuestion.value = text
   messages.value.push({ role: 'user', content: text })
+  const pendingMsg: UiMessage = {
+    role: 'assistant',
+    content: '',
+    pending: true,
+    pendingText: '处理中…',
+    hasWorkLog: true,
+  }
+  messages.value.push(pendingMsg)
   input.value = ''
   chatting.value = true
+  chatStatusText.value = '处理中…'
+  // 新一轮：跟 live turn，勿沿用上一轮抽屉
+  followLiveWorklog.value = true
+  activeWorklogTurnId.value = null
   resetWorkLogs()
   workLogs.value.push({
     at: new Date().toISOString(),
@@ -656,24 +992,55 @@ async function onSend() {
     message: `已发送，等待服务处理…`,
   })
   startWorkLogPoll()
+  await nextTick()
+  if (chatBody.value) chatBody.value.scrollTop = chatBody.value.scrollHeight
   try {
     const resp = await askApi.chat(sessionId.value, text)
     const data = resp.data
+    const turnId = data?.turnId ?? activeWorklogTurnId.value ?? null
+    pendingMsg.turnId = turnId
     messages.value.forEach((m) => {
       if (m.showHitl) m.showHitl = false
     })
-    messages.value.push({
+    const finalMsg: UiMessage = {
       role: 'assistant',
       content: data?.reply || '',
       draftId: data?.draftId,
       hitlId: data?.hitlId,
       showHitl: !!(data?.needsHitl && data?.hitlId),
       draft: data?.draft,
-    })
+      hitlUi: data?.hitlUi || null,
+      saved: false,
+      workflowId: null,
+      hasWorkLog: true,
+      turnId,
+    }
+    const idx = messages.value.indexOf(pendingMsg)
+    if (idx >= 0) messages.value[idx] = finalMsg
+    else messages.value.push(finalMsg)
+    if (turnId) {
+      if (activeWorklogTurnId.value !== turnId) {
+        activeWorklogTurnId.value = turnId
+        // 响应带回正式 turnId：若此前误跟了旧轮，整轮重拉
+        if (workLogCursor.value > 0 && workLogs.value.length > 1) {
+          resetWorkLogs()
+        }
+      }
+    }
     await pullWorkLogs()
+    await refreshQuota()
     await nextTick()
     if (chatBody.value) chatBody.value.scrollTop = chatBody.value.scrollHeight
   } catch (e: any) {
+    const idx = messages.value.indexOf(pendingMsg)
+    if (idx >= 0) {
+      messages.value[idx] = {
+        role: 'assistant',
+        content: e?.message || '对话失败',
+        hasWorkLog: !!activeWorklogTurnId.value,
+        turnId: activeWorklogTurnId.value,
+      }
+    }
     workLogs.value.push({
       at: new Date().toISOString(),
       level: 'ERROR',
@@ -682,52 +1049,131 @@ async function onSend() {
     message.error(e?.message || '对话失败')
   } finally {
     chatting.value = false
+    followLiveWorklog.value = false
+    maybeStopWorkLogPoll()
   }
 }
 
 async function onSaveDraft(m: UiMessage) {
-  if (!activeProjectId.value || !m.draft || !m.draftId) return
+  if (!activeProjectId.value || !m.draft) return
+  if (m.saved && m.workflowId) {
+    message.success('已保存')
+    return m.workflowId
+  }
+  if (!m.draftId && !m.workflowId) return
+  m.saving = true
   try {
     const resp = await askApi.saveWorkflow({
       projectId: activeProjectId.value,
       name: m.draft.name || '未命名工作流',
       nodesJson: m.draft as Record<string, unknown>,
-      draftId: m.draftId,
+      draftId: m.draftId || undefined,
+      sessionId: sessionId.value || undefined,
     })
-    message.success('已保存')
-    m.draftId = null
+    const wfId = resp.data?.id
+    m.saved = true
+    m.workflowId = wfId ?? null
+    message.success(resp.data?.alreadySaved ? '已保存' : '已保存到工程')
     await loadTree()
-    return resp.data?.id
+    return wfId
   } catch (e: any) {
     message.error(e?.message || '保存失败')
     return null
+  } finally {
+    m.saving = false
   }
 }
 
-async function onSaveAndRun(m: UiMessage) {
-  const wfId = await onSaveDraft(m)
-  if (!wfId || !activeProjectId.value) return
-  await loadTree()
-  const p = tree.value.find((x) => x.id === activeProjectId.value)
-  if (!p) {
-    message.error('保存后未找到工程')
-    return
-  }
-  activeWorkflowId.value = wfId
-  mode.value = 'canvas'
-  await openWorkflow(p, wfId)
-  await onExecute()
-}
-
-async function onResolveHitl(hitlId: number) {
+async function onResolveHitl(msg: UiMessage) {
+  const hitlId = msg.hitlId
+  if (!hitlId) return
   hitlLoading.value = true
+  chatStatusText.value = '问数处理中'
+  const turnId = msg.turnId ?? activeWorklogTurnId.value ?? null
+  const pendingMsg: UiMessage = {
+    role: 'assistant',
+    content: '',
+    pending: true,
+    pendingText: '问数处理中',
+    hasWorkLog: true,
+    turnId,
+  }
+  messages.value.push(pendingMsg)
+  followLiveWorklog.value = true
+  if (turnId) bindWorklogTurn(turnId)
+  else {
+    activeWorklogTurnId.value = null
+    resetWorkLogs()
+  }
   startWorkLogPoll()
   try {
-    const note = hitlNote.value.trim()
-    const resp = await askApi.resolveHitl(hitlId, {
+    const resolution: Record<string, unknown> = {
       ack: true,
-      text: note || undefined,
       route: 'QUERY',
+      kind: msg.hitlUi?.kind,
+    }
+    if (msg.hitlUi?.fields?.length) {
+      for (const f of msg.hitlUi.fields) {
+        const v = (hitlFields[f.key] || '').trim()
+        if (f.required && !v) {
+          message.warning(`请填写：${f.label}`)
+          return
+        }
+        if (v) resolution[f.key] = v
+      }
+      if (!resolution.text && resolution.literal) resolution.text = resolution.literal
+      if (!resolution.text && resolution.column) resolution.text = resolution.column
+    } else {
+      const note = hitlNote.value.trim()
+      if (note) resolution.text = note
+    }
+    const resp = await askApi.resolveHitl(hitlId, resolution)
+    const data = resp.data as any
+    const doneTurnId = data?.turnId ?? turnId
+    messages.value.forEach((m) => {
+      if (m.hitlId === hitlId) m.showHitl = false
+    })
+    const finalMsg: UiMessage = {
+      role: 'assistant',
+      content: data?.reply || '已继续',
+      draftId: data?.draftId,
+      draft: data?.draft,
+      hitlId: data?.needsHitl ? data?.hitlId || data?.id : null,
+      showHitl: !!data?.needsHitl,
+      hitlUi: data?.hitlUi || null,
+      saved: false,
+      workflowId: null,
+      hasWorkLog: true,
+      turnId: doneTurnId,
+    }
+    if (doneTurnId) activeWorklogTurnId.value = doneTurnId
+    const idx = messages.value.indexOf(pendingMsg)
+    if (idx >= 0) messages.value[idx] = finalMsg
+    else messages.value.push(finalMsg)
+    hitlNote.value = ''
+    Object.keys(hitlFields).forEach((k) => delete hitlFields[k])
+    await pullWorkLogs()
+    await refreshQuota()
+    message.success('已确认并继续')
+  } catch (e: any) {
+    const idx = messages.value.indexOf(pendingMsg)
+    if (idx >= 0) messages.value.splice(idx, 1)
+    message.error(e?.message || '确认失败')
+  } finally {
+    hitlLoading.value = false
+    followLiveWorklog.value = false
+    maybeStopWorkLogPoll()
+  }
+}
+
+async function onCancelHitl(msg: UiMessage) {
+  const hitlId = msg.hitlId
+  if (!hitlId) return
+  hitlLoading.value = true
+  try {
+    const resp = await askApi.resolveHitl(hitlId, {
+      cancel: true,
+      action: 'cancel',
     })
     const data = resp.data as any
     messages.value.forEach((m) => {
@@ -735,19 +1181,25 @@ async function onResolveHitl(hitlId: number) {
     })
     messages.value.push({
       role: 'assistant',
-      content: data?.reply || '已继续',
-      draftId: data?.draftId,
-      draft: data?.draft,
-      hitlId: data?.needsHitl ? data?.id : null,
-      showHitl: !!data?.needsHitl,
+      content: data?.reply || '已取消本次确认',
     })
     hitlNote.value = ''
-    await pullWorkLogs()
-    message.success('已确认并继续')
+    Object.keys(hitlFields).forEach((k) => delete hitlFields[k])
+    message.info('已取消')
   } catch (e: any) {
-    message.error(e?.message || '确认失败')
+    message.error(e?.message || '取消失败')
   } finally {
     hitlLoading.value = false
+    maybeStopWorkLogPoll()
+  }
+}
+
+async function refreshQuota() {
+  try {
+    const resp = await askApi.fetchQuotaMe()
+    quotaInfo.value = (resp.data as any) || null
+  } catch {
+    quotaInfo.value = null
   }
 }
 
@@ -756,6 +1208,7 @@ async function onExecute() {
   running.value = true
   execLogs.value = []
   lastRunStatus.value = null
+  runFeedback.value = null
   consoleTab.value = 'logs'
   canvasNodes.value = canvasNodes.value.map((n) => ({ ...n, status: 'run' }))
   startWorkLogPoll()
@@ -768,6 +1221,7 @@ async function onExecute() {
       execLogs.value.push({ message: log.message, ok: log.level !== 'ERROR', runId })
     }
     lastRunStatus.value = detail?.status || null
+    runFeedback.value = detail?.feedback || null
     applyNodeStatusFromLogs(detail?.logs || [], detail?.status || null)
     if (detail?.status === 'SUCCESS') {
       if (runId) await loadResult(runId, true)
@@ -784,6 +1238,38 @@ async function onExecute() {
     message.error(e?.message || '执行失败')
   } finally {
     running.value = false
+    maybeStopWorkLogPoll()
+  }
+}
+
+async function onCanvasFeedback(action: 'useful' | 'useless') {
+  if (!currentRunId.value) return
+  const fb = runFeedback.value
+  if (action === 'useful' && fb?.usefulDone) {
+    message.success('已标记有用（记忆已提交，需审批通过后生效）')
+    return
+  }
+  if (action === 'useless' && fb?.uselessDone) {
+    message.success('已记录')
+    return
+  }
+  feedbackLoading.value = action
+  try {
+    const resp = await askApi.submitRunFeedback(currentRunId.value, {
+      action,
+      sessionId: sessionId.value || undefined,
+      question: lastQuestion.value || undefined,
+    })
+    if (resp.data?.feedback) runFeedback.value = resp.data.feedback
+    message.success(
+      action === 'useful'
+        ? resp.data?.message || '已标记有用（记忆已提交，需审批通过后生效）'
+        : resp.data?.message || '操作成功',
+    )
+  } catch (e: any) {
+    message.error(e?.message || '操作失败')
+  } finally {
+    feedbackLoading.value = null
   }
 }
 
@@ -863,11 +1349,6 @@ async function loadResult(runId: number, switchTab: boolean) {
   }
 }
 
-async function openResultTab(runId: number) {
-  mode.value = 'canvas'
-  await loadResult(runId, true)
-}
-
 function onConsoleResizeStart(e: MouseEvent) {
   e.preventDefault()
   consoleResizing = true
@@ -887,26 +1368,6 @@ function onConsoleResizeStart(e: MouseEvent) {
   window.addEventListener('mouseup', onUp)
 }
 
-let worklogResizing = false
-
-function onWorklogResizeStart(e: MouseEvent) {
-  e.preventDefault()
-  worklogResizing = true
-  const startX = e.clientX
-  const startW = worklogWidth.value
-  const onMove = (ev: MouseEvent) => {
-    if (!worklogResizing) return
-    const next = startW + (startX - ev.clientX)
-    worklogWidth.value = Math.min(560, Math.max(200, next))
-  }
-  const onUp = () => {
-    worklogResizing = false
-    window.removeEventListener('mousemove', onMove)
-    window.removeEventListener('mouseup', onUp)
-  }
-  window.addEventListener('mousemove', onMove)
-  window.addEventListener('mouseup', onUp)
-}
 
 const ctxMenu = reactive({
   visible: false,
@@ -987,7 +1448,7 @@ function onCtxDelete() {
 }
 
 onMounted(async () => {
-  await Promise.all([loadTree(), loadConnections()])
+  await Promise.all([loadTree(), loadConnections(), refreshQuota()])
 })
 
 onUnmounted(() => {
@@ -1070,99 +1531,52 @@ onUnmounted(() => {
   flex-direction: column;
   min-width: 0;
 }
-.ad-worklog {
-  position: relative;
-  width: 280px;
-  flex-shrink: 0;
-  background: #111827;
-  color: #e5e7eb;
-  border-left: 1px solid #1f2937;
+.worklog-drawer-hd {
+  margin-bottom: 10px;
+  font-size: 12px;
   display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-.worklog-resizer {
-  position: absolute;
-  top: 0;
-  left: -3px;
-  width: 6px;
-  height: 100%;
-  cursor: ew-resize;
-  z-index: 2;
-}
-.worklog-resizer:hover,
-.worklog-resizer:active {
-  background: rgba(52, 211, 153, 0.35);
-}
-.ad-worklog.busy .worklog-hd .live {
-  display: inline-flex;
-}
-.worklog-hd {
-  display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 12px 14px;
-  border-bottom: 1px solid #1f2937;
-  font-weight: 600;
-  font-size: 13px;
-  color: #f9fafb;
+  gap: 8px;
 }
-.worklog-hd .live {
-  display: none;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  font-weight: 500;
-  color: #34d399;
+.worklog-drawer-hd .turn {
+  color: rgba(0, 0, 0, 0.55);
 }
-.worklog-hd .live::before {
-  content: '';
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #34d399;
-  animation: pulse 1s infinite;
+.worklog-drawer-hd .live {
+  color: #389e0d;
 }
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.35;
-  }
+.worklog-drawer-hd .idle {
+  color: rgba(0, 0, 0, 0.45);
 }
-.worklog-body {
-  flex: 1;
+.worklog-drawer-body {
+  max-height: calc(100vh - 160px);
   overflow: auto;
-  padding: 10px 12px;
   font-size: 12px;
   line-height: 1.45;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 .worklog-empty {
-  color: #9ca3af;
+  color: rgba(0, 0, 0, 0.45);
   padding: 8px 0;
 }
 .worklog-line {
   display: flex;
   gap: 8px;
-  padding: 4px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  padding: 6px 0;
+  border-bottom: 1px solid #f0f0f0;
 }
 .worklog-line .t {
   flex: 0 0 auto;
-  color: #6b7280;
+  color: rgba(0, 0, 0, 0.45);
 }
 .worklog-line .m {
-  color: #d1d5db;
+  color: rgba(0, 0, 0, 0.88);
   word-break: break-word;
+  white-space: pre-wrap;
 }
 .worklog-line.error .m {
-  color: #fca5a5;
+  color: #cf1322;
 }
 .worklog-line.warn .m {
-  color: #fcd34d;
+  color: #d48806;
 }
 .panel-hd {
   display: flex;
@@ -1193,6 +1607,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  position: relative;
 }
 .chat-body {
   flex: 1;
@@ -1201,17 +1616,119 @@ onUnmounted(() => {
 }
 .msg {
   margin-bottom: 12px;
-  max-width: 92%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: min(720px, 85%);
 }
 .msg.user {
   margin-left: auto;
+  align-items: flex-end;
+}
+.msg-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  min-height: 22px;
+  font-size: 12px;
+}
+.msg-status {
+  color: rgba(0, 0, 0, 0.55);
+}
+.log-link {
+  padding: 0;
+  height: auto;
+  font-size: 12px;
+  transition: opacity 0.15s ease;
+}
+.log-link.dim {
+  opacity: 0.35;
+}
+.log-link.dim:hover {
+  opacity: 1;
 }
 .bubble {
+  display: inline-block;
+  width: fit-content;
+  max-width: 100%;
   padding: 10px 12px;
   border-radius: 8px;
   font-size: 13px;
   white-space: pre-wrap;
+  word-break: break-word;
   line-height: 1.5;
+}
+.bubble.pending {
+  min-width: 56px;
+  padding: 14px 16px;
+}
+.typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.typing span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.35);
+  animation: typing-bounce 1.2s ease-in-out infinite;
+}
+.typing span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.typing span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes typing-bounce {
+  0%,
+  80%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  40% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+.msg-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.msg-text + .sql-block {
+  margin-top: 8px;
+}
+.sql-block {
+  margin-top: 4px;
+}
+.sql-pre {
+  margin: 0;
+  padding: 10px 12px;
+  background: #f7f8fa;
+  border: 1px solid #f0f0f0;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-width: 100%;
+  overflow: auto;
+}
+.save-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+.save-row.under-text {
+  margin-top: 8px;
+}
+.save-link {
+  padding: 0;
+  height: auto;
+  font-size: 12px;
 }
 .msg.user .bubble {
   background: #1677ff;
@@ -1221,26 +1738,45 @@ onUnmounted(() => {
   background: #fff;
   border: 1px solid #f0f0f0;
 }
-.save-card,
 .hitl {
-  max-width: 92%;
+  width: fit-content;
+  max-width: 100%;
   border-radius: 8px;
   padding: 12px;
   margin: 10px 0;
   font-size: 13px;
-}
-.save-card {
-  border: 1px solid #91caff;
-  background: #e6f4ff;
-}
-.hitl {
   border: 1px solid #ffe58f;
   background: #fffbe6;
 }
-.save-card h4,
 .hitl h4 {
   margin: 0 0 6px;
   font-size: 13px;
+}
+.hitl-hint {
+  margin: 0 0 8px;
+  color: #614700;
+}
+.hitl-field {
+  width: 100%;
+}
+.hitl-label {
+  margin-bottom: 4px;
+  color: #595959;
+  font-size: 12px;
+}
+.hitl-cands {
+  margin-top: 6px;
+}
+.hitl-cand {
+  cursor: pointer;
+}
+.quota-badge {
+  margin-right: 8px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #f5f5f5;
+  color: #595959;
+  font-size: 12px;
 }
 .step {
   border: 1px solid #91caff;
@@ -1273,10 +1809,27 @@ onUnmounted(() => {
   gap: 8px;
 }
 .canvas-top {
+  position: relative;
   flex: 1;
   overflow: auto;
   padding: 20px 16px;
   min-height: 120px;
+}
+.canvas-feedback {
+  position: absolute;
+  right: 28px;
+  bottom: 28px;
+  z-index: 5;
+  display: flex;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #fff;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+.canvas-feedback .done {
+  opacity: 0.85;
 }
 .wf-canvas {
   min-height: 220px;

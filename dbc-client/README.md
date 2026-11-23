@@ -42,13 +42,13 @@
 
 ```powershell
 
-cd e:\workspace\database-client\scripts
+cd e:\workspace\agent-project\database-client\scripts
 
 .\publish-dbc-client.ps1
 
 # 或
 
-cd e:\workspace\database-client\dbc-client
+cd e:\workspace\agent-project\database-client\dbc-client
 
 .\gradlew.bat publishToMavenLocal
 

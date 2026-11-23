@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DBC · 智能问数 · 测评任务详情</title>
+  <link rel="stylesheet" href="common.css" />
+  <style>
+    .ad-bar {
+      display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+      padding: 10px 16px; background: #fff; border-bottom: 1px solid var(--border);
+    }
+    .ad-bar .spacer { flex: 1; }
+    .page { flex: 1; overflow: auto; padding: 16px 20px; }
+    .hd-row {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      gap: 16px; margin-bottom: 12px; flex-wrap: wrap;
+    }
+    .hd-row h2 { margin: 0; font-size: 18px; }
+    .hd-row .sub { margin-top: 4px; font-size: 12px; color: var(--text-secondary); }
+    .metrics {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 10px; margin-bottom: 14px;
+    }
+    .m-card {
+      background: #fff; border: 1px solid var(--border); border-radius: 8px;
+      padding: 12px 14px;
+    }
+    .m-card .k { font-size: 12px; color: var(--text-secondary); }
+    .m-card .v { margin-top: 4px; font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .m-card.warn .v { color: #cf1322; }
+    .m-card.ok .v { color: #389e0d; }
+    .toolbar {
+      display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+      padding: 10px 12px; background: #fff; border: 1px solid var(--border);
+      border-radius: 8px 8px 0 0;
+    }
+    table.detail {
+      width: 100%; border-collapse: collapse; background: #fff; font-size: 13px;
+      border: 1px solid var(--border); border-top: none; border-radius: 0 0 8px 8px;
+    }
+    table.detail th, table.detail td {
+      border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top;
+    }
+    table.detail th { background: #fafafa; font-weight: 600; }
+    .st {
+      display: inline-block; padding: 0 8px; line-height: 22px; border-radius: 4px;
+      font-size: 12px; font-weight: 600; white-space: nowrap;
+    }
+    .st-pass { background: #f6ffed; color: #389e0d; }
+    .st-partial { background: #e6f4ff; color: #1677ff; }
+    .st-fail { background: #fff2f0; color: #cf1322; }
+    .st-ask { background: #fff2f0; color: #a8071a; }
+    .st-refuse-ok { background: #f9f0ff; color: #531dab; }
+    .st-refuse-bad { background: #fff1f0; color: #cf1322; }
+    .st-run { background: #e6f4ff; color: #1677ff; }
+    .drawer-mask {
+      display: none; position: fixed; inset: 0; background: #00000040; z-index: 40;
+      justify-content: flex-end;
+    }
+    .drawer-mask.show { display: flex; }
+    .drawer {
+      width: min(520px, 100%); background: #fff; height: 100%;
+      display: flex; flex-direction: column; box-shadow: -4px 0 16px #00000014;
+    }
+    .drawer-hd {
+      padding: 12px 16px; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center; font-weight: 600;
+    }
+    .drawer-bd { flex: 1; overflow: auto; padding: 16px; font-size: 13px; }
+    .drawer-bd h4 { margin: 16px 0 8px; font-size: 13px; }
+    .drawer-bd h4:first-child { margin-top: 0; }
+    .drawer-bd pre {
+      margin: 0; padding: 10px; background: #fafafa; border: 1px solid var(--border);
+      border-radius: 6px; white-space: pre-wrap; font-size: 12px; line-height: 1.45;
+    }
+    .kv { display: grid; grid-template-columns: 100px 1fr; gap: 6px 10px; }
+    .kv .k { color: var(--text-secondary); }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="logo">DBC</div>
+      <nav class="nav-l1-group" aria-label="一级菜单">
+        <a class="nav-l1-item" href="index.html">首页</a>
+        <a class="nav-l1-item" href="SQL工作台.html">SQL 工作台</a>
+        <a class="nav-l1-item active" href="智能问数.html">智能问数</a>
+        <a class="nav-l1-item" href="工作空间.html">资产管理</a>
+        <a class="nav-l1-item" href="用户管理.html">用户中心</a>
+      </nav>
+      <div class="header-right">
+        <span>alice</span>
+        <a class="btn" href="登录.html">退出</a>
+      </div>
+    </header>
+
+    <div class="ad-bar">
+      <label>工作空间</label>
+      <select class="select" style="width:220px">
+        <option selected>订单项目-研发</option>
+      </select>
+      <a class="btn" href="智能问数-测评任务.html">任务列表</a>
+      <a class="btn" href="智能问数-测评空间.html">测评空间</a>
+      <div class="spacer"></div>
+      <button type="button" class="btn" disabled>停止任务</button>
+    </div>
+
+    <div class="page">
+      <div class="breadcrumb">智能问数 / 测评任务 / #1079</div>
+      <div class="hd-row">
+        <div>
+          <h2>治理三分烟测 · 任务详情</h2>
+          <div class="sub">工程：company 运维回归 · 状态 SUCCEEDED · 2026-10-01 21:04 ～ 21:31 · Trace 可下钻 LLM 监控</div>
+        </div>
+      </div>
+
+      <div class="metrics">
+        <div class="m-card"><div class="k">用例总数</div><div class="v">100</div></div>
+        <div class="m-card"><div class="k">问数失败</div><div class="v">8</div></div>
+        <div class="m-card"><div class="k">有结果</div><div class="v">72</div></div>
+        <div class="m-card ok"><div class="k">完全正确</div><div class="v">61</div></div>
+        <div class="m-card"><div class="k">≥80% 正确</div><div class="v">12</div></div>
+        <div class="m-card"><div class="k">补全后通过</div><div class="v">18</div></div>
+        <div class="m-card ok"><div class="k">拒答正确</div><div class="v">15</div></div>
+        <div class="m-card warn"><div class="k">误出数（不补全）</div><div class="v">2</div></div>
+      </div>
+
+      <div class="toolbar">
+        <select class="select" style="width:160px">
+          <option value="">全部结果状态</option>
+          <option>PASSED</option>
+          <option>PARTIAL_GE_80</option>
+          <option>FAILED_COMPARE</option>
+          <option>ASK_FAILED</option>
+          <option>REFUSED_OK</option>
+          <option>REFUSED_BAD</option>
+        </select>
+        <select class="select" style="width:160px">
+          <option value="">全部治理子类</option>
+          <option>看板</option>
+          <option>中断补全</option>
+          <option>中断不补全</option>
+        </select>
+        <input class="input" style="width:200px" placeholder="case_key / 问题关键字" />
+        <button type="button" class="btn">筛选</button>
+      </div>
+
+      <table class="detail">
+        <thead>
+          <tr>
+            <th style="width:130px">case_key</th>
+            <th>问题（快照）</th>
+            <th style="width:100px">子类</th>
+            <th style="width:110px">结果</th>
+            <th style="width:70px">得分</th>
+            <th style="width:70px">HITL</th>
+            <th style="width:72px">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>TPL_GOV_B_003</td>
+            <td>按部门统计 2025 年已报销且已付款的金额合计</td>
+            <td>看板</td>
+            <td><span class="st st-pass">PASSED</span></td>
+            <td>1.00</td>
+            <td>0</td>
+            <td><button type="button" class="btn-link" data-open>明细</button></td>
+          </tr>
+          <tr>
+            <td>TPL_GOV_H_011</td>
+            <td>帮我看下「活跃」客户上季度贡献</td>
+            <td>中断补全</td>
+            <td><span class="st st-pass">PASSED</span></td>
+            <td>1.00</td>
+            <td>1</td>
+            <td><button type="button" class="btn-link" data-open>明细</button></td>
+          </tr>
+          <tr>
+            <td>TPL_GOV_R_007</td>
+            <td>统计异常订单金额（未定义异常）</td>
+            <td>中断不补全</td>
+            <td><span class="st st-refuse-ok">REFUSED_OK</span></td>
+            <td>—</td>
+            <td>0</td>
+            <td><button type="button" class="btn-link" data-open>明细</button></td>
+          </tr>
+          <tr>
+            <td>TPL_GOV_R_019</td>
+            <td>把有问题的考勤都导出来看看</td>
+            <td>中断不补全</td>
+            <td><span class="st st-refuse-bad">REFUSED_BAD</span></td>
+            <td>0</td>
+            <td>0</td>
+            <td><button type="button" class="btn-link" data-open>明细</button></td>
+          </tr>
+          <tr>
+            <td>TPL_MJ_014</td>
+            <td>列出项目 PRJ2024003 的成员姓名与角色</td>
+            <td>—</td>
+            <td><span class="st st-partial">PARTIAL_GE_80</span></td>
+            <td>0.86</td>
+            <td>0</td>
+            <td><button type="button" class="btn-link" data-open>明细</button></td>
+          </tr>
+          <tr>
+            <td>TPL_SF_088</td>
+            <td>工号 E999999 还有没有工资条</td>
+            <td>—</td>
+            <td><span class="st st-ask">ASK_FAILED</span></td>
+            <td>—</td>
+            <td>0</td>
+            <td><button type="button" class="btn-link" data-open>明细</button></td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="note">REFUSED_OK = 不补全且未查出业务数据（符合预期）；REFUSED_BAD = 不补全却仍出数（误出数）。</p>
+    </div>
+  </div>
+
+  <div class="drawer-mask" id="drawer">
+    <div class="drawer">
+      <div class="drawer-hd">
+        <span>用例执行明细 · TPL_GOV_H_011</span>
+        <button type="button" class="btn" id="btnClose">关闭</button>
+      </div>
+      <div class="drawer-bd">
+        <div class="kv">
+          <div class="k">结果</div><div>PASSED（补全后完全正确）</div>
+          <div class="k">验证</div><div>key_set · keys=customer_code</div>
+          <div class="k">期望行数</div><div>14</div>
+          <div class="k">问数行数</div><div>14</div>
+          <div class="k">run_id</div><div>r-88421</div>
+        </div>
+        <h4>问题（快照）</h4>
+        <pre>帮我看下「活跃」客户上季度贡献</pre>
+        <h4>HITL 补充（写死）</h4>
+        <pre>第 1 轮：活跃=状态为 active 且上季度有已签约订单的客户</pre>
+        <h4>期望 SQL</h4>
+        <pre>SELECT c.customer_code, SUM(o.total_amount) AS amt
+FROM company.crm_customer c
+JOIN company.sal_sales_order o ON o.customer_id = c.id
+WHERE c.status = 'active'
+  AND o.status IN ('signed','delivering','closed')
+  AND o.sign_date >= DATE '2025-07-01'
+  AND o.sign_date &lt; DATE '2025-10-01'
+GROUP BY c.customer_code
+ORDER BY c.customer_code;</pre>
+        <h4>问数 SQL</h4>
+        <pre>SELECT c.customer_code, SUM(o.total_amount) AS contrib
+FROM company.crm_customer c
+INNER JOIN company.sal_sales_order o ON o.customer_id = c.id
+WHERE c.status = 'active'
+  AND o.sign_date BETWEEN '2025-07-01' AND '2025-09-30'
+  AND o.status &lt;&gt; 'cancelled'
+GROUP BY c.customer_code;</pre>
+        <h4>比对摘要</h4>
+        <pre>键集合一致；金额容差内全部匹配。列名 contrib↔amt 已按 compare_spec 映射。</pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.querySelectorAll('[data-open]').forEach(btn => {
+      btn.addEventListener('click', () => document.getElementById('drawer').classList.add('show'))
+    })
+    document.getElementById('btnClose').onclick = () => document.getElementById('drawer').classList.remove('show')
+    document.getElementById('drawer').addEventListener('click', (e) => {
+      if (e.target.id === 'drawer') e.target.classList.remove('show')
+    })
+  </script>
+</body>
+</html>

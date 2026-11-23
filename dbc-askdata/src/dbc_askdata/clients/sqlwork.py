@@ -29,6 +29,11 @@ class SqlworkClient:
             headers["X-Trace-Id"] = self._trace_id
         return headers
 
+    def _http(self) -> httpx.AsyncClient:
+        from dbc_askdata.httpx_pool import shared_async_client
+
+        return shared_async_client("sqlwork", timeout=self._timeout, trust_env=False)
+
     async def _unwrap(self, resp: httpx.Response) -> Any:
         try:
             body = resp.json()
@@ -70,30 +75,30 @@ class SqlworkClient:
         return data
 
     async def list_connections(self, workspace_id: int) -> list[dict[str, Any]]:
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
-            resp = await client.get(
-                f"{self._base}/workspaces/{workspace_id}/connections",
-                headers=self._headers(),
-            )
-            data = await self._unwrap(resp)
-            return data or []
+        client = self._http()
+        resp = await client.get(
+            f"{self._base}/workspaces/{workspace_id}/connections",
+            headers=self._headers(),
+        )
+        data = await self._unwrap(resp)
+        return data or []
 
     async def list_databases(self, workspace_id: int, connection_id: int) -> list[str]:
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
-            resp = await client.get(
-                f"{self._base}/meta/databases",
-                params={"workspaceId": workspace_id, "connectionId": connection_id},
-                headers=self._headers(),
-            )
-            return (await self._unwrap(resp)) or []
+        client = self._http()
+        resp = await client.get(
+            f"{self._base}/meta/databases",
+            params={"workspaceId": workspace_id, "connectionId": connection_id},
+            headers=self._headers(),
+        )
+        return (await self._unwrap(resp)) or []
 
     async def list_schemas(self, workspace_id: int, connection_id: int, database: str | None = None) -> list[str]:
         params: dict[str, Any] = {"workspaceId": workspace_id, "connectionId": connection_id}
         if database:
             params["database"] = database
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
-            resp = await client.get(f"{self._base}/meta/schemas", params=params, headers=self._headers())
-            return (await self._unwrap(resp)) or []
+        client = self._http()
+        resp = await client.get(f"{self._base}/meta/schemas", params=params, headers=self._headers())
+        return (await self._unwrap(resp)) or []
 
     async def list_tables(
         self,
@@ -118,9 +123,9 @@ class SqlworkClient:
             params["schema"] = schema
         if keyword:
             params["keyword"] = keyword
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
-            resp = await client.get(f"{self._base}/meta/tables", params=params, headers=self._headers())
-            return (await self._unwrap(resp)) or {"items": [], "total": 0}
+        client = self._http()
+        resp = await client.get(f"{self._base}/meta/tables", params=params, headers=self._headers())
+        return (await self._unwrap(resp)) or {"items": [], "total": 0}
 
     async def list_columns(
         self,
@@ -140,9 +145,40 @@ class SqlworkClient:
             params["database"] = database
         if schema:
             params["schema"] = schema
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
-            resp = await client.get(f"{self._base}/meta/columns", params=params, headers=self._headers())
-            return (await self._unwrap(resp)) or []
+        client = self._http()
+        resp = await client.get(f"{self._base}/meta/columns", params=params, headers=self._headers())
+        return (await self._unwrap(resp)) or []
+
+    async def list_columns_batch(
+        self,
+        workspace_id: int,
+        connection_id: int,
+        *,
+        tables: list[str],
+        database: str | None = None,
+        schema: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """POST /meta/columns/batch；返回 [{table, schema, columns, error?}, ...]。"""
+        names = [str(t).strip() for t in tables if str(t or "").strip()]
+        if not names:
+            return []
+        body: dict[str, Any] = {
+            "workspaceId": workspace_id,
+            "connectionId": connection_id,
+            "tables": names[:20],
+        }
+        if database:
+            body["database"] = database
+        if schema:
+            body["schema"] = schema
+        client = self._http()
+        resp = await client.post(
+            f"{self._base}/meta/columns/batch",
+            json=body,
+            headers=self._headers(),
+        )
+        data = await self._unwrap(resp)
+        return data if isinstance(data, list) else []
 
     async def execute(
         self,
@@ -168,15 +204,15 @@ class SqlworkClient:
             body["schema"] = schema
         if cancel_token:
             body["cancelToken"] = cancel_token
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
-            resp = await client.post(f"{self._base}/execute", json=body, headers=self._headers())
-            return self.ensure_execute_ok(await self._unwrap(resp))
+        client = self._http()
+        resp = await client.post(f"{self._base}/execute", json=body, headers=self._headers())
+        return self.ensure_execute_ok(await self._unwrap(resp))
 
     async def cancel(self, cancel_token: str) -> dict[str, Any]:
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
-            resp = await client.post(
-                f"{self._base}/execute/cancel",
-                json={"cancelToken": cancel_token},
-                headers=self._headers(),
-            )
-            return (await self._unwrap(resp)) or {}
+        client = self._http()
+        resp = await client.post(
+            f"{self._base}/execute/cancel",
+            json={"cancelToken": cancel_token},
+            headers=self._headers(),
+        )
+        return (await self._unwrap(resp)) or {}

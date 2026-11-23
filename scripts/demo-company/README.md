@@ -3,7 +3,9 @@
 本地 PostgreSQL 库 `postgres` 下 schema **`company`**。
 
 模拟一家 IT 公司约 3 年经营/人事/财务/销售数据，供智能问数**测评**与联调。  
-库内**故意缺少**完整 COMMENT；表结构说明见 [`metadata/db-structure.md`](./metadata/db-structure.md)（交付风格；部分枚举有取值说明）。
+核心约 22 张表由 `seed_company.py` 灌测评数据（可含有意识脏包）；扩展约 **178** 张表由 `seed_extended.py` 灌**干净**演示数据（维表小规模，其余事实表约 1 万行 / 跨约 3 年，主从金额可对上）。  
+改造验收清单见 [`WORKLIST.md`](./WORKLIST.md)。  
+表结构说明见 [`metadata/db-structure.md`](./metadata/db-structure.md)；表关系见 [`metadata/table-relations.md`](./metadata/table-relations.md)。
 
 ## 连接
 
@@ -14,18 +16,38 @@
 ## 一键重建
 
 ```powershell
-cd e:\workspace\database-client
+cd e:\workspace\agent-project\database-client
 powershell -File .\scripts\demo-company\run.ps1
 ```
 
 或分步：
 
 ```powershell
-Get-Content -Raw -Encoding UTF8 .\scripts\demo-company\01_schema.sql | docker exec -i dbc-postgres psql -U postgres -d postgres -v ON_ERROR_STOP=1
+# 勿用 PowerShell 管道灌 SQL：会把 UTF-8 中文 COMMENT 变成 ???
+docker cp .\scripts\demo-company\01_schema.sql dbc-postgres:/tmp/company_apply.sql
+docker exec -e PGCLIENTENCODING=UTF8 dbc-postgres psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/company_apply.sql
+.\dbc-askdata\.venv\Scripts\python.exe .\scripts\demo-company\gen_extended_schema.py
+docker cp .\scripts\demo-company\02_schema_extended.sql dbc-postgres:/tmp/company_apply.sql
+docker exec -e PGCLIENTENCODING=UTF8 dbc-postgres psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/company_apply.sql
 .\dbc-askdata\.venv\Scripts\python.exe .\scripts\demo-company\seed_company.py
+.\dbc-askdata\.venv\Scripts\python.exe .\scripts\demo-company\seed_extended.py
+.\dbc-askdata\.venv\Scripts\python.exe .\scripts\demo-company\metadata\gen_db_structure_doc.py
+.\dbc-askdata\.venv\Scripts\python.exe .\scripts\demo-company\metadata\export_table_relations.py
 ```
 
-灌数较久（日考勤五十万级），请耐心等待。
+或直接：`powershell -File scripts\demo-company\run.ps1`
+
+灌数较久（核心日考勤五十万级 + 扩展多表约万行），请耐心等待。
+
+重生扩展 DDL 后须重新 apply，再导出**全量外键**（核心+扩展）：
+
+```powershell
+.\dbc-askdata\.venv\Scripts\python.exe .\scripts\demo-company\gen_extended_schema.py
+docker cp .\scripts\demo-company\02_schema_extended.sql dbc-postgres:/tmp/company_apply.sql
+docker exec -e PGCLIENTENCODING=UTF8 dbc-postgres psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/company_apply.sql
+.\dbc-askdata\.venv\Scripts\python.exe .\scripts\demo-company\metadata\export_table_relations.py
+.\dbc-askdata\.venv\Scripts\python.exe .\scripts\demo-company\metadata\gen_db_structure_doc.py
+```
 
 ## 规模实绩（SEED=20261002 · company_eval_v2 · 已灌库）
 

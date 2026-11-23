@@ -91,7 +91,8 @@ class NacosRegistrar:
         url = f"{self._base()}{_REGISTER_PATH}"
         params = self._instance_params(heart_beat=heart_beat)
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
+            # 服务发现地址是内网，禁止走 HTTP_PROXY，否则注册失败、网关 lb 503
+            async with httpx.AsyncClient(timeout=5.0, trust_env=False) as client:
                 resp = await client.post(url, params=params)
                 body = resp.text
                 if resp.status_code >= 400:
@@ -131,7 +132,7 @@ class NacosRegistrar:
             "clusterName": "DEFAULT",
         }
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
+            async with httpx.AsyncClient(timeout=5.0, trust_env=False) as client:
                 await client.delete(url, params=params)
             self._registered = False
             log.info("已注销 Nacos service=%s", self._service)

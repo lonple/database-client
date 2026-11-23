@@ -1,0 +1,3596 @@
+{
+  "extended_count": 178,
+  "core_count": 22,
+  "total": 200,
+  "tables": {
+    "org_company": {
+      "zh": "法人公司",
+      "columns": {
+        "company_code": "公司编码",
+        "company_name": "公司名称",
+        "legal_name": "法定名称",
+        "tax_no": "税号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "org_office": {
+      "zh": "办公职场",
+      "columns": {
+        "office_code": "职场编码",
+        "office_name": "职场名称",
+        "city": "城市",
+        "address": "地址",
+        "company_id": "所属公司 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "company_id",
+          "ref": "org_company"
+        }
+      ]
+    },
+    "org_cost_center": {
+      "zh": "成本中心",
+      "columns": {
+        "cc_code": "成本中心编码",
+        "cc_name": "成本中心名称",
+        "dept_id": "关联部门 ID",
+        "owner_emp_id": "负责人员工 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "dept_id",
+          "ref": "org_department"
+        },
+        {
+          "column": "owner_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "org_position": {
+      "zh": "岗位编制",
+      "columns": {
+        "pos_code": "岗位编码",
+        "pos_name": "岗位名称",
+        "dept_id": "所属部门 ID",
+        "job_level_id": "对应职级 ID",
+        "headcount": "编制人数",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "dept_id",
+          "ref": "org_department"
+        },
+        {
+          "column": "job_level_id",
+          "ref": "hr_job_level"
+        }
+      ]
+    },
+    "org_biz_unit": {
+      "zh": "业务单元",
+      "columns": {
+        "bu_code": "业务单元编码",
+        "bu_name": "业务单元名称",
+        "leader_emp_id": "负责人员工 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "leader_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "org_location": {
+      "zh": "地理区位",
+      "columns": {
+        "loc_code": "区位编码",
+        "loc_name": "区位名称",
+        "region": "大区",
+        "country": "国家地区",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "org_dept_closure": {
+      "zh": "部门闭包表（祖先-后代）",
+      "columns": {
+        "ancestor_id": "祖先部门 ID",
+        "descendant_id": "后代部门 ID",
+        "depth": "层级深度"
+      },
+      "fks": [
+        {
+          "column": "ancestor_id",
+          "ref": "org_department"
+        },
+        {
+          "column": "descendant_id",
+          "ref": "org_department"
+        }
+      ]
+    },
+    "org_dept_change": {
+      "zh": "部门变更记录",
+      "columns": {
+        "dept_id": "部门 ID",
+        "change_type": "变更类型",
+        "old_parent_id": "原上级部门 ID",
+        "new_parent_id": "新上级部门 ID",
+        "effective_date": "生效日期",
+        "operator_emp_id": "操作人员工 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "dept_id",
+          "ref": "org_department"
+        },
+        {
+          "column": "operator_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "org_seal": {
+      "zh": "公司印章台账",
+      "columns": {
+        "seal_code": "印章编码",
+        "seal_name": "印章名称",
+        "company_id": "所属公司 ID",
+        "keeper_emp_id": "保管人员工 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "company_id",
+          "ref": "org_company"
+        },
+        {
+          "column": "keeper_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "org_announcement": {
+      "zh": "内部公告",
+      "columns": {
+        "title": "标题",
+        "content": "正文",
+        "publisher_emp_id": "发布人员工 ID",
+        "publish_at": "发布时间",
+        "scope": "发布范围",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "publisher_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "hr_contract": {
+      "zh": "劳动合同",
+      "columns": {
+        "emp_id": "员工 ID",
+        "contract_no": "合同编号",
+        "contract_type": "合同类型",
+        "start_date": "开始日期",
+        "end_date": "结束日期",
+        "sign_company_id": "签约公司 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        },
+        {
+          "column": "sign_company_id",
+          "ref": "org_company"
+        }
+      ]
+    },
+    "hr_probation": {
+      "zh": "试用期考核",
+      "columns": {
+        "emp_id": "员工 ID",
+        "plan_end_date": "计划转正日",
+        "actual_end_date": "实际转正日",
+        "result": "考核结果",
+        "mentor_emp_id": "导师员工 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        },
+        {
+          "column": "mentor_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "hr_transfer": {
+      "zh": "人事调动",
+      "columns": {
+        "emp_id": "员工 ID",
+        "from_dept_id": "调出部门 ID",
+        "to_dept_id": "调入部门 ID",
+        "effective_date": "生效日期",
+        "transfer_type": "调动类型",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        },
+        {
+          "column": "from_dept_id",
+          "ref": "org_department"
+        },
+        {
+          "column": "to_dept_id",
+          "ref": "org_department"
+        }
+      ]
+    },
+    "hr_promotion": {
+      "zh": "晋升记录",
+      "columns": {
+        "emp_id": "员工 ID",
+        "from_level_id": "原职级 ID",
+        "to_level_id": "新职级 ID",
+        "effective_date": "生效日期",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        },
+        {
+          "column": "from_level_id",
+          "ref": "hr_job_level"
+        },
+        {
+          "column": "to_level_id",
+          "ref": "hr_job_level"
+        }
+      ]
+    },
+    "hr_resignation": {
+      "zh": "离职办理",
+      "columns": {
+        "emp_id": "员工 ID",
+        "apply_date": "申请日期",
+        "last_work_date": "最后工作日",
+        "reason_type": "离职原因类型",
+        "exit_interview": "离职面谈纪要",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "hr_onboarding": {
+      "zh": "入职办理单",
+      "columns": {
+        "emp_id": "员工 ID",
+        "checklist_status": "清单状态",
+        "it_ready": "IT 是否就绪",
+        "badge_no": "工牌号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "hr_bank_account": {
+      "zh": "员工薪酬账户",
+      "columns": {
+        "emp_id": "员工 ID",
+        "bank_name": "开户行",
+        "account_no": "账号",
+        "is_primary": "是否主账户",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "hr_emergency_contact": {
+      "zh": "紧急联系人",
+      "columns": {
+        "emp_id": "员工 ID",
+        "contact_name": "联系人姓名",
+        "relation": "关系",
+        "phone": "电话",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "hr_education": {
+      "zh": "教育经历",
+      "columns": {
+        "emp_id": "员工 ID",
+        "school": "学校",
+        "degree": "学历",
+        "major": "专业",
+        "graduate_date": "毕业日期",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "hr_work_history": {
+      "zh": "入职前工作经历",
+      "columns": {
+        "emp_id": "员工 ID",
+        "employer": "原单位",
+        "title": "职位",
+        "start_date": "开始日期",
+        "end_date": "结束日期",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "hr_performance_cycle": {
+      "zh": "绩效考核周期",
+      "columns": {
+        "cycle_code": "周期编码",
+        "cycle_name": "周期名称",
+        "start_date": "开始日期",
+        "end_date": "结束日期",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "hr_performance_goal": {
+      "zh": "绩效目标",
+      "columns": {
+        "cycle_id": "周期 ID",
+        "emp_id": "员工 ID",
+        "goal_text": "目标描述",
+        "weight_pct": "权重百分比",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "cycle_id",
+          "ref": "hr_performance_cycle"
+        },
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "hr_performance_review": {
+      "zh": "绩效评估结果",
+      "columns": {
+        "cycle_id": "周期 ID",
+        "emp_id": "员工 ID",
+        "score": "得分",
+        "grade": "等级",
+        "reviewer_emp_id": "评估人员工 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "cycle_id",
+          "ref": "hr_performance_cycle"
+        },
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        },
+        {
+          "column": "reviewer_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "hr_training_course": {
+      "zh": "培训课程",
+      "columns": {
+        "course_code": "课程编码",
+        "course_name": "课程名称",
+        "hours": "课时",
+        "vendor": "培训供应商",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "hr_training_session": {
+      "zh": "培训场次",
+      "columns": {
+        "course_id": "课程 ID",
+        "start_at": "开始时间",
+        "end_at": "结束时间",
+        "location": "地点",
+        "trainer": "讲师",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "course_id",
+          "ref": "hr_training_course"
+        }
+      ]
+    },
+    "hr_training_enroll": {
+      "zh": "培训报名",
+      "columns": {
+        "session_id": "场次 ID",
+        "emp_id": "员工 ID",
+        "attend_status": "出勤状态",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "session_id",
+          "ref": "hr_training_session"
+        },
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "hr_recruit_req": {
+      "zh": "招聘需求",
+      "columns": {
+        "req_code": "需求编码",
+        "req_name": "需求名称",
+        "dept_id": "需求部门 ID",
+        "headcount": "需求人数",
+        "job_level_id": "目标职级 ID",
+        "owner_emp_id": "招聘负责人员工 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "dept_id",
+          "ref": "org_department"
+        },
+        {
+          "column": "job_level_id",
+          "ref": "hr_job_level"
+        },
+        {
+          "column": "owner_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "hr_candidate": {
+      "zh": "候选人",
+      "columns": {
+        "cand_code": "候选人编码",
+        "cand_name": "候选人姓名",
+        "phone": "电话",
+        "email": "邮箱",
+        "source": "来源渠道",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "hr_interview": {
+      "zh": "面试记录",
+      "columns": {
+        "candidate_id": "候选人 ID",
+        "req_id": "招聘需求 ID",
+        "interviewer_emp_id": "面试官员工 ID",
+        "interview_at": "面试时间",
+        "result": "结果",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "candidate_id",
+          "ref": "hr_candidate"
+        },
+        {
+          "column": "req_id",
+          "ref": "hr_recruit_req"
+        },
+        {
+          "column": "interviewer_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "hr_offer": {
+      "zh": "录用 Offer",
+      "columns": {
+        "candidate_id": "候选人 ID",
+        "req_id": "招聘需求 ID",
+        "offer_amount": "offer 年薪/月薪金额",
+        "accept_status": "接受状态",
+        "join_date": "预计入职日",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "candidate_id",
+          "ref": "hr_candidate"
+        },
+        {
+          "column": "req_id",
+          "ref": "hr_recruit_req"
+        }
+      ]
+    },
+    "hr_award": {
+      "zh": "奖惩记录",
+      "columns": {
+        "emp_id": "员工 ID",
+        "award_type": "奖惩类型",
+        "amount": "金额",
+        "occur_date": "发生日期",
+        "reason": "事由",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "hr_certificate": {
+      "zh": "员工证书资质",
+      "columns": {
+        "emp_id": "员工 ID",
+        "cert_name": "证书名称",
+        "cert_no": "证书编号",
+        "expire_date": "到期日",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "hr_family_member": {
+      "zh": "员工家属信息",
+      "columns": {
+        "emp_id": "员工 ID",
+        "member_name": "家属姓名",
+        "relation": "关系",
+        "birthday": "生日",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "hr_work_calendar": {
+      "zh": "工作日历",
+      "columns": {
+        "cal_date": "日期",
+        "day_type": "日类型：work/weekend/holiday",
+        "holiday_name": "节假日名称",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "hr_headcount_plan": {
+      "zh": "编制计划",
+      "columns": {
+        "dept_id": "部门 ID",
+        "year_month": "年月 YYYY-MM",
+        "plan_hc": "计划编制",
+        "actual_hc": "实际在岗",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "dept_id",
+          "ref": "org_department"
+        }
+      ]
+    },
+    "att_shift": {
+      "zh": "班次定义",
+      "columns": {
+        "shift_code": "班次编码",
+        "shift_name": "班次名称",
+        "start_time": "上班时间",
+        "end_time": "下班时间",
+        "break_minutes": "休息分钟",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "att_shift_assign": {
+      "zh": "班次排班",
+      "columns": {
+        "emp_id": "员工 ID",
+        "shift_id": "班次 ID",
+        "work_date": "日期",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        },
+        {
+          "column": "shift_id",
+          "ref": "att_shift"
+        }
+      ]
+    },
+    "att_punch": {
+      "zh": "打卡流水",
+      "columns": {
+        "emp_id": "员工 ID",
+        "punch_at": "打卡时间",
+        "punch_type": "打卡类型",
+        "device_no": "设备号",
+        "office_id": "职场 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        },
+        {
+          "column": "office_id",
+          "ref": "org_office"
+        }
+      ]
+    },
+    "att_travel": {
+      "zh": "出差申请",
+      "columns": {
+        "emp_id": "员工 ID",
+        "start_date": "开始日期",
+        "end_date": "结束日期",
+        "destination": "目的地",
+        "project_id": "关联项目 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        },
+        {
+          "column": "project_id",
+          "ref": "prj_project"
+        }
+      ]
+    },
+    "att_remote_work": {
+      "zh": "居家办公申请",
+      "columns": {
+        "emp_id": "员工 ID",
+        "work_date": "日期",
+        "reason": "事由",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "att_makeup_card": {
+      "zh": "补卡申请",
+      "columns": {
+        "emp_id": "员工 ID",
+        "work_date": "日期",
+        "punch_type": "补卡类型",
+        "reason": "事由",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "att_leave_balance": {
+      "zh": "假期余额",
+      "columns": {
+        "emp_id": "员工 ID",
+        "leave_type_id": "请假类型 ID",
+        "year": "年度",
+        "balance_days": "剩余天数",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        },
+        {
+          "column": "leave_type_id",
+          "ref": "att_leave_type"
+        }
+      ]
+    },
+    "att_ot_rule": {
+      "zh": "加班规则",
+      "columns": {
+        "rule_code": "规则编码",
+        "rule_name": "规则名称",
+        "weekday_rate": "工作日倍率",
+        "weekend_rate": "周末倍率",
+        "holiday_rate": "节假日倍率",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "att_monthly_summary": {
+      "zh": "月考勤汇总",
+      "columns": {
+        "emp_id": "员工 ID",
+        "year_month": "年月",
+        "work_days": "出勤天",
+        "leave_days": "请假天",
+        "ot_hours": "加班小时",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "att_device": {
+      "zh": "考勤设备",
+      "columns": {
+        "device_code": "设备编码",
+        "device_name": "设备名称",
+        "office_id": "职场 ID",
+        "ip_addr": "IP",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "office_id",
+          "ref": "org_office"
+        }
+      ]
+    },
+    "fin_vendor": {
+      "zh": "供应商主数据",
+      "columns": {
+        "vendor_code": "供应商编码",
+        "vendor_name": "供应商名称",
+        "tax_no": "税号",
+        "contact": "联系人",
+        "phone": "电话",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "fin_invoice": {
+      "zh": "进销项发票",
+      "columns": {
+        "invoice_no": "发票号",
+        "invoice_type": "发票类型",
+        "vendor_id": "供应商 ID",
+        "customer_id": "客户 ID",
+        "amount": "含税金额",
+        "tax_amount": "税额",
+        "invoice_date": "开票日期",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "vendor_id",
+          "ref": "fin_vendor"
+        },
+        {
+          "column": "customer_id",
+          "ref": "crm_customer"
+        }
+      ]
+    },
+    "fin_payment": {
+      "zh": "付款单",
+      "columns": {
+        "payment_no": "付款单号",
+        "vendor_id": "供应商 ID",
+        "amount": "付款金额",
+        "pay_date": "付款日期",
+        "method": "支付方式",
+        "applicant_emp_id": "申请人员工 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "vendor_id",
+          "ref": "fin_vendor"
+        },
+        {
+          "column": "applicant_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "fin_receipt": {
+      "zh": "收款单",
+      "columns": {
+        "receipt_no": "收款单号",
+        "customer_id": "客户 ID",
+        "amount": "收款金额",
+        "receipt_date": "收款日期",
+        "project_id": "项目 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "customer_id",
+          "ref": "crm_customer"
+        },
+        {
+          "column": "project_id",
+          "ref": "prj_project"
+        }
+      ]
+    },
+    "fin_budget_year": {
+      "zh": "年度预算",
+      "columns": {
+        "year": "年度",
+        "dept_id": "部门 ID",
+        "budget_amount": "预算金额",
+        "used_amount": "已用金额",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "dept_id",
+          "ref": "org_department"
+        }
+      ]
+    },
+    "fin_budget_line": {
+      "zh": "预算明细行",
+      "columns": {
+        "budget_id": "年度预算 ID",
+        "subject_code": "科目编码",
+        "subject_name": "科目名称",
+        "amount": "金额",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "budget_id",
+          "ref": "fin_budget_year"
+        }
+      ]
+    },
+    "fin_fixed_asset": {
+      "zh": "固定资产",
+      "columns": {
+        "asset_code": "资产编码",
+        "asset_name": "资产名称",
+        "category": "资产类别",
+        "purchase_date": "购置日期",
+        "original_value": "原值",
+        "custodian_emp_id": "保管人员工 ID",
+        "dept_id": "使用部门 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "custodian_emp_id",
+          "ref": "hr_employee"
+        },
+        {
+          "column": "dept_id",
+          "ref": "org_department"
+        }
+      ]
+    },
+    "fin_asset_depr": {
+      "zh": "资产折旧明细",
+      "columns": {
+        "asset_id": "资产 ID",
+        "year_month": "年月",
+        "depr_amount": "折旧额",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "asset_id",
+          "ref": "fin_fixed_asset"
+        }
+      ]
+    },
+    "fin_loan": {
+      "zh": "对公借款",
+      "columns": {
+        "loan_no": "借款单号",
+        "emp_id": "借款人员工 ID",
+        "amount": "借款金额",
+        "loan_date": "借款日期",
+        "due_date": "应还日期",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "fin_loan_repay": {
+      "zh": "借款核销",
+      "columns": {
+        "loan_id": "借款 ID",
+        "repay_amount": "核销金额",
+        "repay_date": "核销日期",
+        "reimburse_id": "关联报销单 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "loan_id",
+          "ref": "fin_loan"
+        },
+        {
+          "column": "reimburse_id",
+          "ref": "fin_reimburse"
+        }
+      ]
+    },
+    "fin_tax_period": {
+      "zh": "税务申报期间",
+      "columns": {
+        "year_month": "年月",
+        "tax_type": "税种",
+        "payable_amount": "应纳税额",
+        "paid_amount": "已缴税额",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "fin_bank_account": {
+      "zh": "公司银行账户",
+      "columns": {
+        "acct_code": "账户编码",
+        "acct_name": "账户名称",
+        "bank_name": "开户行",
+        "account_no": "账号",
+        "company_id": "所属公司 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "company_id",
+          "ref": "org_company"
+        }
+      ]
+    },
+    "fin_bank_txn": {
+      "zh": "银行流水",
+      "columns": {
+        "acct_id": "账户 ID",
+        "txn_date": "交易日期",
+        "direction": "收支方向",
+        "amount": "金额",
+        "counterpart": "对方户名",
+        "ref_no": "银行参考号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "acct_id",
+          "ref": "fin_bank_account"
+        }
+      ]
+    },
+    "fin_cost_allocation": {
+      "zh": "费用分摊",
+      "columns": {
+        "year_month": "年月",
+        "from_dept_id": "分出部门 ID",
+        "to_dept_id": "分入部门 ID",
+        "amount": "分摊金额",
+        "subject_code": "科目编码",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "from_dept_id",
+          "ref": "org_department"
+        },
+        {
+          "column": "to_dept_id",
+          "ref": "org_department"
+        }
+      ]
+    },
+    "fin_gl_account": {
+      "zh": "会计科目",
+      "columns": {
+        "acct_code": "科目编码",
+        "acct_name": "科目名称",
+        "acct_type": "科目类型",
+        "parent_code": "上级科目编码",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "fin_journal": {
+      "zh": "会计凭证头",
+      "columns": {
+        "voucher_no": "凭证号",
+        "voucher_date": "凭证日期",
+        "period": "会计期间",
+        "created_by": "制单人员工 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "created_by",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "fin_journal_line": {
+      "zh": "会计凭证分录",
+      "columns": {
+        "journal_id": "凭证头 ID",
+        "acct_id": "科目 ID",
+        "debit": "借方",
+        "credit": "贷方",
+        "summary": "摘要",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "journal_id",
+          "ref": "fin_journal"
+        },
+        {
+          "column": "acct_id",
+          "ref": "fin_gl_account"
+        }
+      ]
+    },
+    "fin_exchange_rate": {
+      "zh": "汇率",
+      "columns": {
+        "currency": "币种",
+        "rate_date": "汇率日期",
+        "rate": "对人民币汇率",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "fin_petty_cash": {
+      "zh": "备用金账户",
+      "columns": {
+        "dept_id": "部门 ID",
+        "keeper_emp_id": "保管人员工 ID",
+        "balance": "余额",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "dept_id",
+          "ref": "org_department"
+        },
+        {
+          "column": "keeper_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "fin_petty_cash_txn": {
+      "zh": "备用金收支",
+      "columns": {
+        "petty_id": "备用金账户 ID",
+        "txn_date": "日期",
+        "direction": "收支",
+        "amount": "金额",
+        "reason": "事由",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "petty_id",
+          "ref": "fin_petty_cash"
+        }
+      ]
+    },
+    "crm_contact": {
+      "zh": "客户联系人",
+      "columns": {
+        "customer_id": "客户 ID",
+        "contact_name": "联系人姓名",
+        "title": "职务",
+        "phone": "电话",
+        "email": "邮箱",
+        "is_primary": "是否主联系人",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "customer_id",
+          "ref": "crm_customer"
+        }
+      ]
+    },
+    "crm_lead": {
+      "zh": "销售线索",
+      "columns": {
+        "lead_code": "线索编码",
+        "lead_name": "线索名称",
+        "source": "来源",
+        "owner_emp_id": "负责销售员工 ID",
+        "customer_id": "转化客户 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "owner_emp_id",
+          "ref": "hr_employee"
+        },
+        {
+          "column": "customer_id",
+          "ref": "crm_customer"
+        }
+      ]
+    },
+    "crm_opportunity": {
+      "zh": "商机",
+      "columns": {
+        "opp_code": "商机编码",
+        "opp_name": "商机名称",
+        "customer_id": "客户 ID",
+        "owner_emp_id": "负责销售员工 ID",
+        "amount": "预计金额",
+        "stage": "阶段",
+        "close_date": "预计成交日",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "customer_id",
+          "ref": "crm_customer"
+        },
+        {
+          "column": "owner_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "crm_activity": {
+      "zh": "客户跟进活动",
+      "columns": {
+        "customer_id": "客户 ID",
+        "opp_id": "商机 ID",
+        "emp_id": "跟进人员工 ID",
+        "activity_type": "活动类型",
+        "activity_at": "活动时间",
+        "content": "内容",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "customer_id",
+          "ref": "crm_customer"
+        },
+        {
+          "column": "opp_id",
+          "ref": "crm_opportunity"
+        },
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "crm_visit": {
+      "zh": "客户拜访",
+      "columns": {
+        "customer_id": "客户 ID",
+        "emp_id": "拜访人员工 ID",
+        "visit_date": "拜访日期",
+        "purpose": "目的",
+        "result": "结果",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "customer_id",
+          "ref": "crm_customer"
+        },
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "crm_complaint": {
+      "zh": "客户投诉",
+      "columns": {
+        "customer_id": "客户 ID",
+        "project_id": "项目 ID",
+        "title": "标题",
+        "severity_level": "严重级别",
+        "handler_emp_id": "处理人员工 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "customer_id",
+          "ref": "crm_customer"
+        },
+        {
+          "column": "project_id",
+          "ref": "prj_project"
+        },
+        {
+          "column": "handler_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "crm_sla": {
+      "zh": "客户服务等级协议",
+      "columns": {
+        "customer_id": "客户 ID",
+        "sla_level": "SLA 等级",
+        "response_hours": "响应时限小时",
+        "resolve_hours": "解决时限小时",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "customer_id",
+          "ref": "crm_customer"
+        }
+      ]
+    },
+    "sal_quote": {
+      "zh": "销售报价单",
+      "columns": {
+        "quote_code": "报价单号",
+        "quote_name": "报价名称",
+        "customer_id": "客户 ID",
+        "owner_emp_id": "销售员工 ID",
+        "total_amount": "总金额",
+        "valid_until": "有效期至",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "customer_id",
+          "ref": "crm_customer"
+        },
+        {
+          "column": "owner_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "sal_quote_item": {
+      "zh": "报价明细",
+      "columns": {
+        "quote_id": "报价单 ID",
+        "product_id": "产品 ID",
+        "qty": "数量",
+        "unit_price": "单价",
+        "amount": "金额",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "quote_id",
+          "ref": "sal_quote"
+        },
+        {
+          "column": "product_id",
+          "ref": "prd_product"
+        }
+      ]
+    },
+    "sal_contract": {
+      "zh": "销售合同",
+      "columns": {
+        "contract_code": "合同编号",
+        "contract_name": "合同名称",
+        "customer_id": "客户 ID",
+        "order_id": "关联订单 ID",
+        "sign_date": "签订日期",
+        "amount": "合同金额",
+        "owner_emp_id": "负责销售员工 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "customer_id",
+          "ref": "crm_customer"
+        },
+        {
+          "column": "order_id",
+          "ref": "sal_sales_order"
+        },
+        {
+          "column": "owner_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "sal_contract_milestone": {
+      "zh": "合同里程碑收款",
+      "columns": {
+        "contract_id": "合同 ID",
+        "milestone_name": "里程碑名称",
+        "due_date": "应收日期",
+        "amount": "应收金额",
+        "received_amount": "已收金额",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "contract_id",
+          "ref": "sal_contract"
+        }
+      ]
+    },
+    "sal_delivery": {
+      "zh": "发货/交付单",
+      "columns": {
+        "delivery_code": "交付单号",
+        "delivery_name": "交付说明",
+        "order_id": "订单 ID",
+        "delivery_date": "交付日期",
+        "receiver": "收货人",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "order_id",
+          "ref": "sal_sales_order"
+        }
+      ]
+    },
+    "sal_delivery_item": {
+      "zh": "交付明细",
+      "columns": {
+        "delivery_id": "交付单 ID",
+        "product_id": "产品 ID",
+        "qty": "数量",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "delivery_id",
+          "ref": "sal_delivery"
+        },
+        {
+          "column": "product_id",
+          "ref": "prd_product"
+        }
+      ]
+    },
+    "sal_return": {
+      "zh": "退货单",
+      "columns": {
+        "return_code": "退货单号",
+        "return_name": "退货说明",
+        "order_id": "订单 ID",
+        "return_date": "退货日期",
+        "reason": "原因",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "order_id",
+          "ref": "sal_sales_order"
+        }
+      ]
+    },
+    "sal_commission_rule": {
+      "zh": "销售提成规则",
+      "columns": {
+        "rule_code": "规则编码",
+        "rule_name": "规则名称",
+        "rate_pct": "提成比例",
+        "product_id": "适用产品 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "product_id",
+          "ref": "prd_product"
+        }
+      ]
+    },
+    "sal_commission": {
+      "zh": "销售提成明细",
+      "columns": {
+        "emp_id": "销售员工 ID",
+        "order_id": "订单 ID",
+        "year_month": "年月",
+        "amount": "提成金额",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        },
+        {
+          "column": "order_id",
+          "ref": "sal_sales_order"
+        }
+      ]
+    },
+    "sal_price_list": {
+      "zh": "价格表",
+      "columns": {
+        "plist_code": "价格表编码",
+        "plist_name": "价格表名称",
+        "currency": "币种",
+        "effective_from": "生效起",
+        "effective_to": "生效止",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "sal_price_list_item": {
+      "zh": "价格表明细",
+      "columns": {
+        "plist_id": "价格表 ID",
+        "product_id": "产品 ID",
+        "unit_price": "单价",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "plist_id",
+          "ref": "sal_price_list"
+        },
+        {
+          "column": "product_id",
+          "ref": "prd_product"
+        }
+      ]
+    },
+    "sal_target": {
+      "zh": "销售目标",
+      "columns": {
+        "emp_id": "销售员工 ID",
+        "dept_id": "部门 ID",
+        "year_month": "年月",
+        "target_amount": "目标金额",
+        "actual_amount": "实际金额",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        },
+        {
+          "column": "dept_id",
+          "ref": "org_department"
+        }
+      ]
+    },
+    "sal_channel": {
+      "zh": "销售渠道",
+      "columns": {
+        "channel_code": "渠道编码",
+        "channel_name": "渠道名称",
+        "channel_type": "渠道类型",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "prd_product_line": {
+      "zh": "产品线",
+      "columns": {
+        "line_code": "产品线编码",
+        "line_name": "产品线名称",
+        "owner_emp_id": "负责人员工 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "owner_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "prd_product_version": {
+      "zh": "产品版本",
+      "columns": {
+        "product_id": "产品 ID",
+        "version_no": "版本号",
+        "release_date": "发布日期",
+        "changelog": "变更说明",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "product_id",
+          "ref": "prd_product"
+        }
+      ]
+    },
+    "prd_feature": {
+      "zh": "产品功能点",
+      "columns": {
+        "product_id": "产品 ID",
+        "feature_code": "功能编码",
+        "feature_name": "功能名称",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "product_id",
+          "ref": "prd_product"
+        }
+      ]
+    },
+    "prd_license": {
+      "zh": "产品授权许可",
+      "columns": {
+        "product_id": "产品 ID",
+        "customer_id": "客户 ID",
+        "license_key": "许可密钥",
+        "seat_count": "席位数",
+        "expire_date": "到期日",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "product_id",
+          "ref": "prd_product"
+        },
+        {
+          "column": "customer_id",
+          "ref": "crm_customer"
+        }
+      ]
+    },
+    "prd_roadmap": {
+      "zh": "产品路线图项",
+      "columns": {
+        "product_id": "产品 ID",
+        "item_name": "事项名称",
+        "target_quarter": "目标季度",
+        "priority": "优先级",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "product_id",
+          "ref": "prd_product"
+        }
+      ]
+    },
+    "prj_milestone": {
+      "zh": "项目里程碑",
+      "columns": {
+        "project_id": "项目 ID",
+        "milestone_name": "里程碑名称",
+        "plan_date": "计划日期",
+        "actual_date": "实际日期",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "project_id",
+          "ref": "prj_project"
+        }
+      ]
+    },
+    "prj_task": {
+      "zh": "项目任务",
+      "columns": {
+        "project_id": "项目 ID",
+        "task_name": "任务名称",
+        "assignee_emp_id": "负责人员工 ID",
+        "plan_start": "计划开始",
+        "plan_end": "计划结束",
+        "progress_pct": "进度百分比",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "project_id",
+          "ref": "prj_project"
+        },
+        {
+          "column": "assignee_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "prj_risk": {
+      "zh": "项目风险",
+      "columns": {
+        "project_id": "项目 ID",
+        "risk_title": "风险标题",
+        "level": "风险等级",
+        "owner_emp_id": "责任人员工 ID",
+        "mitigation": "缓解措施",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "project_id",
+          "ref": "prj_project"
+        },
+        {
+          "column": "owner_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "prj_issue": {
+      "zh": "项目问题单",
+      "columns": {
+        "project_id": "项目 ID",
+        "title": "标题",
+        "severity": "严重级别",
+        "reporter_emp_id": "报告人员工 ID",
+        "assignee_emp_id": "处理人员工 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "project_id",
+          "ref": "prj_project"
+        },
+        {
+          "column": "reporter_emp_id",
+          "ref": "hr_employee"
+        },
+        {
+          "column": "assignee_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "prj_change_request": {
+      "zh": "项目变更申请",
+      "columns": {
+        "project_id": "项目 ID",
+        "title": "变更标题",
+        "impact": "影响说明",
+        "requester_emp_id": "申请人员工 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "project_id",
+          "ref": "prj_project"
+        },
+        {
+          "column": "requester_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "prj_document": {
+      "zh": "项目文档索引",
+      "columns": {
+        "project_id": "项目 ID",
+        "doc_name": "文档名称",
+        "doc_type": "文档类型",
+        "url": "链接",
+        "uploader_emp_id": "上传人员工 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "project_id",
+          "ref": "prj_project"
+        },
+        {
+          "column": "uploader_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "prj_stakeholder": {
+      "zh": "项目干系人",
+      "columns": {
+        "project_id": "项目 ID",
+        "emp_id": "内部员工 ID",
+        "external_name": "外部干系人姓名",
+        "role": "角色",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "project_id",
+          "ref": "prj_project"
+        },
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "prj_weekly_report": {
+      "zh": "项目周报",
+      "columns": {
+        "project_id": "项目 ID",
+        "week_start": "周起始日",
+        "author_emp_id": "填写人员工 ID",
+        "content": "周报内容",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "project_id",
+          "ref": "prj_project"
+        },
+        {
+          "column": "author_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "prj_acceptance": {
+      "zh": "项目验收",
+      "columns": {
+        "project_id": "项目 ID",
+        "accept_date": "验收日期",
+        "result": "验收结果",
+        "customer_signer": "客户签字人",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "project_id",
+          "ref": "prj_project"
+        }
+      ]
+    },
+    "prj_warranty": {
+      "zh": "项目质保",
+      "columns": {
+        "project_id": "项目 ID",
+        "start_date": "质保开始",
+        "end_date": "质保结束",
+        "terms": "质保条款",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "project_id",
+          "ref": "prj_project"
+        }
+      ]
+    },
+    "scm_purchase_req": {
+      "zh": "采购申请",
+      "columns": {
+        "req_code": "申请单号",
+        "req_name": "申请标题",
+        "applicant_emp_id": "申请人员工 ID",
+        "dept_id": "申请部门 ID",
+        "total_amount": "预估金额",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "applicant_emp_id",
+          "ref": "hr_employee"
+        },
+        {
+          "column": "dept_id",
+          "ref": "org_department"
+        }
+      ]
+    },
+    "scm_purchase_req_item": {
+      "zh": "采购申请明细",
+      "columns": {
+        "req_id": "申请单 ID",
+        "item_name": "物资名称",
+        "qty": "数量",
+        "unit_price": "预估单价",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "req_id",
+          "ref": "scm_purchase_req"
+        }
+      ]
+    },
+    "scm_purchase_order": {
+      "zh": "采购订单",
+      "columns": {
+        "po_code": "采购订单号",
+        "po_name": "订单说明",
+        "vendor_id": "供应商 ID",
+        "req_id": "来源申请 ID",
+        "total_amount": "订单金额",
+        "buyer_emp_id": "采购员员工 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "vendor_id",
+          "ref": "fin_vendor"
+        },
+        {
+          "column": "req_id",
+          "ref": "scm_purchase_req"
+        },
+        {
+          "column": "buyer_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "scm_purchase_order_item": {
+      "zh": "采购订单明细",
+      "columns": {
+        "po_id": "采购订单 ID",
+        "item_name": "物资名称",
+        "qty": "数量",
+        "unit_price": "单价",
+        "amount": "金额",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "po_id",
+          "ref": "scm_purchase_order"
+        }
+      ]
+    },
+    "scm_warehouse": {
+      "zh": "仓库",
+      "columns": {
+        "wh_code": "仓库编码",
+        "wh_name": "仓库名称",
+        "office_id": "职场 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "office_id",
+          "ref": "org_office"
+        }
+      ]
+    },
+    "scm_receipt": {
+      "zh": "采购入库单",
+      "columns": {
+        "grn_code": "入库单号",
+        "grn_name": "说明",
+        "po_id": "采购订单 ID",
+        "receipt_date": "入库日期",
+        "warehouse_id": "仓库 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "po_id",
+          "ref": "scm_purchase_order"
+        },
+        {
+          "column": "warehouse_id",
+          "ref": "scm_warehouse"
+        }
+      ]
+    },
+    "scm_inventory": {
+      "zh": "库存台账",
+      "columns": {
+        "warehouse_id": "仓库 ID",
+        "sku_code": "SKU 编码",
+        "sku_name": "SKU 名称",
+        "qty_on_hand": "在库数量",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "warehouse_id",
+          "ref": "scm_warehouse"
+        }
+      ]
+    },
+    "scm_inventory_txn": {
+      "zh": "库存流水",
+      "columns": {
+        "warehouse_id": "仓库 ID",
+        "sku_code": "SKU",
+        "txn_type": "出入库类型",
+        "qty": "数量",
+        "txn_date": "日期",
+        "ref_no": "来源单号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "warehouse_id",
+          "ref": "scm_warehouse"
+        }
+      ]
+    },
+    "scm_material": {
+      "zh": "物料主数据",
+      "columns": {
+        "mat_code": "物料编码",
+        "mat_name": "物料名称",
+        "uom": "计量单位",
+        "category": "物料类别",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "scm_vendor_eval": {
+      "zh": "供应商评价",
+      "columns": {
+        "vendor_id": "供应商 ID",
+        "year_month": "年月",
+        "score": "得分",
+        "evaluator_emp_id": "评价人员工 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "vendor_id",
+          "ref": "fin_vendor"
+        },
+        {
+          "column": "evaluator_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "itm_asset": {
+      "zh": "IT 资产",
+      "columns": {
+        "asset_code": "资产编码",
+        "asset_name": "资产名称",
+        "asset_type": "资产类型",
+        "sn": "序列号",
+        "assignee_emp_id": "领用人员工 ID",
+        "office_id": "职场 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "assignee_emp_id",
+          "ref": "hr_employee"
+        },
+        {
+          "column": "office_id",
+          "ref": "org_office"
+        }
+      ]
+    },
+    "itm_asset_assign": {
+      "zh": "IT 资产领用归还",
+      "columns": {
+        "asset_id": "资产 ID",
+        "emp_id": "员工 ID",
+        "assign_date": "领用日期",
+        "return_date": "归还日期",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "asset_id",
+          "ref": "itm_asset"
+        },
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "itm_ticket": {
+      "zh": "IT 服务工单",
+      "columns": {
+        "ticket_code": "工单号",
+        "ticket_name": "工单标题",
+        "requester_emp_id": "提单人员工 ID",
+        "assignee_emp_id": "处理人员工 ID",
+        "category": "分类",
+        "priority": "优先级",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "requester_emp_id",
+          "ref": "hr_employee"
+        },
+        {
+          "column": "assignee_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "itm_ticket_comment": {
+      "zh": "工单评论",
+      "columns": {
+        "ticket_id": "工单 ID",
+        "author_emp_id": "评论人员工 ID",
+        "content": "内容",
+        "commented_at": "评论时间",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "ticket_id",
+          "ref": "itm_ticket"
+        },
+        {
+          "column": "author_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "itm_system": {
+      "zh": "业务系统台账",
+      "columns": {
+        "sys_code": "系统编码",
+        "sys_name": "系统名称",
+        "owner_emp_id": "系统负责人员工 ID",
+        "env": "环境",
+        "url": "访问地址",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "owner_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "itm_deploy": {
+      "zh": "发布部署记录",
+      "columns": {
+        "system_id": "系统 ID",
+        "version_no": "版本号",
+        "deploy_at": "发布时间",
+        "operator_emp_id": "操作人员工 ID",
+        "result": "结果",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "system_id",
+          "ref": "itm_system"
+        },
+        {
+          "column": "operator_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "itm_incident": {
+      "zh": "生产故障",
+      "columns": {
+        "inc_code": "故障单号",
+        "inc_name": "故障标题",
+        "system_id": "系统 ID",
+        "severity": "严重级别",
+        "started_at": "开始时间",
+        "resolved_at": "恢复时间",
+        "commander_emp_id": "指挥人员工 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "system_id",
+          "ref": "itm_system"
+        },
+        {
+          "column": "commander_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "itm_change": {
+      "zh": "变更单",
+      "columns": {
+        "chg_code": "变更单号",
+        "chg_name": "变更标题",
+        "system_id": "系统 ID",
+        "planned_at": "计划时间",
+        "risk_level": "风险等级",
+        "applicant_emp_id": "申请人员工 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "system_id",
+          "ref": "itm_system"
+        },
+        {
+          "column": "applicant_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "itm_account": {
+      "zh": "系统账号",
+      "columns": {
+        "system_id": "系统 ID",
+        "emp_id": "员工 ID",
+        "login_name": "登录名",
+        "role_name": "角色",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "system_id",
+          "ref": "itm_system"
+        },
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "itm_access_request": {
+      "zh": "权限申请",
+      "columns": {
+        "system_id": "系统 ID",
+        "emp_id": "申请人员工 ID",
+        "role_name": "申请角色",
+        "reason": "事由",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "system_id",
+          "ref": "itm_system"
+        },
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "sec_policy": {
+      "zh": "安全策略",
+      "columns": {
+        "pol_code": "策略编码",
+        "pol_name": "策略名称",
+        "policy_type": "策略类型",
+        "content": "策略内容",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "sec_vulnerability": {
+      "zh": "漏洞台账",
+      "columns": {
+        "vuln_code": "漏洞编号",
+        "vuln_name": "漏洞标题",
+        "system_id": "系统 ID",
+        "severity": "严重级别",
+        "discovered_at": "发现日期",
+        "fixed_at": "修复日期",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "system_id",
+          "ref": "itm_system"
+        }
+      ]
+    },
+    "sec_audit_log": {
+      "zh": "安全审计日志",
+      "columns": {
+        "system_id": "系统 ID",
+        "emp_id": "操作人员工 ID",
+        "action": "动作",
+        "acted_at": "操作时间",
+        "ip_addr": "IP",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "system_id",
+          "ref": "itm_system"
+        },
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "sec_data_class": {
+      "zh": "数据分级分类",
+      "columns": {
+        "class_code": "分类编码",
+        "class_name": "分类名称",
+        "level_no": "密级序号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "mkt_campaign": {
+      "zh": "市场活动",
+      "columns": {
+        "camp_code": "活动编码",
+        "camp_name": "活动名称",
+        "start_date": "开始日期",
+        "end_date": "结束日期",
+        "budget": "预算",
+        "owner_emp_id": "负责人员工 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "owner_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "mkt_campaign_lead": {
+      "zh": "活动获客线索",
+      "columns": {
+        "camp_id": "活动 ID",
+        "lead_id": "线索 ID",
+        "channel": "渠道",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "camp_id",
+          "ref": "mkt_campaign"
+        },
+        {
+          "column": "lead_id",
+          "ref": "crm_lead"
+        }
+      ]
+    },
+    "mkt_content": {
+      "zh": "内容素材",
+      "columns": {
+        "content_code": "素材编码",
+        "content_name": "素材标题",
+        "content_type": "类型",
+        "url": "链接",
+        "author_emp_id": "作者员工 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "author_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "mkt_event_reg": {
+      "zh": "活动报名",
+      "columns": {
+        "camp_id": "活动 ID",
+        "reg_name": "报名人",
+        "company_name": "单位",
+        "phone": "电话",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "camp_id",
+          "ref": "mkt_campaign"
+        }
+      ]
+    },
+    "adm_meeting_room": {
+      "zh": "会议室",
+      "columns": {
+        "room_code": "会议室编码",
+        "room_name": "会议室名称",
+        "office_id": "职场 ID",
+        "capacity": "可容纳人数",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "office_id",
+          "ref": "org_office"
+        }
+      ]
+    },
+    "adm_meeting_booking": {
+      "zh": "会议室预订",
+      "columns": {
+        "room_id": "会议室 ID",
+        "organizer_emp_id": "组织者员工 ID",
+        "start_at": "开始时间",
+        "end_at": "结束时间",
+        "title": "会议主题",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "room_id",
+          "ref": "adm_meeting_room"
+        },
+        {
+          "column": "organizer_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "adm_visitor": {
+      "zh": "访客登记",
+      "columns": {
+        "visitor_name": "访客姓名",
+        "host_emp_id": "接待员工 ID",
+        "visit_date": "来访日期",
+        "purpose": "事由",
+        "office_id": "职场 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "host_emp_id",
+          "ref": "hr_employee"
+        },
+        {
+          "column": "office_id",
+          "ref": "org_office"
+        }
+      ]
+    },
+    "adm_supply": {
+      "zh": "办公用品",
+      "columns": {
+        "supply_code": "用品编码",
+        "supply_name": "用品名称",
+        "uom": "单位",
+        "unit_cost": "单价",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "adm_supply_request": {
+      "zh": "办公用品领用",
+      "columns": {
+        "supply_id": "用品 ID",
+        "emp_id": "领用人员工 ID",
+        "qty": "数量",
+        "request_date": "领用日期",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "supply_id",
+          "ref": "adm_supply"
+        },
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "adm_vehicle": {
+      "zh": "公务车",
+      "columns": {
+        "vehicle_code": "车牌/编码",
+        "vehicle_name": "车辆名称",
+        "plate_no": "车牌号",
+        "seat_count": "座位数",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "adm_vehicle_trip": {
+      "zh": "用车记录",
+      "columns": {
+        "vehicle_id": "车辆 ID",
+        "driver_emp_id": "驾驶人员工 ID",
+        "start_at": "出车时间",
+        "end_at": "收车时间",
+        "destination": "目的地",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "vehicle_id",
+          "ref": "adm_vehicle"
+        },
+        {
+          "column": "driver_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "legal_contract": {
+      "zh": "法务合同台账",
+      "columns": {
+        "lcontract_code": "合同编号",
+        "lcontract_name": "合同名称",
+        "counterparty": "相对方",
+        "sign_date": "签订日期",
+        "amount": "金额",
+        "owner_emp_id": "业务负责人员工 ID",
+        "customer_id": "关联客户 ID",
+        "vendor_id": "关联供应商 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "owner_emp_id",
+          "ref": "hr_employee"
+        },
+        {
+          "column": "customer_id",
+          "ref": "crm_customer"
+        },
+        {
+          "column": "vendor_id",
+          "ref": "fin_vendor"
+        }
+      ]
+    },
+    "legal_contract_clause": {
+      "zh": "合同关键条款",
+      "columns": {
+        "contract_id": "合同 ID",
+        "clause_title": "条款标题",
+        "clause_text": "条款正文",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "contract_id",
+          "ref": "legal_contract"
+        }
+      ]
+    },
+    "legal_dispute": {
+      "zh": "诉讼/争议案件",
+      "columns": {
+        "case_code": "案件编号",
+        "case_name": "案件名称",
+        "contract_id": "关联合同 ID",
+        "counterpart": "对方当事人",
+        "opened_at": "立案日期",
+        "lawyer": "承办律师",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "contract_id",
+          "ref": "legal_contract"
+        }
+      ]
+    },
+    "legal_compliance_check": {
+      "zh": "合规检查",
+      "columns": {
+        "chk_code": "检查编码",
+        "chk_name": "检查名称",
+        "check_date": "检查日期",
+        "result": "结果",
+        "owner_emp_id": "负责人员工 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "owner_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "qa_test_plan": {
+      "zh": "测试计划",
+      "columns": {
+        "plan_code": "计划编码",
+        "plan_name": "计划名称",
+        "project_id": "项目 ID",
+        "product_id": "产品 ID",
+        "owner_emp_id": "测试负责人员工 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "project_id",
+          "ref": "prj_project"
+        },
+        {
+          "column": "product_id",
+          "ref": "prd_product"
+        },
+        {
+          "column": "owner_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "qa_test_case": {
+      "zh": "测试用例",
+      "columns": {
+        "plan_id": "计划 ID",
+        "case_code": "用例编码",
+        "case_name": "用例名称",
+        "priority": "优先级",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "plan_id",
+          "ref": "qa_test_plan"
+        }
+      ]
+    },
+    "qa_defect": {
+      "zh": "缺陷",
+      "columns": {
+        "bug_code": "缺陷编号",
+        "bug_name": "缺陷标题",
+        "project_id": "项目 ID",
+        "product_id": "产品 ID",
+        "severity": "严重级别",
+        "reporter_emp_id": "报告人员工 ID",
+        "assignee_emp_id": "修复人员工 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "project_id",
+          "ref": "prj_project"
+        },
+        {
+          "column": "product_id",
+          "ref": "prd_product"
+        },
+        {
+          "column": "reporter_emp_id",
+          "ref": "hr_employee"
+        },
+        {
+          "column": "assignee_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "qa_release_gate": {
+      "zh": "发布门禁检查",
+      "columns": {
+        "system_id": "系统 ID",
+        "version_no": "版本",
+        "gate_name": "门禁项",
+        "passed": "是否通过",
+        "checked_by": "检查人员工 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "system_id",
+          "ref": "itm_system"
+        },
+        {
+          "column": "checked_by",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "kb_article": {
+      "zh": "内部知识文章",
+      "columns": {
+        "article_code": "文章编码",
+        "article_name": "标题",
+        "category": "分类",
+        "author_emp_id": "作者员工 ID",
+        "body": "正文",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "author_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "kb_article_tag": {
+      "zh": "知识标签",
+      "columns": {
+        "tag_code": "标签编码",
+        "tag_name": "标签名",
+        "color": "展示色",
+        "sort_no": "排序号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "kb_article_tag_rel": {
+      "zh": "文章标签关系",
+      "columns": {
+        "article_id": "文章 ID",
+        "tag_id": "标签 ID",
+        "tagged_by": "打标人员工 ID",
+        "tagged_at": "打标时间",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "article_id",
+          "ref": "kb_article"
+        },
+        {
+          "column": "tag_id",
+          "ref": "kb_article_tag"
+        },
+        {
+          "column": "tagged_by",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "ops_duty_roster": {
+      "zh": "值班排班",
+      "columns": {
+        "emp_id": "值班员工 ID",
+        "duty_date": "日期",
+        "shift_name": "班次名",
+        "system_id": "值守系统 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "emp_id",
+          "ref": "hr_employee"
+        },
+        {
+          "column": "system_id",
+          "ref": "itm_system"
+        }
+      ]
+    },
+    "ops_runbook": {
+      "zh": "运维手册",
+      "columns": {
+        "rb_code": "手册编码",
+        "rb_name": "手册名称",
+        "system_id": "系统 ID",
+        "content": "正文",
+        "owner_emp_id": "维护人员工 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "system_id",
+          "ref": "itm_system"
+        },
+        {
+          "column": "owner_emp_id",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "ops_backup_job": {
+      "zh": "备份任务",
+      "columns": {
+        "bak_code": "任务编码",
+        "bak_name": "任务名称",
+        "system_id": "系统 ID",
+        "cron_expr": "调度表达式",
+        "last_run_at": "上次执行时间",
+        "last_result": "上次结果",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "system_id",
+          "ref": "itm_system"
+        }
+      ]
+    },
+    "ops_monitor_alert": {
+      "zh": "监控告警",
+      "columns": {
+        "system_id": "系统 ID",
+        "alert_name": "告警名",
+        "severity": "级别",
+        "fired_at": "触发时间",
+        "acked_by": "确认人员工 ID",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": [
+        {
+          "column": "system_id",
+          "ref": "itm_system"
+        },
+        {
+          "column": "acked_by",
+          "ref": "hr_employee"
+        }
+      ]
+    },
+    "dim_lookup_001": {
+      "zh": "通用字典项 001",
+      "columns": {
+        "dict_code": "字典编码",
+        "dict_name": "字典名称",
+        "dict_group": "字典分组",
+        "sort_no": "排序号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "dim_lookup_002": {
+      "zh": "通用字典项 002",
+      "columns": {
+        "dict_code": "字典编码",
+        "dict_name": "字典名称",
+        "dict_group": "字典分组",
+        "sort_no": "排序号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "dim_lookup_003": {
+      "zh": "通用字典项 003",
+      "columns": {
+        "dict_code": "字典编码",
+        "dict_name": "字典名称",
+        "dict_group": "字典分组",
+        "sort_no": "排序号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "dim_lookup_004": {
+      "zh": "通用字典项 004",
+      "columns": {
+        "dict_code": "字典编码",
+        "dict_name": "字典名称",
+        "dict_group": "字典分组",
+        "sort_no": "排序号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "dim_lookup_005": {
+      "zh": "通用字典项 005",
+      "columns": {
+        "dict_code": "字典编码",
+        "dict_name": "字典名称",
+        "dict_group": "字典分组",
+        "sort_no": "排序号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "dim_lookup_006": {
+      "zh": "通用字典项 006",
+      "columns": {
+        "dict_code": "字典编码",
+        "dict_name": "字典名称",
+        "dict_group": "字典分组",
+        "sort_no": "排序号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "dim_lookup_007": {
+      "zh": "通用字典项 007",
+      "columns": {
+        "dict_code": "字典编码",
+        "dict_name": "字典名称",
+        "dict_group": "字典分组",
+        "sort_no": "排序号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "dim_lookup_008": {
+      "zh": "通用字典项 008",
+      "columns": {
+        "dict_code": "字典编码",
+        "dict_name": "字典名称",
+        "dict_group": "字典分组",
+        "sort_no": "排序号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "dim_lookup_009": {
+      "zh": "通用字典项 009",
+      "columns": {
+        "dict_code": "字典编码",
+        "dict_name": "字典名称",
+        "dict_group": "字典分组",
+        "sort_no": "排序号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "dim_lookup_010": {
+      "zh": "通用字典项 010",
+      "columns": {
+        "dict_code": "字典编码",
+        "dict_name": "字典名称",
+        "dict_group": "字典分组",
+        "sort_no": "排序号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "dim_lookup_011": {
+      "zh": "通用字典项 011",
+      "columns": {
+        "dict_code": "字典编码",
+        "dict_name": "字典名称",
+        "dict_group": "字典分组",
+        "sort_no": "排序号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "dim_lookup_012": {
+      "zh": "通用字典项 012",
+      "columns": {
+        "dict_code": "字典编码",
+        "dict_name": "字典名称",
+        "dict_group": "字典分组",
+        "sort_no": "排序号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "dim_lookup_013": {
+      "zh": "通用字典项 013",
+      "columns": {
+        "dict_code": "字典编码",
+        "dict_name": "字典名称",
+        "dict_group": "字典分组",
+        "sort_no": "排序号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "dim_lookup_014": {
+      "zh": "通用字典项 014",
+      "columns": {
+        "dict_code": "字典编码",
+        "dict_name": "字典名称",
+        "dict_group": "字典分组",
+        "sort_no": "排序号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "dim_lookup_015": {
+      "zh": "通用字典项 015",
+      "columns": {
+        "dict_code": "字典编码",
+        "dict_name": "字典名称",
+        "dict_group": "字典分组",
+        "sort_no": "排序号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "dim_lookup_016": {
+      "zh": "通用字典项 016",
+      "columns": {
+        "dict_code": "字典编码",
+        "dict_name": "字典名称",
+        "dict_group": "字典分组",
+        "sort_no": "排序号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "dim_lookup_017": {
+      "zh": "通用字典项 017",
+      "columns": {
+        "dict_code": "字典编码",
+        "dict_name": "字典名称",
+        "dict_group": "字典分组",
+        "sort_no": "排序号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "dim_lookup_018": {
+      "zh": "通用字典项 018",
+      "columns": {
+        "dict_code": "字典编码",
+        "dict_name": "字典名称",
+        "dict_group": "字典分组",
+        "sort_no": "排序号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "dim_lookup_019": {
+      "zh": "通用字典项 019",
+      "columns": {
+        "dict_code": "字典编码",
+        "dict_name": "字典名称",
+        "dict_group": "字典分组",
+        "sort_no": "排序号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "dim_lookup_020": {
+      "zh": "通用字典项 020",
+      "columns": {
+        "dict_code": "字典编码",
+        "dict_name": "字典名称",
+        "dict_group": "字典分组",
+        "sort_no": "排序号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "dim_lookup_021": {
+      "zh": "通用字典项 021",
+      "columns": {
+        "dict_code": "字典编码",
+        "dict_name": "字典名称",
+        "dict_group": "字典分组",
+        "sort_no": "排序号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "dim_lookup_022": {
+      "zh": "通用字典项 022",
+      "columns": {
+        "dict_code": "字典编码",
+        "dict_name": "字典名称",
+        "dict_group": "字典分组",
+        "sort_no": "排序号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "dim_lookup_023": {
+      "zh": "通用字典项 023",
+      "columns": {
+        "dict_code": "字典编码",
+        "dict_name": "字典名称",
+        "dict_group": "字典分组",
+        "sort_no": "排序号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "dim_lookup_024": {
+      "zh": "通用字典项 024",
+      "columns": {
+        "dict_code": "字典编码",
+        "dict_name": "字典名称",
+        "dict_group": "字典分组",
+        "sort_no": "排序号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "dim_lookup_025": {
+      "zh": "通用字典项 025",
+      "columns": {
+        "dict_code": "字典编码",
+        "dict_name": "字典名称",
+        "dict_group": "字典分组",
+        "sort_no": "排序号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "dim_lookup_026": {
+      "zh": "通用字典项 026",
+      "columns": {
+        "dict_code": "字典编码",
+        "dict_name": "字典名称",
+        "dict_group": "字典分组",
+        "sort_no": "排序号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "dim_lookup_027": {
+      "zh": "通用字典项 027",
+      "columns": {
+        "dict_code": "字典编码",
+        "dict_name": "字典名称",
+        "dict_group": "字典分组",
+        "sort_no": "排序号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    },
+    "dim_lookup_028": {
+      "zh": "通用字典项 028",
+      "columns": {
+        "dict_code": "字典编码",
+        "dict_name": "字典名称",
+        "dict_group": "字典分组",
+        "sort_no": "排序号",
+        "status": "状态",
+        "remark": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+      },
+      "fks": []
+    }
+  }
+}

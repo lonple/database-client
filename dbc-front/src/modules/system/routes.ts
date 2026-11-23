@@ -14,10 +14,17 @@ export const systemRoutes: RouteRecordRaw[] = [
         component: () => import('@/modules/system/views/AppManageView.vue'),
         meta: { module: 'system', title: '应用管理', superAdmin: true },
       },
+      {
+        path: 'app-config',
+        name: 'system-app-config',
+        component: () => import('@/modules/system/views/AppConfigView.vue'),
+        meta: { module: 'system', title: '应用配置', superAdmin: true },
+      },
     ],
   },
 ]
 
 export const SYSTEM_SIDE_MENUS = [
   { key: 'system-apps', label: '应用管理', path: '/system/apps' },
+  { key: 'system-app-config', label: '应用配置', path: '/system/app-config' },
 ]

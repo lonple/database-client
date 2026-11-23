@@ -772,84 +772,8 @@ async def seed_finance(conn: asyncpg.Connection, st: State) -> None:
         slip_rows,
     )
 
-    # 报销
-    cats = ["travel", "meal", "traffic", "office", "entertainment", "training", None]
-    claim_rows = []
-    item_rows = []
-    claim_id_seq = 0
-    tmp_claims: list[dict] = []
-    for e in st.emps:
-        n = rng.randint(3, 10)  # 千人规模下控制报销总量约 0.6～1 万单
-        for _ in range(n):
-            if e.hire_date >= END:
-                continue
-            span = (min(e.leave_date or END, END) - e.hire_date).days
-            if span < 5:
-                continue
-            cd = e.hire_date + timedelta(days=rng.randint(1, span))
-            claim_id_seq += 1
-            claim_no = f"RB{cd.strftime('%Y%m')}{claim_id_seq:05d}"
-            status = rng.choices(["approved", "paid", "submitted", "rejected", "draft"], weights=[40, 35, 10, 8, 7])[0]
-            paid_at = datetime.combine(cd + timedelta(days=rng.randint(3, 25)), datetime.min.time()) if status == "paid" else None
-            pj = rng.choice(st.projects)["id"] if st.projects and rng.random() < 0.35 else None
-            items_n = rng.randint(1, 4)
-            amounts = [round(rng.uniform(35, 2800), 2) for _ in range(items_n)]
-            total = sum(amounts)
-            if rng.random() < 0.05:
-                total = None  # 头表金额空
-            elif rng.random() < 0.06:
-                total = round(total * rng.uniform(0.8, 1.2), 2)  # 与明细不一致
-            tmp_claims.append(
-                {
-                    "row": (
-                        claim_no,
-                        e.id,
-                        e.dept_id,
-                        pj,
-                        cd,
-                        rng.choice(["差旅报销", "招待费", "办公采购", "培训费", "交通费", None]),
-                        d(total),
-                        status,
-                        paid_at,
-                    ),
-                    "amounts": amounts,
-                    "cd": cd,
-                }
-            )
-
-    await exec_many(
-        conn,
-        """
-        INSERT INTO company.fin_reimburse(claim_no, emp_id, dept_id, project_id, claim_date, title, total_amount, status, paid_at)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)
-        """,
-        [c["row"] for c in tmp_claims],
-    )
-    claim_map = {r["claim_no"]: r["id"] for r in await conn.fetch("SELECT id, claim_no FROM company.fin_reimburse")}
-    for c in tmp_claims:
-        cid = claim_map[c["row"][0]]
-        # 2% 无明细
-        if rng.random() < 0.02:
-            continue
-        for amt in c["amounts"]:
-            item_rows.append(
-                (
-                    cid,
-                    rng.choice(cats),
-                    d(amt if rng.random() > 0.03 else None),
-                    c["cd"] - timedelta(days=rng.randint(0, 10)),
-                    None if rng.random() < 0.2 else f"INV{rng.randint(100000, 999999)}",
-                    rng.choice([None, "", "含税", "客户现场"]),
-                )
-            )
-    await exec_many(
-        conn,
-        """
-        INSERT INTO company.fin_reimburse_item(claim_id, category, amount, occur_date, invoice_no, remark)
-        VALUES($1,$2,$3,$4,$5,$6)
-        """,
-        item_rows,
-    )
+    # 报销（干净：头表金额 = Σ明细）
+    n_claims, n_items = await seed_reimburse_claims(conn, st)
 
     # 活动经费：每年每部门若干
     budget_rows = []
@@ -918,7 +842,94 @@ async def seed_finance(conn: asyncpg.Connection, st: State) -> None:
         """,
         expense_rows,
     )
-    print(f"  salary_slips~={len(slip_rows)} reimburses={len(tmp_claims)} activity_budgets={len(tmp_budgets)}")
+    print(f"  salary_slips~={len(slip_rows)} reimburses={n_claims} items={n_items} activity_budgets={len(tmp_budgets)}")
+
+
+async def seed_reimburse_claims(conn: asyncpg.Connection, st: State) -> tuple[int, int]:
+    """写入干净报销：每单 ≥1 行明细，total_amount = Σ amount。"""
+    rng = st.rng
+    cats = ["travel", "meal", "traffic", "office", "entertainment", "training", None]
+    item_rows: list[tuple] = []
+    claim_id_seq = 0
+    tmp_claims: list[dict] = []
+    for e in st.emps:
+        n = rng.randint(3, 10)  # 千人规模下控制报销总量约 0.6～1 万单
+        for _ in range(n):
+            if e.hire_date >= END:
+                continue
+            span = (min(e.leave_date or END, END) - e.hire_date).days
+            if span < 5:
+                continue
+            cd = e.hire_date + timedelta(days=rng.randint(1, span))
+            claim_id_seq += 1
+            claim_no = f"RB{cd.strftime('%Y%m')}{claim_id_seq:05d}"
+            status = rng.choices(
+                ["approved", "paid", "submitted", "rejected", "draft"],
+                weights=[40, 35, 10, 8, 7],
+            )[0]
+            paid_at = (
+                datetime.combine(cd + timedelta(days=rng.randint(3, 25)), datetime.min.time())
+                if status == "paid"
+                else None
+            )
+            pj = rng.choice(st.projects)["id"] if st.projects and rng.random() < 0.35 else None
+            items_n = rng.randint(1, 4)
+            amounts = [round(rng.uniform(35, 2800), 2) for _ in range(items_n)]
+            total = round(sum(amounts), 2)
+            tmp_claims.append(
+                {
+                    "row": (
+                        claim_no,
+                        e.id,
+                        e.dept_id,
+                        pj,
+                        cd,
+                        rng.choice(["差旅报销", "招待费", "办公采购", "培训费", "交通费", None]),
+                        d(total),
+                        status,
+                        paid_at,
+                    ),
+                    "amounts": amounts,
+                    "cd": cd,
+                }
+            )
+
+    await exec_many(
+        conn,
+        """
+        INSERT INTO company.fin_reimburse(
+          claim_no, emp_id, dept_id, project_id, claim_date, title, total_amount, status, paid_at
+        ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        """,
+        [c["row"] for c in tmp_claims],
+    )
+    claim_map = {
+        r["claim_no"]: r["id"]
+        for r in await conn.fetch("SELECT id, claim_no FROM company.fin_reimburse")
+    }
+    for c in tmp_claims:
+        cid = claim_map[c["row"][0]]
+        for amt in c["amounts"]:
+            item_rows.append(
+                (
+                    cid,
+                    rng.choice(cats),
+                    d(amt),
+                    c["cd"] - timedelta(days=rng.randint(0, 10)),
+                    None if rng.random() < 0.2 else f"INV{rng.randint(100000, 999999)}",
+                    rng.choice([None, "", "含税", "客户现场"]),
+                )
+            )
+    await exec_many(
+        conn,
+        """
+        INSERT INTO company.fin_reimburse_item(
+          claim_id, category, amount, occur_date, invoice_no, remark
+        ) VALUES($1,$2,$3,$4,$5,$6)
+        """,
+        item_rows,
+    )
+    return len(tmp_claims), len(item_rows)
 
 
 async def seed_sales(conn: asyncpg.Connection, st: State) -> None:
@@ -1130,12 +1141,91 @@ async def print_stats(conn: asyncpg.Connection) -> None:
     )
 
 
+async def refresh_reimburse_only(dsn: str) -> None:
+    """仅重建报销头/明细为干净数据（头表金额=明细合计，每单至少一行明细）。"""
+    rng = random.Random(SEED)
+    conn = await asyncpg.connect(dsn)
+    try:
+        exists = await conn.fetchval(
+            "SELECT 1 FROM information_schema.schemata WHERE schema_name='company'"
+        )
+        if not exists:
+            raise SystemExit("schema company 不存在，请先执行 01_schema.sql")
+
+        emp_rows = await conn.fetch(
+            """
+            SELECT id, emp_no, name, dept_id, job_level_id, hire_date, leave_date,
+                   employment_status
+            FROM company.hr_employee
+            ORDER BY id
+            """
+        )
+        if not emp_rows:
+            raise SystemExit("hr_employee 为空，请先完整 seed")
+
+        emps = [
+            Emp(
+                id=int(r["id"]),
+                emp_no=str(r["emp_no"]),
+                name=str(r["name"]),
+                dept_id=int(r["dept_id"]) if r["dept_id"] is not None else None,
+                job_level_id=int(r["job_level_id"]) if r["job_level_id"] is not None else None,
+                hire_date=r["hire_date"],
+                leave_date=r["leave_date"],
+                status=str(r["employment_status"] or "active"),
+            )
+            for r in emp_rows
+        ]
+        projects = [dict(p) for p in await conn.fetch("SELECT id FROM company.prj_project ORDER BY id")]
+        st = State(rng=rng, emps=emps, projects=projects)
+
+        print("==> truncate fin_reimburse (+ dependents) and reseed clean")
+        await conn.execute(
+            """
+            TRUNCATE TABLE company.fin_reimburse_item, company.fin_reimburse
+            RESTART IDENTITY CASCADE
+            """
+        )
+        n_claims, n_items = await seed_reimburse_claims(conn, st)
+
+        chk = await conn.fetchrow(
+            """
+            SELECT
+              (SELECT count(*) FROM company.fin_reimburse) AS claims,
+              (SELECT count(*) FROM company.fin_reimburse_item) AS items,
+              (SELECT count(*) FROM company.fin_reimburse r
+                 LEFT JOIN (
+                   SELECT claim_id, sum(amount) AS s FROM company.fin_reimburse_item GROUP BY claim_id
+                 ) i ON i.claim_id = r.id
+                 WHERE i.claim_id IS NULL
+                    OR r.total_amount IS NULL
+                    OR abs(r.total_amount - i.s) > 0.009) AS dirty
+            """
+        )
+        print(
+            f"==> reimburse refreshed claims={chk['claims']} items={chk['items']} "
+            f"(generated {n_claims}/{n_items}) dirty_mismatch={chk['dirty']}"
+        )
+        if int(chk["dirty"] or 0) != 0:
+            raise SystemExit("报销干净性校验失败：仍存在头表明细不一致或无明细")
+    finally:
+        await conn.close()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dsn", default=DSN_DEFAULT)
     parser.add_argument("--no-truncate", action="store_true", help="不先 TRUNCATE（默认会清空 company 业务表）")
+    parser.add_argument(
+        "--refresh-reimburse",
+        action="store_true",
+        help="仅重建 fin_reimburse / fin_reimburse_item 为干净数据（不重灌其它表）",
+    )
     args = parser.parse_args()
-    asyncio.run(seed(args.dsn, rebuild=not args.no_truncate))
+    if args.refresh_reimburse:
+        asyncio.run(refresh_reimburse_only(args.dsn))
+    else:
+        asyncio.run(seed(args.dsn, rebuild=not args.no_truncate))
 
 
 if __name__ == "__main__":

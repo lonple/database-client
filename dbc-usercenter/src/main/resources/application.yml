@@ -54,8 +54,16 @@ mybatis-plus:
       password: ${DBC_REDIS_PASSWORD:}
 
 dbc:
-  jwt:
-    expire-hours: 8
+  jwt: {}
+  auth:
+    access-ttl-minutes: ${DBC_AUTH_ACCESS_TTL_MINUTES:30}
+    refresh-ttl-hours: ${DBC_AUTH_REFRESH_TTL_HOURS:8}
+    cookie:
+      secure: ${DBC_AUTH_COOKIE_SECURE:false}
+      same-site: ${DBC_AUTH_COOKIE_SAME_SITE:Lax}
+      refresh-path: ${DBC_AUTH_REFRESH_COOKIE_PATH:/dbc-usercenter/auth}
+  cors:
+    allowed-origin-patterns: ${DBC_CORS_ORIGINS:http://127.0.0.1:8005,http://localhost:8005}
   secrets:
     # 相对进程工作目录；IDE / bootRun 均应以仓库根为工作目录，对应仓库根下 secrets/
     dir: ${DBC_SECRETS_DIR:secrets}

@@ -52,6 +52,8 @@ class JwtService:
             payload = jwt.decode(token, self._secret, algorithms=list(_JWT_ALGS))
         except InvalidTokenError as ex:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="无效令牌") from ex
+        if payload.get("typ") != "access":
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="令牌类型不匹配")
         sub = payload.get("sub")
         if sub is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="令牌缺少主体")
@@ -87,7 +89,7 @@ async def _fetch_permissions(settings: Settings, bearer: str) -> frozenset[str]:
         )
     url = f"{base}/auth/me"
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=10.0, trust_env=False) as client:
             resp = await client.get(url, headers={"Authorization": bearer})
     except Exception as ex:
         log.warning("拉取 usercenter /auth/me 失败", exc_info=True)
@@ -147,6 +149,13 @@ def require_permission(code: str):
         return user
 
     return _dep
+
+
+async def require_super_admin(user: LoginUser = Depends(require_user)) -> LoginUser:
+    """系统管理 · 应用配置：仅超管。"""
+    if "SUPER_ADMIN" not in user.role_codes:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="需要超级管理员")
+    return user
 
 
 def extract_bearer(authorization: str | None) -> str:

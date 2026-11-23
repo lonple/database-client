@@ -17,6 +17,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 
+/**
+ * 解析 Bearer access JWT。浏览器会话见设计文档「双令牌」；业务无 Cookie access。
+ */
 @Component
 public class JwtAuthFilter extends OncePerRequestFilter {
 
@@ -33,11 +36,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         String header = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (header != null && header.startsWith("Bearer ")) {
-            String token = header.substring(7);
+            String token = header.substring(7).trim();
             try {
-                LoginUser user = jwtService.parse(token);
+                LoginUser user = jwtService.parseAccess(token);
                 UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(user, null, Collections.emptyList());
+                        new UsernamePasswordAuthenticationToken(user, token, Collections.emptyList());
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             } catch (Exception ex) {
                 writeUnauthorized(response, "未登录或令牌无效");

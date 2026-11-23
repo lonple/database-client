@@ -2,7 +2,7 @@
 
 > **定位**：Windows + Docker Desktop，中间件与前后端 **分两个 Compose** 部署。  
 > **环境级别**：本地学习 / 联调。**不是生产规范。**  
-> **宿主机数据根目录**：由用户指定，写入 `deploy/dbc-docker.env` 的 `DBC_DOCKER_WORKSPACE`（勿提交 Git）。
+> **宿主机数据根目录**：Docker 工作空间根为 `E:\app\docker\workspace`；本产品在 `...\dbc`（每个容器一个子目录）。写入 `deploy/dbc-docker.env` 的 `DBC_DOCKER_WORKSPACE`（勿提交 Git）。
 
 ---
 
@@ -11,7 +11,7 @@
 | Compose | 路径 | 内容 |
 | --- | --- | --- |
 | 中间件 | `deploy/middleware/docker-compose.yml` | PostgreSQL / Redis / Nacos / Elasticsearch |
-| 前后端 | `deploy/apps/docker-compose.yml` | gateway / usercenter / manage / sqlwork / audit / front |
+| 前后端 | `deploy/apps/docker-compose.yml` | gateway / usercenter / manage / sqlwork / audit / **askdata** / front |
 
 共用外部网络：`dbc-net`（由中间件 Compose 创建）。
 
@@ -22,14 +22,21 @@
 ```powershell
 cd <repo-root>
 
-# 首次：指定数据目录（任选本机路径，例如 D:\data\dbc）
-.\scripts\docker-deploy.cmd -WorkspaceRoot D:\data\dbc
+# 首次：指定本产品目录（工作空间根是 E:\app\docker\workspace）
+.\scripts\docker-deploy.cmd -WorkspaceRoot E:\app\docker\workspace\dbc
 
 # 日常启动（复用 deploy\dbc-docker.env）
 .\scripts\docker-deploy.cmd
 
-# 改过代码
+# 改过代码（全部重打）
 .\scripts\docker-deploy.cmd -Build
+
+# 只重建一个模块（短名见下表；也可写 dbc-askdata）
+# 注意：askdata 必须跟在 -Build 后；不要写成位置参数当数据目录
+.\scripts\docker-deploy.cmd -Build askdata
+.\scripts\docker-deploy.cmd -Build sqlwork
+.\scripts\docker-deploy.cmd -Build front
+.\scripts\docker-deploy.cmd -Build sqlwork askdata
 
 # 首次或大刷新
 .\scripts\docker-deploy.cmd -Full
@@ -43,24 +50,44 @@ cd <repo-root>
 
 浏览器：`http://127.0.0.1:8080`（`admin` / `admin`）。细则见 **§10**。
 
+**`-Build` / `-RebuildImages` 模块短名**（大小写不敏感；多个空格分隔）：
+
+| 短名 | 其它写法 | Compose 服务 |
+| --- | --- | --- |
+| `askdata` | `dbc-askdata` | `dbc-askdata` |
+| `sqlwork` | `dbc-sqlwork` | `dbc-sqlwork` |
+| `front` | `dbc-front` | `dbc-front` |
+| `gateway` | `dbc-gateway` | `dbc-gateway` |
+| `usercenter` | `uc`、`dbc-usercenter` | `dbc-usercenter` |
+| `manage` | `dbc-manage` | `dbc-manage` |
+| `audit` | `dbc-audit` | `dbc-audit` |
+
 **已知不足 / 非生产**（上线前必须改）：Compose 内明文口令、Nacos/ES 关鉴权、密钥目录明文挂载、单实例、无资源限额与备份策略。
 
 ---
 
-## 0.1 数据目录怎么指定
+## 0.1 数据目录与 Docker 环境文件
 
-优先级（高 → 低）：
+`deploy/dbc-docker.env`（已 gitignore）是 **Compose 环境配置**：`docker-deploy.cmd` / `docker-stop.cmd` 都以 `--env-file` 加载。  
+模板：`deploy/dbc-docker.env.example`。可在此填写问数千问 Key、ada-memory 地址等；**不要写进镜像、不要提交 Git**。  
+部署脚本**只改**其中的 `DBC_DOCKER_WORKSPACE=` 一行，其它键保持原样。
+
+工作区路径优先级（高 → 低）：
 
 1. 参数 `-WorkspaceRoot <路径>`
-2. 环境变量 `DBC_DOCKER_WORKSPACE`
-3. 已存在的 `deploy/dbc-docker.env`
-4. 交互提示（仅 `docker-deploy` / `init-docker-workspace` / `build-docker-apps`；回车默认 `%USERPROFILE%\dbc-docker-data`）
+2. 进程环境变量 `DBC_DOCKER_WORKSPACE`
+3. `deploy/dbc-docker.env` 里的 `DBC_DOCKER_WORKSPACE`
+4. 交互提示（仅 `docker-deploy` / `init-docker-workspace` / `build-docker-apps`；回车默认 `E:\app\docker\workspace\dbc`）
 
-手工编辑示例：复制 `deploy/dbc-docker.env.example` → `deploy/dbc-docker.env`：
+手工示例：
 
 ```env
-DBC_DOCKER_WORKSPACE=D:/data/dbc
+DBC_DOCKER_WORKSPACE=E:/app/docker/workspace/dbc
+DBC_ASKDATA_LLM_API_KEY=
+DBC_ASKDATA_ADA_MEMORY_BASE_URL=http://ada-memory:8100
 ```
+
+`DBC_ASKDATA_LLM_API_KEY` 留空时，问数仍读工作区 `secrets/askdata-llm-api-key.txt`。改 env 后执行 `.\scripts\docker-deploy.cmd`（不必 `-Build`）以重建容器环境变量。
 
 手跑 Compose 时务必带上 env 文件：
 
@@ -85,6 +112,7 @@ docker pull elasticsearch:9.2.3
 docker pull eclipse-temurin:21.0.12_8-jre
 docker pull node:26.8.2-slim
 docker pull nginx:stable-alpine
+docker pull python:3.12-slim
 ```
 
 ### 1.2 用途对照
@@ -96,6 +124,7 @@ docker pull nginx:stable-alpine
 | `nacos/nacos-server:v3.2.4-slim` | 服务发现 |
 | `elasticsearch:9.2.3` | 审计 |
 | `eclipse-temurin:21.0.12_8-jre` | 五个 Java 服务运行时基础镜像 |
+| `python:3.12-slim` | `dbc-askdata` 运行时基础镜像 |
 | `node:26.8.2-slim` | 前端 Dockerfile 构建阶段 |
 | `nginx:stable-alpine` | 前端最终镜像基础（亦被 `dbc-front` 使用） |
 | `dbc-*:0.1.0`（本地 build） | 业务镜像，由 Compose/`Dockerfile` 生成，无需 pull |
@@ -104,30 +133,44 @@ docker pull nginx:stable-alpine
 
 ---
 
-## 2. 宿主机目录（全部在 `E:\app\docker\workspace\dbc`）
+## 2. 宿主机目录
+
+约定：
+
+| 层级 | 路径 | 含义 |
+| --- | --- | --- |
+| Docker 工作空间根 | `E:\app\docker\workspace` | 本机所有 Docker 产品数据 |
+| 本产品目录 | `E:\app\docker\workspace\dbc` | `DBC_DOCKER_WORKSPACE`；Compose 挂载根 |
+| 其它产品 | `E:\app\docker\workspace\ada` 等 | 不归本仓库管 |
+
+`init-docker-workspace.ps1` 在产品目录下**按容器各建一个文件夹**（与 Compose 服务短名一致：`postgres`、`askdata`…）。`secrets` 为全业务共用，不是容器。
 
 ```text
-E:\app\docker\workspace\dbc\
-  postgres\data            # 挂载到容器 /var/lib/postgresql（PG18+ 要求，勿再挂 .../data）
-  redis\data
-  nacos\logs
-  elasticsearch\data
-  secrets\                 # 全业务共用（jwt / mTLS / kek）
-  secrets\manage\drivers
-  manage\drivers           # 驱动 JAR（挂到容器 drivers 目录）
-  manage\logs
-  usercenter\logs
-  sqlwork\logs
-  audit\logs
-  gateway\logs
-  front\html               # npm run build 产物
-  front\conf\default.conf  # Nginx 配置
+E:\app\docker\workspace\
+  ada\                         # 其它产品
+  dbc\                         # 本产品 = DBC_DOCKER_WORKSPACE
+    postgres\data              # 容器 dbc-postgres；PG18+ 挂 /var/lib/postgresql
+    redis\data                 # dbc-redis
+    nacos\logs                 # dbc-nacos
+    elasticsearch\data         # dbc-elasticsearch
+    secrets\                   # 共用 jwt / mTLS / kek
+    secrets\manage\drivers
+    manage\drivers             # dbc-manage 驱动 JAR
+    manage\logs
+    usercenter\logs
+    sqlwork\logs
+    audit\logs
+    askdata\logs
+    askdata\eval-cases         # 测评模板 jsonl
+    gateway\logs
+    front\html
+    front\conf\default.conf
 ```
 
 初始化：
 
 ```powershell
-cd e:\workspace\database-client
+cd e:\workspace\agent-project\database-client
 powershell -ExecutionPolicy Bypass -File .\scripts\init-docker-workspace.ps1
 ```
 
@@ -142,12 +185,12 @@ powershell -ExecutionPolicy Bypass -File .\scripts\init-docker-workspace.ps1
 | 前端 Nginx | **8080** |
 | Gateway | 8003 |
 | usercenter HTTP / mTLS | 8004 / 8044 |
-| manage / sqlwork / audit | 8006 / 8007 / 8008 |
+| manage / sqlwork / audit / **askdata** | 8006 / 8007 / 8008 / **8009** |
 | audit mTLS | 8048 |
 | Nacos 发现 / 控制台 / gRPC | 8000 / 8001 / 9000 |
 | PostgreSQL / Redis / ES | 5432 / 6379 / 9200 |
 
-容器互联：Nacos 用 `nacos:8848`；库用服务名 `postgres` / `redis` / `elasticsearch`。
+容器互联：Nacos 用 `nacos:8848`；库用服务名 `postgres` / `redis` / `elasticsearch`；问数访问知识库用 `ada-memory:8100`。
 
 ---
 
@@ -161,7 +204,8 @@ scripts/build-docker-apps.ps1          ← 打包（PowerShell）
   └─ dbc-front npm run build（可选）   ← 同步 dist 到工作区 front/html 便于查看
 
 docker compose -f deploy/apps/... up -d --build   ← 制作镜像并运行
-  ├─ dbc-*/Dockerfile                  ← COPY app.jar → eclipse-temurin:21.0.12_8-jre → 容器
+  ├─ dbc-*/Dockerfile                  ← Java：COPY app.jar → eclipse-temurin
+  ├─ dbc-askdata/Dockerfile            ← pip install . → python:3.12-slim → uvicorn :8009
   └─ dbc-front/Dockerfile              ← 镜像内 npm build → nginx 镜像 → 容器
 
 docker compose -f deploy/middleware/... up -d     ← 官方镜像，无业务打包
@@ -170,7 +214,7 @@ docker compose -f deploy/middleware/... up -d     ← 官方镜像，无业务�
 | 步骤 | 做什么 | 代码/文件在哪 |
 | --- | --- | --- |
 | 1 打包后端 | `bootJar` → `app.jar` | `scripts/build-docker-apps.ps1`；各 `dbc-*/build.gradle.kts`（`archiveFileName=app.jar`） |
-| 2 打后端镜像 | `COPY app.jar` + `eclipse-temurin:21.0.12_8-jre` | 各 `dbc-*/Dockerfile`；由 `deploy/apps/docker-compose.yml` 的 `build:` 触发 |
+| 2 打后端镜像 | Java：`COPY app.jar`；askdata：`pip install .` | 各 `dbc-*/Dockerfile`；`dbc-askdata/Dockerfile`；由 `deploy/apps/docker-compose.yml` 的 `build:` 触发 |
 | 3 打包并打前端镜像 | Dockerfile 多阶段 `npm run build` | `dbc-front/Dockerfile`；`compose` 服务 `dbc-front` |
 | 4 运行 | `compose up` | `deploy/middleware` + `deploy/apps` |
 
@@ -189,7 +233,7 @@ docker compose -f deploy/middleware/... up -d     ← 官方镜像，无业务�
 ### 5.2 构建 Jar（+ 可选前端落盘）
 
 ```powershell
-cd e:\workspace\database-client
+cd e:\workspace\agent-project\database-client
 powershell -ExecutionPolicy Bypass -File .\scripts\build-docker-apps.ps1
 ```
 
@@ -213,20 +257,30 @@ Nacos 控制台：`http://127.0.0.1:8001/nacos`（Nacos 3.x）。
 
 ### 5.4 制作应用镜像并启动
 
+不要手写 `docker compose --env-file ...`。仓库根：
+
 ```powershell
-docker compose -f deploy/apps/docker-compose.yml up -d --build
-docker compose -f deploy/apps/docker-compose.yml ps
+.\scripts\docker-deploy.cmd          # 日常：缺镜像才 --build，含 dbc-askdata
+.\scripts\docker-deploy.cmd -Build askdata
+.\scripts\docker-deploy.cmd -Build sqlwork front
+.\scripts\docker-deploy.cmd -Build   # 全部 Java / 前端 / 问数重打
 ```
+
+模块短名对照见 **§0**（`askdata` / `sqlwork` / `front` / `gateway` / `usercenter`（`uc`） / `manage` / `audit`）。
 
 浏览器：`http://127.0.0.1:8080`  
 账号：`admin` / `admin`（以 Flyway 初始化为准）
 
+`dbc-askdata` 无 Jar：脚本里的 `compose --build` 用 `dbc-askdata/Dockerfile` 打 `dbc-askdata:0.1.0`。  
+启动前确认工作区 `secrets/askdata-llm-api-key.txt`（或环境变量 `DBC_ASKDATA_LLM_API_KEY`），以及 `secrets/mtls/clients/dbc-askdata.p12`（usercenter 登记应用后签发）。  
+探活：`http://127.0.0.1:8009/health`（脚本结束会等）；网关路径：`/dbc-askdata/**`。  
+ada-memory 与问数同在 `dbc-net`，容器内用容器名 `http://ada-memory:8100`（`DBC_ASKDATA_ADA_MEMORY_BASE_URL`）。Memory 须监听 `0.0.0.0:8100` 并接入 `dbc-net`。
+
 ### 5.5 停止
 
 ```powershell
-docker compose -f deploy/apps/docker-compose.yml down
-docker compose -f deploy/middleware/docker-compose.yml down
-# 数据在 E:\app\docker\workspace\dbc\** ，down 默认不删宿主机目录
+.\scripts\docker-stop.cmd
+# 数据在工作区目录，down 默认不删宿主机数据
 ```
 
 ---
@@ -244,13 +298,13 @@ docker compose -f deploy/middleware/docker-compose.yml down
 在仓库根执行：
 
 ```powershell
-cd E:\workspace\database-client
+cd E:\workspace\agent-project\database-client
 
 # 1) 删旧服务端证书（工作区 + 仓库都删，避免旧文件被同步回来）
 Remove-Item -Force "E:\app\docker\workspace\dbc\secrets\mtls\server.p12" -ErrorAction SilentlyContinue
 Remove-Item -Force "E:\app\docker\workspace\dbc\secrets\mtls\server.pass" -ErrorAction SilentlyContinue
-Remove-Item -Force "E:\workspace\database-client\secrets\mtls\server.p12" -ErrorAction SilentlyContinue
-Remove-Item -Force "E:\workspace\database-client\secrets\mtls\server.pass" -ErrorAction SilentlyContinue
+Remove-Item -Force "E:\workspace\agent-project\database-client\secrets\mtls\server.p12" -ErrorAction SilentlyContinue
+Remove-Item -Force "E:\workspace\agent-project\database-client\secrets\mtls\server.pass" -ErrorAction SilentlyContinue
 
 # 2) 先起 usercenter（自动生成新证书；需中间件已 up，Jar 已打好）
 docker compose -f deploy/apps/docker-compose.yml up -d --build dbc-usercenter
@@ -262,7 +316,7 @@ dir E:\app\docker\workspace\dbc\secrets\mtls\
 docker compose -f deploy/apps/docker-compose.yml up -d --build
 
 # 4) 同步回仓库（以后 IDEA 本机跑也用这套证）
-robocopy "E:\app\docker\workspace\dbc\secrets" "E:\workspace\database-client\secrets" /E
+robocopy "E:\app\docker\workspace\dbc\secrets" "E:\workspace\agent-project\database-client\secrets" /E
 ```
 
 ### 6.3 以后怎么做
@@ -343,13 +397,17 @@ robocopy "E:\app\docker\workspace\dbc\secrets" "E:\workspace\database-client\sec
 在仓库根目录执行。**用 `.cmd`，不要只敲 `.ps1` 文件名。**
 
 ```powershell
-cd E:\workspace\database-client
+cd E:\workspace\agent-project\database-client
 
 # 日常启动
 .\scripts\docker-deploy.cmd
 
-# 改过代码
+# 改过代码（全部）
 .\scripts\docker-deploy.cmd -Build
+
+# 只重建一个模块（短名：askdata sqlwork front gateway usercenter manage audit；usercenter 还可写 uc）
+.\scripts\docker-deploy.cmd -Build askdata
+.\scripts\docker-deploy.cmd -Build sqlwork askdata
 
 # 首次 / 大刷新
 .\scripts\docker-deploy.cmd -Full
@@ -365,7 +423,7 @@ cd E:\workspace\database-client
 - 不 `down` 已有栈，只 `up -d` 保证起来  
 - 不杀本机端口（避免误杀 IDEA / 本机服务）  
 - 已有 `app.jar` 则不重新打包  
-- 已有 `dbc-*:0.1.0` 镜像则不 `--build`  
+- 已有 `dbc-*:0.1.0` 镜像则不 `--build`（含 `dbc-askdata:0.1.0`）  
 - 已有 mTLS 标记/证书则不重签  
 - 不自动清空 Postgres 数据  
 
@@ -374,8 +432,10 @@ cd E:\workspace\database-client
 | 参数 | 何时用 |
 | --- | --- |
 | （无参数） | 每天启动 / 停掉后再拉起 |
-| `-Build` | 改了后端/前端代码，要重新打 Jar 并重建镜像 |
-| `-RebuildImages` | Jar 已有，只强制 `compose --build` |
+| `-Build` | 全部重新 bootJar / npm 并 `compose --build` |
+| `-Build <短名>` | **只**打包/重建指定模块，短名对照见 **§0** 表（例：`-Build askdata`、`-Build sqlwork front`） |
+| `-RebuildImages` | 不打 Jar，全部 `compose --build` |
+| `-RebuildImages <短名>` | 不打 Jar，只重建该镜像（短名同 §0） |
 | `-RenewMtls` | 证书有问题，强制重签 |
 | `-FreePorts` | 端口被本机进程占用，需要清掉 |
 | `-ResetPostgres` | PG 起不来，允许清空本地 PG 数据后重试 |
@@ -409,18 +469,19 @@ docker images
 #   eclipse-temurin:21.0.12_8-jre
 #   node:26.8.2-slim
 #   nginx:stable-alpine
+#   python:3.12-slim
 ```
 
 缺哪个就在有网时 `docker pull <镜像>`（完整清单见 §1.1）。
 
 ### 第二步：停掉本机冲突进程
 
-需空出端口：`5432`、`6379`、`8000`、`8001`、`9000`、`9200`、`8003`～`8008`、`8044`、`8048`、`8080`。
+需空出端口：`5432`、`6379`、`8000`、`8001`、`9000`、`9200`、`8003`～`8009`、`8044`、`8048`、`8080`。
 
 #### 2.1 若以前起过本仓库的 Compose，先停容器
 
 ```powershell
-cd e:\workspace\database-client
+cd e:\workspace\agent-project\database-client
 docker compose -f deploy/apps/docker-compose.yml down
 docker compose -f deploy/middleware/docker-compose.yml down
 ```
@@ -428,7 +489,7 @@ docker compose -f deploy/middleware/docker-compose.yml down
 #### 2.2 查看哪些端口仍被占用
 
 ```powershell
-$ports = 5432,6379,8000,8001,8003,8004,8005,8006,8007,8008,8044,8048,8080,9000,9200
+$ports = 5432,6379,8000,8001,8003,8004,8005,8006,8007,8008,8009,8044,8048,8080,9000,9200
 foreach ($p in $ports) {
   $owns = Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue |
     Select-Object -ExpandProperty OwningProcess -Unique
@@ -456,7 +517,7 @@ Get-NetTCPConnection -LocalPort 5432 -State Listen -ErrorAction SilentlyContinue
 一次清掉上述全部端口（**会强制结束监听这些端口的进程**，含本机 PostgreSQL / Redis / 旧 Nacos / IDEA 起的 Java 等）：
 
 ```powershell
-$ports = 5432,6379,8000,8001,8003,8004,8005,8006,8007,8008,8044,8048,8080,9000,9200
+$ports = 5432,6379,8000,8001,8003,8004,8005,8006,8007,8008,8009,8044,8048,8080,9000,9200
 foreach ($p in $ports) {
   Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue |
     Select-Object -ExpandProperty OwningProcess -Unique |
@@ -481,7 +542,7 @@ foreach ($p in $ports) {
 ### 第三步：初始化宿主机目录
 
 ```powershell
-cd e:\workspace\database-client
+cd e:\workspace\agent-project\database-client
 powershell -ExecutionPolicy Bypass -File .\scripts\init-docker-workspace.ps1
 ```
 
@@ -519,13 +580,13 @@ Nacos 控制台：`http://127.0.0.1:8001/nacos`
 > 详情见上文 **§6**。这里直接复制命令。
 
 ```powershell
-cd E:\workspace\database-client
+cd E:\workspace\agent-project\database-client
 
 # 删旧证书
 Remove-Item -Force "E:\app\docker\workspace\dbc\secrets\mtls\server.p12" -ErrorAction SilentlyContinue
 Remove-Item -Force "E:\app\docker\workspace\dbc\secrets\mtls\server.pass" -ErrorAction SilentlyContinue
-Remove-Item -Force "E:\workspace\database-client\secrets\mtls\server.p12" -ErrorAction SilentlyContinue
-Remove-Item -Force "E:\workspace\database-client\secrets\mtls\server.pass" -ErrorAction SilentlyContinue
+Remove-Item -Force "E:\workspace\agent-project\database-client\secrets\mtls\server.p12" -ErrorAction SilentlyContinue
+Remove-Item -Force "E:\workspace\agent-project\database-client\secrets\mtls\server.pass" -ErrorAction SilentlyContinue
 
 # 先起 usercenter，生成新证书（等 1～2 分钟）
 docker compose -f deploy/apps/docker-compose.yml up -d --build dbc-usercenter
@@ -538,12 +599,12 @@ dir E:\app\docker\workspace\dbc\secrets\mtls\
 ### 第七步：启动其余前后端
 
 ```powershell
-cd E:\workspace\database-client
+cd E:\workspace\agent-project\database-client
 docker compose -f deploy/apps/docker-compose.yml up -d --build
 docker compose -f deploy/apps/docker-compose.yml ps
 
 # 同步证书回仓库，方便以后 IDEA 本机跑
-robocopy "E:\app\docker\workspace\dbc\secrets" "E:\workspace\database-client\secrets" /E
+robocopy "E:\app\docker\workspace\dbc\secrets" "E:\workspace\agent-project\database-client\secrets" /E
 ```
 
 ### 第八步：验证
@@ -571,7 +632,9 @@ docker compose -f deploy/middleware/docker-compose.yml down
 
 ```text
 每天启动：  .\scripts\docker-deploy.cmd
-改代码：    .\scripts\docker-deploy.cmd -Build
+改一个模块：.\scripts\docker-deploy.cmd -Build askdata
+           （短名：askdata sqlwork front gateway usercenter/uc manage audit）
+改全部代码：.\scripts\docker-deploy.cmd -Build
 首次/大刷： .\scripts\docker-deploy.cmd -Full
 停止：      .\scripts\docker-stop.cmd
 ```

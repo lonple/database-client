@@ -235,6 +235,7 @@ const showSider = computed(
 
 const selected = computed(() => {
   if (route.name === 'system-apps') return 'system-apps'
+  if (route.name === 'system-app-config') return 'system-app-config'
   if (route.name === 'audit-biz-logs') return 'audit-biz-logs'
   if (route.name === 'audit-sql-logs') return 'audit-sql-logs'
   if (route.name === 'audit-askdata-monitor') return 'audit-askdata-monitor'

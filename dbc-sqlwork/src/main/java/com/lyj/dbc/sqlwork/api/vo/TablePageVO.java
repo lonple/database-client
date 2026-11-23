@@ -28,5 +28,11 @@ public class TablePageVO {
         private String schema;
         private String name;
         private String objectType;
+        /** 表注释 / 中文说明，可能为空 */
+        private String comment;
+
+        public TableItemVO(String schema, String name, String objectType) {
+            this(schema, name, objectType, null);
+        }
     }
 }

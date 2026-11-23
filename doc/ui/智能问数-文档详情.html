@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DBC · 文档详情</title>
+  <link rel="stylesheet" href="common.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="logo">DBC</div>
+      <nav class="nav-l1-group" aria-label="一级菜单">
+        <a class="nav-l1-item" href="index.html">首页</a>
+        <a class="nav-l1-item" href="SQL工作台.html">SQL 工作台</a>
+        <a class="nav-l1-item active" href="智能问数.html">智能问数</a>
+        <a class="nav-l1-item" href="工作空间.html">资产管理</a>
+        <a class="nav-l1-item" href="用户管理.html">用户中心</a>
+      </nav>
+      <div class="header-right">
+        <span>alice</span>
+        <a class="btn" href="登录.html">退出</a>
+      </div>
+    </header>
+    <div class="body">
+      <aside class="sidebar">
+        <div class="side-label">智能问数</div>
+        <a class="side-item" href="智能问数.html">问数空间</a>
+        <a class="side-item" href="智能问数.html">知识库</a>
+        <a class="side-item active" href="智能问数-文档管理.html">文档管理</a>
+      </aside>
+      <main class="main">
+        <div class="breadcrumb"><a href="智能问数-文档管理.html">文档管理</a> / 订单口径说明</div>
+        <div class="page-title">
+          <h2>订单口径说明</h2>
+          <div>
+            <button class="btn" type="button">下载原件</button>
+            <button class="btn" type="button" onclick="document.getElementById('replaceModal').classList.add('show')">替换源文件</button>
+            <button class="btn btn-primary" type="button" onclick="document.getElementById('importModal').classList.add('show')">导入知识库</button>
+            <button class="btn" type="button" onclick="document.getElementById('delModal').classList.add('show')">删除</button>
+          </div>
+        </div>
+        <p class="note">转换成功 · docx · 文档管线。嵌图仅引用，不读图中文字。正文已被人工修改过，与最近一次自动转换可能不一致。</p>
+        <div class="field">
+          <label>名称 *</label>
+          <input class="input" value="订单口径说明" />
+        </div>
+        <div class="field">
+          <label>Markdown</label>
+          <textarea class="textarea" style="height:280px"># 订单口径
+
+已支付订单金额不含运费。
+
+| 状态 | 含义 |
+| --- | --- |
+| PAID | 已支付 |
+</textarea>
+        </div>
+        <button class="btn btn-primary" type="button">保存正文</button>
+        <p class="note">导入只创建知识草稿，不自动发布。详设 <a href="../设计/详细设计/10-智能问数文档管理详细设计.md">10</a>。</p>
+      </main>
+    </div>
+  </div>
+  <div class="modal-mask" id="replaceModal">
+    <div class="modal" style="width:440px;background:#fff;padding:20px;border-radius:8px">
+      <h3>替换源文件</h3>
+      <p>正文已改过，新转换结果会覆盖当前 Markdown。确认继续？</p>
+      <input class="input" type="file" />
+      <div style="text-align:right;margin-top:16px">
+        <button class="btn" type="button" onclick="document.getElementById('replaceModal').classList.remove('show')">取消</button>
+        <button class="btn btn-primary" type="button" onclick="document.getElementById('replaceModal').classList.remove('show')">确认替换</button>
+      </div>
+    </div>
+  </div>
+  <div class="modal-mask" id="importModal">
+    <div class="modal" style="width:440px;background:#fff;padding:20px;border-radius:8px">
+      <h3>导入知识库草稿</h3>
+      <div class="field"><label>知识名称 *</label><input class="input" value="订单口径说明" /></div>
+      <div class="field"><label>简介 *</label><textarea class="textarea">订单金额与状态口径。</textarea></div>
+      <div class="field"><label>分类 *</label>
+        <select class="select"><option>通用知识</option><option>元数据</option></select>
+      </div>
+      <div style="text-align:right;margin-top:16px">
+        <button class="btn" type="button" onclick="document.getElementById('importModal').classList.remove('show')">取消</button>
+        <button class="btn btn-primary" type="button" onclick="document.getElementById('importModal').classList.remove('show')">创建草稿</button>
+      </div>
+    </div>
+  </div>
+  <div class="modal-mask" id="delModal">
+    <div class="modal" style="width:400px;background:#fff;padding:20px;border-radius:8px">
+      <h3>确认删除</h3>
+      <p>删除后列表不再展示。已导入的知识草稿不会删除。</p>
+      <div style="text-align:right;margin-top:16px">
+        <button class="btn" type="button" onclick="document.getElementById('delModal').classList.remove('show')">取消</button>
+        <a class="btn btn-primary" href="智能问数-文档管理.html">确认删除</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

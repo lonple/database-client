@@ -27,6 +27,7 @@ public class SecurityConfig {
                                                    UserContextFilter userContextFilter,
                                                    DomainContextFilter domainContextFilter,
                                                    ObjectMapper objectMapper) throws Exception {
+        // 浏览器 access 走 Bearer，业务无 Cookie 会话 CSRF；见架构 §3.1
         http.csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
