@@ -2,16 +2,14 @@
 
 > 已由 `gen_cases.py` 按 company_eval_v2 实库**元数据驱动**生成，见 [`cases/`](./cases/)。  
 > **全表覆盖 + 归一化骨架≤2**：骨架按归一化 SQL 计（字面量/数字/DATE→占位），同 category 内 max≤2；`company` 约 200 表均须出现在有 `expect_sql` 的用例中。  
-> 当前用例集已去掉模板治理（BOARD / 补全 / 拒答）。治理只保留手写 `cases/07_complex_govern.jsonl`（10 条）。下表仍是 `gen_cases.py` 的生成配额；再跑生成会把模板治理写回来。
+> 当前用例集已去掉模板治理（BOARD / 补全 / 拒答）。治理只保留手写 `cases/07_complex_govern.jsonl`（10 条）。生成器和导入器均不再写入 `MULTI_GOVERN_FILTER` / `MULTI_GOVERN_AGG`。
 
 | category | 目标 | 实绩 | govern 划分 |
 |----------|------|------|-------------|
 | SINGLE_FILTER | 100 | 100（+脏口径样例） | — |
 | MULTI_JOIN_FILTER | 100 | 100 | — |
-| MULTI_GOVERN_FILTER | 100 | 100 | BOARD 50 / HITL_SUPPLEMENT 30 / HITL_NO_SUPPLEMENT 20 |
 | SINGLE_AGG | 100 | 100 | — |
 | MULTI_JOIN_AGG | 100 | 100 | — |
-| MULTI_GOVERN_AGG | 100 | 100 | BOARD 50 / HITL_SUPPLEMENT 30 / HITL_NO_SUPPLEMENT 20 |
 
 ## JSONL 字段（每行一用例）
 
@@ -27,33 +25,5 @@
   "compare_spec": {"columns": ["emp_no", "hire_date"]},
   "hitl_replies": null,
   "tags": ["hr", "point_lookup"]
-}
-```
-
-HITL 补全例：
-
-```json
-{
-  "case_key": "TPL_GOV_H_001",
-  "category": "MULTI_GOVERN_AGG",
-  "govern_subtype": "HITL_SUPPLEMENT",
-  "question": "帮我看下活跃客户上季度贡献",
-  "hitl_replies": ["活跃指 status=active，且上季度有非 cancelled、非 draft 的订单；贡献用订单 total_amount 合计"],
-  "compare_mode": "key_set",
-  "compare_spec": {"key_columns": ["customer_code"], "value_columns": ["amt"], "numeric_tolerance": 0.01}
-}
-```
-
-不补全例：
-
-```json
-{
-  "case_key": "TPL_GOV_R_001",
-  "category": "MULTI_GOVERN_FILTER",
-  "govern_subtype": "HITL_NO_SUPPLEMENT",
-  "question": "把有问题的订单都查出来给我",
-  "expect_sql": null,
-  "compare_mode": "empty_or_refuse",
-  "hitl_replies": null
 }
 ```

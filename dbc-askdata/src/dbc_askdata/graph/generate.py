@@ -714,7 +714,8 @@ async def run_generate_graph(
                 await progress(f"库通用知识已加载：{kg.get('title') or '未命名'}")
             else:
                 s.pop("db_general_knowledge", None)
-                await progress("未命中库通用知识（将仅依赖目录与表知识）")
+                reason = kg_raw.get("reason") if isinstance(kg_raw, dict) else None
+                await progress(f"未命中库通用知识：{reason or '请检查发布状态与检索配置'}（将仅依赖目录与表知识）")
             await spans.record(
                 session,
                 phase="generate",

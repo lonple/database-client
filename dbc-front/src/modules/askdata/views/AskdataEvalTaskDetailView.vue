@@ -368,8 +368,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   MULTI_JOIN_FILTER: '多表关联过滤',
   SINGLE_AGG: '单表聚合',
   MULTI_JOIN_AGG: '多表关联聚合',
-  MULTI_GOVERN_FILTER: '治理过滤',
-  MULTI_GOVERN_AGG: '治理聚合',
+  COMPLEX_GOVERN: '复杂治理',
 }
 
 const categoryColumns = [

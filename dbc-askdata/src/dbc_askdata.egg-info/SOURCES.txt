@@ -52,6 +52,8 @@ src/dbc_askdata/documents/validate.py
 src/dbc_askdata/documents/worker.py
 src/dbc_askdata/eval/__init__.py
 src/dbc_askdata/eval/case_executor.py
+src/dbc_askdata/eval/categories.py
+src/dbc_askdata/eval/cleanup.py
 src/dbc_askdata/eval/comparer.py
 src/dbc_askdata/eval/expect_sql.py
 src/dbc_askdata/eval/hitl_policy.py
@@ -143,14 +145,17 @@ tests/test_column_profile.py
 tests/test_condition_match.py
 tests/test_context_compress.py
 tests/test_document_validate.py
+tests/test_downstream_auth_failures.py
 tests/test_eval_comparer.py
 tests/test_eval_metrics.py
+tests/test_eval_retired_categories.py
 tests/test_eval_sql_alias.py
 tests/test_eval_table_select.py
 tests/test_general_knowledge_query.py
 tests/test_hitl_promote_merge.py
 tests/test_hitl_prompt.py
 tests/test_hitl_ui.py
+tests/test_knowledge_loading.py
 tests/test_parse_workflow_draft.py
 tests/test_prefetch_tables.py
 tests/test_prompt_version.py

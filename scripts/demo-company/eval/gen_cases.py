@@ -30,6 +30,7 @@ OUT = Path(__file__).resolve().parent / "cases"
 META_CATALOG = Path(__file__).resolve().parents[1] / "metadata" / "extended_catalog.json"
 SEED = 20261015
 TEMPLATE_CODE = "company_eval_v2"
+REMOVED_CATEGORIES = frozenset({"MULTI_GOVERN_FILTER", "MULTI_GOVERN_AGG"})
 
 _RE_STR = re.compile(r"'[^']*'")
 _RE_NUM = re.compile(r"\b\d+(\.\d+)?\b")
@@ -554,10 +555,9 @@ def skeleton_tag_stats(cases: list[dict]) -> tuple[Counter, int]:
 
 
 def build_cases(meta, rng: random.Random) -> list[dict]:
-    from gen_cases_build import append_dirty_sample, append_hitl_and_refuse, build_core_cases
+    from gen_cases_build import append_dirty_sample, build_core_cases
 
     out = build_core_cases(meta, rng)
-    append_hitl_and_refuse(out, meta, rng)
     append_dirty_sample(out, meta, rng)
     return _finalize_questions(out)
 
@@ -585,13 +585,13 @@ def write_cases(cases: list[dict]) -> None:
         "MULTI_JOIN_FILTER": "02_multi_join_filter.jsonl",
         "SINGLE_AGG": "03_single_agg.jsonl",
         "MULTI_JOIN_AGG": "04_multi_join_agg.jsonl",
-        "MULTI_GOVERN_FILTER": "05_multi_govern_filter.jsonl",
-        "MULTI_GOVERN_AGG": "06_multi_govern_agg.jsonl",
     }
     buckets: dict[str, list] = {k: [] for k in grouping}
     extras: list[dict] = []
     for c in cases:
         cat = c["category"]
+        if cat in REMOVED_CATEGORIES:
+            continue
         if cat in buckets:
             buckets[cat].append(c)
         else:
@@ -620,7 +620,9 @@ def load_cases_from_disk() -> list[dict]:
             continue
         for line in p.read_text(encoding="utf-8").splitlines():
             if line.strip():
-                cases.append(json.loads(line))
+                case = json.loads(line)
+                if case.get("category") not in REMOVED_CATEGORIES:
+                    cases.append(case)
     return cases
 
 
@@ -648,7 +650,7 @@ async def import_to_db(conn: asyncpg.Connection, cases: list[dict]) -> tuple[int
         question = str(c.get("question") or "").strip()
         compare_mode = str(c.get("compare_mode") or "").strip()
         category = str(c.get("category") or "").strip()
-        if not case_key or not question or not compare_mode or not category:
+        if not case_key or not question or not compare_mode or not category or category in REMOVED_CATEGORIES:
             skipped += 1
             continue
         spec = c.get("compare_spec") if isinstance(c.get("compare_spec"), dict) else {}
@@ -780,25 +782,14 @@ def gate_cases(cases: list[dict], all_tables: set[str]) -> None:
         "MULTI_JOIN_FILTER": (100, 100),
         "SINGLE_AGG": (100, 100),
         "MULTI_JOIN_AGG": (100, 100),
-        "MULTI_GOVERN_FILTER": (100, 100),
-        "MULTI_GOVERN_AGG": (100, 100),
     }
     for cat, (lo, hi) in expect.items():
         n = by_cat.get(cat, 0)
         if not (lo <= n <= hi):
             raise SystemExit(f"quota fail {cat}={n} expected {lo}..{hi}")
 
-    for cat, subtype, need in [
-        ("MULTI_GOVERN_FILTER", "BOARD", 50),
-        ("MULTI_GOVERN_FILTER", "HITL_SUPPLEMENT", 30),
-        ("MULTI_GOVERN_FILTER", "HITL_NO_SUPPLEMENT", 20),
-        ("MULTI_GOVERN_AGG", "BOARD", 50),
-        ("MULTI_GOVERN_AGG", "HITL_SUPPLEMENT", 30),
-        ("MULTI_GOVERN_AGG", "HITL_NO_SUPPLEMENT", 20),
-    ]:
-        n = sum(1 for c in cases if c["category"] == cat and c.get("govern_subtype") == subtype)
-        if n != need:
-            raise SystemExit(f"govern quota fail {cat}/{subtype}={n} expected {need}")
+    if any(c["category"] in REMOVED_CATEGORIES for c in cases):
+        raise SystemExit("retired evaluation categories are not allowed")
 
 
 async def main() -> None:

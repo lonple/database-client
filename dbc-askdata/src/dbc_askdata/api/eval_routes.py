@@ -22,6 +22,7 @@ from dbc_askdata.config import Settings, get_settings
 from dbc_askdata.db.models import AskProject
 from dbc_askdata.db.scope import find_connection, normalize_scope
 from dbc_askdata.db.session import get_session
+from dbc_askdata.eval.categories import REMOVED_CATEGORIES
 from dbc_askdata.eval.metrics import aggregate_metrics
 from dbc_askdata.eval.models import EvalCase, EvalProject, EvalTask, EvalTaskCase, EvalTemplate
 from dbc_askdata.eval.runner import (
@@ -313,6 +314,7 @@ async def list_project_cases(
     project = await _get_owned_project(session, project_id, user)
     cond = [
         EvalCase.enabled.is_(True),
+        EvalCase.category.not_in(REMOVED_CATEGORIES),
         or_(
             and_(EvalCase.scope == "TEMPLATE", EvalCase.template_id == project.template_id),
             and_(EvalCase.scope == "PROJECT_CUSTOM", EvalCase.project_id == project.id),
@@ -351,6 +353,8 @@ async def create_custom_case(
 ):
     project = await _get_owned_project(session, project_id, user)
     case_key = (body.case_key or f"CUSTOM_{project.id}_{uuid.uuid4().hex[:10]}").strip()
+    if body.category.strip() in REMOVED_CATEGORIES:
+        raise HTTPException(status_code=400, detail="该测评分类已下线")
     exists = (
         await session.execute(select(EvalCase.id).where(EvalCase.case_key == case_key))
     ).scalar_one_or_none()
@@ -392,6 +396,11 @@ async def patch_case(
     if project is None or project.owner_user_id != user.user_id:
         raise HTTPException(status_code=403, detail="无权限")
     data = body.model_dump(exclude_unset=True, by_alias=False)
+    if "category" in data:
+        category = (data["category"] or "").strip()
+        if not category or category in REMOVED_CATEGORIES:
+            raise HTTPException(status_code=400, detail="测评分类无效或已下线")
+        data["category"] = category
     mapping = {
         "expect_sql": "expect_sql",
         "compare_mode": "compare_mode",
@@ -444,7 +453,7 @@ async def create_task(
             (c.scope == "TEMPLATE" and c.template_id == project.template_id)
             or (c.scope == "PROJECT_CUSTOM" and c.project_id == project.id)
         )
-        if not ok or not c.enabled:
+        if not ok or not c.enabled or c.category in REMOVED_CATEGORIES:
             raise HTTPException(status_code=400, detail=f"用例不可用于本工程: {c.case_key}")
 
     name = (body.name or f"测评任务 {datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}").strip()[:128]

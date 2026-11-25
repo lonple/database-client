@@ -7,6 +7,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -57,12 +59,19 @@ public class AdaGraphClient {
             body.put("maxDepth", maxDepth);
             body.put("limit", limit);
             String json = objectMapper.writeValueAsString(body);
-            HttpRequest req = HttpRequest.newBuilder()
+            HttpRequest.Builder builder = HttpRequest.newBuilder()
                     .uri(URI.create(base + "/api/graphs/" + graphId + "/table-neighbors"))
                     .timeout(Duration.ofMillis(Math.max(1000, properties.getTimeoutMs())))
                     .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(json))
-                    .build();
+                    .POST(HttpRequest.BodyPublishers.ofString(json));
+            // 图谱服务也校验用户身份，须透传当前请求的凭据。
+            if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attrs) {
+                String authorization = attrs.getRequest().getHeader("Authorization");
+                if (StringUtils.hasText(authorization)) {
+                    builder.header("Authorization", authorization);
+                }
+            }
+            HttpRequest req = builder.build();
             HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
             if (resp.statusCode() >= 400) {
                 log.warn("ada-graph table-neighbors HTTP {} body={}", resp.statusCode(),

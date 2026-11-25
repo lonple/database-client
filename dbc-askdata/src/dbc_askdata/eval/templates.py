@@ -8,6 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dbc_askdata.config import Settings
+from dbc_askdata.eval.categories import REMOVED_CATEGORIES
+from dbc_askdata.eval.cleanup import purge_removed_categories
 from dbc_askdata.eval.models import EvalCase, EvalTemplate
 
 log = logging.getLogger(__name__)
@@ -38,7 +40,7 @@ async def ensure_builtin_template(session: AsyncSession) -> EvalTemplate:
             code=TEMPLATE_CODE,
             name=TEMPLATE_NAME,
             version=TEMPLATE_VERSION,
-            remark="演示公司 company_eval_v2；治理 BOARD/HITL_SUPPLEMENT/HITL_NO_SUPPLEMENT",
+            remark="演示公司 company_eval_v2；单表、多表关联及复杂治理测评",
             enabled=True,
         )
         session.add(row)
@@ -79,7 +81,7 @@ async def import_template_cases_from_jsonl(
             question = str(raw.get("question") or "").strip()
             compare_mode = str(raw.get("compare_mode") or "").strip()
             category = str(raw.get("category") or "").strip()
-            if not case_key or not question or not compare_mode or not category:
+            if not case_key or not question or not compare_mode or not category or category in REMOVED_CATEGORIES:
                 skipped += 1
                 continue
             spec = raw.get("compare_spec") if "compare_spec" in raw else raw.get("compare_spec_json")
@@ -138,6 +140,10 @@ async def import_template_cases_from_jsonl(
 
 
 async def seed_eval_templates(session: AsyncSession, settings: Settings) -> None:
+    result = await purge_removed_categories(session)
+    await session.commit()
+    if result["cases"] or result["taskCases"]:
+        log.info("已清理下线测评分类: %s", result)
     template = await ensure_builtin_template(session)
     cases_dir = resolve_cases_dir(settings)
     if cases_dir is None:

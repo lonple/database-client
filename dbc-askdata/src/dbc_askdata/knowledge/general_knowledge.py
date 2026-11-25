@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -74,7 +75,7 @@ def format_db_general_knowledge_for_prompt(kg: dict[str, Any] | None) -> dict[st
         "title": kg.get("title"),
         "content": content,
         "instruction": (
-            "以下为当前库/模式的通用业务知识（初始化检索命中一条）。"
+            "以下为当前库/模式绑定的通用业务知识原文。"
             "生成与解释 SQL 时须参考其中业务口径、术语与常用关联；不得与之明显冲突。"
         ),
     }
@@ -150,15 +151,21 @@ async def _search_general_slice(
     from dbc_askdata.redis.client import get_redis
 
     product = (settings.ada_memory_product_name or "dbc产品").strip() or "dbc产品"
+    async with SessionLocal() as session:
+        document_ids = await list_general_document_ids(
+            session, connection_id=connection_id, database=database, schema=schema
+        )
     redis = get_redis()
     cache_parts = (
         "kg",
         "general",
+        "v2",
         product,
         str(connection_id or ""),
         str(database or ""),
         str(schema or ""),
         query,
+        ",".join(str(i) for i in sorted(document_ids)),
     )
     if redis is None:
         log.info("%s跳过 Redis（未连接）query=%s", log_label, query)
@@ -167,7 +174,7 @@ async def _search_general_slice(
         if isinstance(cached, dict):
             if cached.get("__miss__"):
                 log.info("%s命中 Redis 空缓存 query=%s", log_label, query)
-                return {"__cache__": "hit_miss", "query": query}
+                return {"__cache__": "hit_miss", "query": query, "reason": cached.get("reason")}
             if cached.get("body") or cached.get("summary"):
                 log.info("%s命中 Redis 缓存 query=%s refId=%s", log_label, query, cached.get("refId"))
                 out = dict(cached)
@@ -182,23 +189,34 @@ async def _search_general_slice(
             top_k=1,
             kinds="SLICE",
             category_code="GENERAL",
+            document_ids=document_ids or None,
             rewrite=False,
         )
     except Exception:
         log.error("%s检索失败 query=%s", log_label, query, exc_info=True)
-        return None
+        raise
 
     units_raw = result.get("units") if isinstance(result, dict) else None
     if not isinstance(units_raw, list) or not units_raw:
         log.info("%s未命中 query=%s", log_label, query)
+        reason = "请确认通用知识已发布且存在已发布切片"
+        for document_id in document_ids:
+            document = await client.get_document(document_id)
+            published = [s for s in document.get("slices", []) if s.get("status") == "PUBLISHED"]
+            if document.get("status") != "PUBLISHED" and not published:
+                reason = f"绑定知识《{document.get('title') or document_id}》尚未发布或没有已发布切片"
+                break
+            if not published:
+                reason = f"绑定知识《{document.get('title') or document_id}》没有已发布切片"
+                break
         if redis is not None:
             # 空结果也短缓存，避免同 scope 反复打 knowledge
             await redis.set_json(
                 *cache_parts,
-                value={"__miss__": True, "query": query},
-                ttl_seconds=min(300, max(60, int(settings.tool_cache_ttl_seconds))),
+                value={"__miss__": True, "query": query, "reason": reason},
+                ttl_seconds=min(30, max(1, int(settings.tool_cache_ttl_seconds))),
             )
-        return {"__cache__": "set_miss", "query": query}
+        return {"__cache__": "set_miss", "query": query, "reason": reason}
 
     u = units_raw[0]
     if not isinstance(u, dict):
@@ -239,21 +257,47 @@ async def search_db_general_knowledge(
     database: str | None,
     schema: str | None,
 ) -> dict[str, Any] | None:
-    """
-    初始化检索库通用知识：query=「模式名 库通用知识」，只取 1 条切片正文。
-    失败或未命中返回 None，不阻断主流程。
+    """直接读取当前作用域绑定的已发布通用知识原文，不依赖切片或向量索引。
+
+    每次读取当前原文，不复用切片/正文缓存，使维护后的内容及时生效。
     """
     query = build_db_general_query(database=database, schema=schema)
     if not query:
         return None
-    return await _search_general_slice(
-        settings,
-        query=query,
-        log_label="库通用知识",
-        connection_id=connection_id,
-        database=database,
-        schema=schema,
-    )
+    async with SessionLocal() as session:
+        document_ids = await list_general_document_ids(
+            session, connection_id=connection_id, database=database, schema=schema
+        )
+    client = AdaMemoryClient(settings)
+    reason = "当前连接、库和模式尚未绑定通用知识原文"
+    for document_id in document_ids:
+        try:
+            document = await client.get_document(document_id)
+        except HTTPException as ex:
+            if ex.status_code != 404:
+                raise
+            reason = f"绑定的通用知识原文不存在（ID={document_id}）"
+            continue
+        title = document.get("title") or str(document_id)
+        if document.get("status") != "PUBLISHED":
+            reason = f"绑定的通用知识原文《{title}》尚未发布"
+            continue
+        body = (document.get("body") or "").strip()
+        if not body:
+            reason = f"绑定的通用知识原文《{title}》正文为空"
+            continue
+        log.info("库通用知识原文已加载 query=%s documentId=%s", query, document_id)
+        return {
+            "query": query,
+            "kind": "DOCUMENT",
+            "refId": document_id,
+            "documentId": document_id,
+            "title": title,
+            "summary": document.get("summary"),
+            "body": body,
+            "__cache__": "disabled",
+        }
+    return {"query": query, "reason": reason, "__cache__": "set_miss"}
 
 
 async def search_catalog_directory_knowledge(

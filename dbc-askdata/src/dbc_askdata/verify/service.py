@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import sqlglot
+from fastapi import HTTPException
 from sqlglot import exp
 
 from dbc_askdata.clients.sqlwork import SqlworkClient
@@ -173,7 +174,10 @@ async def explain_check(
             keep_dialect_sql or body_sql,
             explain_rows=rows_stats,
         )
-    except Exception:
+    except Exception as first:
+        if isinstance(first, HTTPException) and first.status_code in (401, 403):
+            # 身份/权限错误与 SQL 无关，交给上层处理，禁止回退或让模型重写。
+            raise
         log.warning("EXPLAIN FORMAT JSON 失败，回退文本 EXPLAIN", exc_info=True)
         try:
             data = await sqlwork.execute(
@@ -192,6 +196,8 @@ async def explain_check(
                 explain_rows=rows_stats,
             )
         except Exception as ex:
+            if isinstance(ex, HTTPException) and ex.status_code in (401, 403):
+                raise
             log.warning("EXPLAIN 校验失败", exc_info=True)
             detail = getattr(ex, "detail", None)
             msg = detail if isinstance(detail, str) and detail.strip() else str(ex)

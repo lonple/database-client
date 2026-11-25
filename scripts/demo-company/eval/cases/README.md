@@ -27,7 +27,11 @@
 期望 SQL 已对本地 `company` 库执行校验。  
 **表覆盖**：`company` schema 全部约 200 张表均至少出现在 1 条有 `expect_sql` 的用例中。
 
-模板治理里的看板、补全、拒答已从用例集删除（库内 `TPL_GOV_*` 已删除）。再跑 `gen_cases.py` 会按配额把这三类重新写回 `05` / `06` 并重新启用。
+`MULTI_GOVERN_FILTER`、`MULTI_GOVERN_AGG` 已下线，生成器和导入器均不再写入这两类；保留 `COMPLEX_GOVERN`。服务启动时会清理旧用例及对应任务快照，并重算受影响任务指标。也可手动执行：
+
+```powershell
+.\dbc-askdata\.venv\Scripts\python.exe .\dbc-askdata\scripts\purge_retired_eval_categories.py --dsn postgresql+asyncpg://postgres:root@127.0.0.1:5432/postgres
+```
 
 **出题硬约束**（见 `phrasing-guide.md`）：
 - 题面 / WHERE 过滤禁止内部自增 id、「主键 N」；无单号的事实表从关联主数据（工号、客户编码等）切入。

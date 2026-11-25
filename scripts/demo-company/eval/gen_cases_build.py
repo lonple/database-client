@@ -341,10 +341,8 @@ def build_core_cases(meta: SchemaMeta, rng: random.Random) -> list[dict]:
     _build_single_agg(out, meta, sa_pool, cov, rng)
     _build_multi_join_filter(out, meta, cov, rng)
     _build_multi_join_agg(out, meta, cov, rng)
-    _build_board_filter(out, meta, cov, rng)
-    _build_board_agg(out, meta, cov, rng)
 
-    # 配额满后若仍有未覆盖：强制塞进 MJ / BOARD
+    # 配额满后若仍有未覆盖：强制塞进 MJ
     _force_coverage(out, meta, cov, rng)
     return out
 

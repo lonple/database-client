@@ -263,8 +263,7 @@ const categoryOptions = [
   { value: 'MULTI_JOIN_FILTER', label: 'MULTI_JOIN_FILTER' },
   { value: 'SINGLE_AGG', label: 'SINGLE_AGG' },
   { value: 'MULTI_JOIN_AGG', label: 'MULTI_JOIN_AGG' },
-  { value: 'MULTI_GOVERN_FILTER', label: 'MULTI_GOVERN_FILTER' },
-  { value: 'MULTI_GOVERN_AGG', label: 'MULTI_GOVERN_AGG' },
+  { value: 'COMPLEX_GOVERN', label: 'COMPLEX_GOVERN' },
 ]
 
 const columns = [
